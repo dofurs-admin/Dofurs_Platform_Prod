@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: dofurs-single-page-website
+    runtime: node
+    plan: starter
+    numInstances: 2
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=1024

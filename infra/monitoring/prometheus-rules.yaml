@@ -1,0 +1,231 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: dofurs-platform-operational-rules
+  labels:
+    app: dofurs-single-page-website
+    team: ops
+spec:
+  groups:
+    # Assumes HTTP metrics include labels: route_group, route, status.
+    # If your exporter uses different labels (for example code instead of status),
+    # adjust selectors accordingly.
+    - name: dofurs-rate-limit-alerts
+      interval: 30s
+      rules:
+        - alert: DofursRateLimitSpike
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group=~"bookings|payments|admin",status="429"}[5m]))
+              /
+              sum(rate(http_requests_total{route_group=~"bookings|payments|admin"}[5m]))
+            ) > 0.05
+          for: 10m
+          labels:
+            severity: sev2
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Dofurs 429 rate spike"
+            description: "429 rate is above 5% for bookings/payments/admin in the last 5m window."
+
+    - name: dofurs-bookings-alerts
+      interval: 30s
+      rules:
+        - alert: DofursBookingCreateFailures
+          expr: |
+            sum(increase(http_requests_total{route="/api/bookings/create",status=~"5.."}[5m])) >= 20
+          for: 5m
+          labels:
+            severity: sev1
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Booking creation failures elevated"
+            description: "Booking create endpoint has at least 20 5xx responses over 5m."
+
+    - name: dofurs-webhook-alerts
+      interval: 30s
+      rules:
+        - alert: DofursWebhookHTTPFailures
+          expr: |
+            sum(increase(http_requests_total{route="/api/payments/webhook",status=~"5.."}[5m])) >= 5
+          for: 5m
+          labels:
+            severity: sev1
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Webhook HTTP failures detected"
+            description: "Payments webhook route is returning elevated 5xx responses."
+
+    - name: dofurs-slo-latency-alerts
+      interval: 30s
+      rules:
+        - alert: DofursBookingsP95LatencyBreach
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum(rate(http_server_request_duration_seconds_bucket{route_group="bookings"}[5m])) by (le)
+            ) > 1.2
+          for: 15m
+          labels:
+            severity: sev2
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Bookings p95 latency SLO breach"
+            description: "Bookings route group p95 latency is above 1.2s."
+
+        - alert: DofursPaymentsP95LatencyBreach
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum(rate(http_server_request_duration_seconds_bucket{route_group="payments"}[5m])) by (le)
+            ) > 1.5
+          for: 15m
+          labels:
+            severity: sev2
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Payments p95 latency SLO breach"
+            description: "Payments route group p95 latency is above 1.5s."
+
+        - alert: DofursAdminP95LatencyBreach
+          expr: |
+            histogram_quantile(
+              0.95,
+              sum(rate(http_server_request_duration_seconds_bucket{route_group="admin"}[5m])) by (le)
+            ) > 1.0
+          for: 15m
+          labels:
+            severity: sev3
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Admin p95 latency SLO breach"
+            description: "Admin route group p95 latency is above 1.0s."
+
+    - name: dofurs-slo-error-budget-burn
+      interval: 30s
+      rules:
+        - alert: DofursBookingsFastBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group="bookings",status=~"5.."}[1h]))
+              /
+              sum(rate(http_requests_total{route_group="bookings"}[1h]))
+            ) > (14 * 0.001)
+            and
+            (
+              sum(rate(http_requests_total{route_group="bookings",status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{route_group="bookings"}[5m]))
+            ) > (14 * 0.001)
+          for: 5m
+          labels:
+            severity: sev1
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Bookings error budget fast-burn"
+            description: "Bookings route group is burning error budget at >=14x over 1h/5m windows."
+
+        - alert: DofursBookingsSlowBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group="bookings",status=~"5.."}[6h]))
+              /
+              sum(rate(http_requests_total{route_group="bookings"}[6h]))
+            ) > (2 * 0.001)
+            and
+            (
+              sum(rate(http_requests_total{route_group="bookings",status=~"5.."}[30m]))
+              /
+              sum(rate(http_requests_total{route_group="bookings"}[30m]))
+            ) > (2 * 0.001)
+          for: 15m
+          labels:
+            severity: sev2
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Bookings error budget slow-burn"
+            description: "Bookings route group is burning error budget at >=2x over 6h/30m windows."
+
+        - alert: DofursPaymentsFastBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group="payments",status=~"5.."}[1h]))
+              /
+              sum(rate(http_requests_total{route_group="payments"}[1h]))
+            ) > (14 * 0.0005)
+            and
+            (
+              sum(rate(http_requests_total{route_group="payments",status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{route_group="payments"}[5m]))
+            ) > (14 * 0.0005)
+          for: 5m
+          labels:
+            severity: sev1
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Payments error budget fast-burn"
+            description: "Payments route group is burning error budget at >=14x over 1h/5m windows."
+
+        - alert: DofursPaymentsSlowBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group="payments",status=~"5.."}[6h]))
+              /
+              sum(rate(http_requests_total{route_group="payments"}[6h]))
+            ) > (2 * 0.0005)
+            and
+            (
+              sum(rate(http_requests_total{route_group="payments",status=~"5.."}[30m]))
+              /
+              sum(rate(http_requests_total{route_group="payments"}[30m]))
+            ) > (2 * 0.0005)
+          for: 15m
+          labels:
+            severity: sev2
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Payments error budget slow-burn"
+            description: "Payments route group is burning error budget at >=2x over 6h/30m windows."
+
+        - alert: DofursAdminFastBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group="admin",status=~"5.."}[1h]))
+              /
+              sum(rate(http_requests_total{route_group="admin"}[1h]))
+            ) > (14 * 0.005)
+            and
+            (
+              sum(rate(http_requests_total{route_group="admin",status=~"5.."}[5m]))
+              /
+              sum(rate(http_requests_total{route_group="admin"}[5m]))
+            ) > (14 * 0.005)
+          for: 5m
+          labels:
+            severity: sev1
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Admin error budget fast-burn"
+            description: "Admin route group is burning error budget at >=14x over 1h/5m windows."
+
+        - alert: DofursAdminSlowBurn
+          expr: |
+            (
+              sum(rate(http_requests_total{route_group="admin",status=~"5.."}[6h]))
+              /
+              sum(rate(http_requests_total{route_group="admin"}[6h]))
+            ) > (2 * 0.005)
+            and
+            (
+              sum(rate(http_requests_total{route_group="admin",status=~"5.."}[30m]))
+              /
+              sum(rate(http_requests_total{route_group="admin"}[30m]))
+            ) > (2 * 0.005)
+          for: 15m
+          labels:
+            severity: sev2
+            service: dofurs-single-page-website
+          annotations:
+            summary: "Admin error budget slow-burn"
+            description: "Admin route group is burning error budget at >=2x over 6h/30m windows."

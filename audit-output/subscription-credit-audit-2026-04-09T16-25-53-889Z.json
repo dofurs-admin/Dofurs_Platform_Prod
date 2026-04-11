@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-04-09T16:25:53.891Z",
+  "window": {
+    "from": "2026-03-10T16:25:52.702Z",
+    "to": "2026-04-09T16:25:52.702Z",
+    "from_days": 30
+  },
+  "scanned_platform_bookings": 4,
+  "suspicious_without_payment_tx_or_credit_link": 0,
+  "reserve_possible_count": 0,
+  "manual_review_count": 0,
+  "skipped_cancelled_count": 0,
+  "reviewed": []
+}

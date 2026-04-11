@@ -1,0 +1,139 @@
+{
+  "name": "dofurs-platform-operational-monitors",
+  "version": "1.0.0",
+  "service": "dofurs-single-page-website",
+  "monitors": [
+    {
+      "name": "[Dofurs] 429 Rate-Limit Spike (sev2)",
+      "type": "query alert",
+      "query": "sum(last_5m):sum:http.requests{service:dofurs-single-page-website,status:429,route_group:(bookings OR payments OR admin)} / sum:http.requests{service:dofurs-single-page-website,route_group:(bookings OR payments OR admin)} > 0.05",
+      "message": "429 rate exceeded 5% for bookings/payments/admin. Investigate client retry behavior and abusive traffic. Notify #ops-alerts. Escalate if >=15% for 10m.",
+      "tags": [
+        "service:dofurs-single-page-website",
+        "team:ops",
+        "severity:sev2",
+        "domain:rate-limit"
+      ],
+      "options": {
+        "evaluation_delay": 120,
+        "notify_no_data": false,
+        "new_group_delay": 60,
+        "thresholds": {
+          "critical": 0.05,
+          "warning": 0.03
+        },
+        "renotify_interval": 30
+      }
+    },
+    {
+      "name": "[Dofurs] Booking Create Failures (sev1)",
+      "type": "query alert",
+      "query": "sum(last_5m):sum:http.requests{service:dofurs-single-page-website,route:/api/bookings/create,status:(500 OR 502 OR 503 OR 504)} >= 20",
+      "message": "Booking create 5xx count is elevated. Core revenue flow is degraded. Page on-call and rollback if regression is confirmed. Notify #ops-critical.",
+      "tags": [
+        "service:dofurs-single-page-website",
+        "team:ops",
+        "severity:sev1",
+        "domain:bookings"
+      ],
+      "options": {
+        "evaluation_delay": 120,
+        "notify_no_data": false,
+        "new_group_delay": 60,
+        "thresholds": {
+          "critical": 20,
+          "warning": 10
+        },
+        "renotify_interval": 15
+      }
+    },
+    {
+      "name": "[Dofurs] Webhook HTTP Failures (sev1)",
+      "type": "query alert",
+      "query": "sum(last_5m):sum:http.requests{service:dofurs-single-page-website,route:/api/payments/webhook,status:(500 OR 502 OR 503 OR 504)} >= 5",
+      "message": "Webhook endpoint 5xx failures detected. Payment/subscription drift risk is high. Notify #ops-critical and validate signature + DB health.",
+      "tags": [
+        "service:dofurs-single-page-website",
+        "team:ops",
+        "severity:sev1",
+        "domain:payments"
+      ],
+      "options": {
+        "evaluation_delay": 120,
+        "notify_no_data": false,
+        "new_group_delay": 60,
+        "thresholds": {
+          "critical": 5,
+          "warning": 3
+        },
+        "renotify_interval": 15
+      }
+    },
+    {
+      "name": "[Dofurs] Bookings p95 Latency SLO (sev2)",
+      "type": "query alert",
+      "query": "avg(last_15m):p95:http.request.duration.ms{service:dofurs-single-page-website,route_group:bookings} > 1200",
+      "message": "Bookings p95 latency breached 1200ms target. Investigate DB latency, cold starts, and route hot paths. Notify #ops-alerts.",
+      "tags": [
+        "service:dofurs-single-page-website",
+        "team:ops",
+        "severity:sev2",
+        "domain:slo"
+      ],
+      "options": {
+        "evaluation_delay": 180,
+        "notify_no_data": false,
+        "new_group_delay": 60,
+        "thresholds": {
+          "critical": 1200,
+          "warning": 1000
+        },
+        "renotify_interval": 30
+      }
+    },
+    {
+      "name": "[Dofurs] Payments p95 Latency SLO (sev2)",
+      "type": "query alert",
+      "query": "avg(last_15m):p95:http.request.duration.ms{service:dofurs-single-page-website,route_group:payments} > 1500",
+      "message": "Payments p95 latency breached 1500ms target. Investigate provider API delays and DB contention. Notify #ops-alerts.",
+      "tags": [
+        "service:dofurs-single-page-website",
+        "team:ops",
+        "severity:sev2",
+        "domain:slo"
+      ],
+      "options": {
+        "evaluation_delay": 180,
+        "notify_no_data": false,
+        "new_group_delay": 60,
+        "thresholds": {
+          "critical": 1500,
+          "warning": 1300
+        },
+        "renotify_interval": 30
+      }
+    },
+    {
+      "name": "[Dofurs] Admin p95 Latency SLO (sev3)",
+      "type": "query alert",
+      "query": "avg(last_15m):p95:http.request.duration.ms{service:dofurs-single-page-website,route_group:admin} > 1000",
+      "message": "Admin p95 latency breached 1000ms target. Investigate admin API bottlenecks. Notify #ops-observability.",
+      "tags": [
+        "service:dofurs-single-page-website",
+        "team:ops",
+        "severity:sev3",
+        "domain:slo"
+      ],
+      "options": {
+        "evaluation_delay": 180,
+        "notify_no_data": false,
+        "new_group_delay": 60,
+        "thresholds": {
+          "critical": 1000,
+          "warning": 850
+        },
+        "renotify_interval": 60
+      }
+    }
+  ]
+}
