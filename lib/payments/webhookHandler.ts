@@ -360,6 +360,52 @@ async function processPaymentFailedEvent(supabase: SupabaseClient, event: Razorp
       .filter('metadata->>provider_order_id', 'eq', failedOrderId)
       .in('status', ['initiated', 'authorized']);
   }
+
+  // Defensive compensation: if a failed payment is already linked to a booking,
+  // cancel the booking and mark the transaction failed.
+  let linkedTx:
+    | {
+        id: string;
+        booking_id: number | null;
+      }
+    | null = null;
+
+  if (failedPaymentId) {
+    const { data } = await supabase
+      .from('payment_transactions')
+      .select('id, booking_id')
+      .eq('provider', 'razorpay')
+      .eq('provider_payment_id', failedPaymentId)
+      .maybeSingle<{ id: string; booking_id: number | null }>();
+    linkedTx = data ?? null;
+  } else if (failedOrderId) {
+    const { data } = await supabase
+      .from('payment_transactions')
+      .select('id, booking_id')
+      .eq('provider', 'razorpay')
+      .filter('metadata->>provider_order_id', 'eq', failedOrderId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string; booking_id: number | null }>();
+    linkedTx = data ?? null;
+  }
+
+  if (linkedTx?.booking_id) {
+    await supabase
+      .from('bookings')
+      .update({
+        booking_status: 'cancelled',
+        cancellation_reason: 'Payment failed in Razorpay',
+      })
+      .eq('id', linkedTx.booking_id)
+      .neq('booking_status', 'cancelled');
+
+    await supabase
+      .from('payment_transactions')
+      .update({ status: 'failed', metadata: { webhook_event: 'payment.failed', booking_auto_cancelled: true } })
+      .eq('id', linkedTx.id)
+      .neq('status', 'failed');
+  }
 }
 
 type BookingCheckoutMetadata = {

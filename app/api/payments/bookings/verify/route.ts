@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { ADMIN_ROLES, forbidden, requireApiRole } from '@/lib/auth/api-auth';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
-import { verifyPaymentSignature } from '@/lib/payments/razorpay';
+import { fetchRazorpayPayment, verifyPaymentSignature } from '@/lib/payments/razorpay';
 import { bookingCreateSchema } from '@/lib/flows/validation';
 import { createBooking } from '@/lib/bookings/service';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
@@ -118,6 +118,77 @@ export async function POST(request: Request) {
 
   if (!transaction) {
     return NextResponse.json({ error: 'Payment transaction not found.' }, { status: 404 });
+  }
+
+  if (transaction.status === 'failed') {
+    return NextResponse.json(
+      { error: 'Payment failed in Razorpay. Please try another payment method.' },
+      { status: 409 },
+    );
+  }
+
+  if (transaction.status === 'captured') {
+    return NextResponse.json(
+      { error: 'Payment has already been finalized. Please refresh your booking history.' },
+      { status: 409 },
+    );
+  }
+
+  if (!['initiated', 'authorized'].includes(transaction.status)) {
+    return NextResponse.json(
+      { error: `Payment transaction is in invalid state (${transaction.status}).` },
+      { status: 409 },
+    );
+  }
+
+  let razorpayPayment: Awaited<ReturnType<typeof fetchRazorpayPayment>>;
+  try {
+    razorpayPayment = await fetchRazorpayPayment(providerPaymentId);
+  } catch (paymentFetchError) {
+    console.error('[booking-verify] failed to fetch Razorpay payment status:', paymentFetchError);
+    return NextResponse.json(
+      { error: 'Unable to confirm payment status with Razorpay. Please try again shortly.' },
+      { status: 503 },
+    );
+  }
+
+  if (razorpayPayment.order_id !== providerOrderId) {
+    return NextResponse.json(
+      { error: 'Payment does not belong to this order. Please try another payment method.' },
+      { status: 409 },
+    );
+  }
+
+  if (razorpayPayment.status !== 'captured') {
+    const failedLikeStatus = razorpayPayment.status === 'failed' || razorpayPayment.status === 'cancelled';
+
+    if (failedLikeStatus) {
+      await admin
+        .from('payment_transactions')
+        .update({
+          status: 'failed',
+          provider_payment_id: providerPaymentId,
+          provider_signature: providerSignature,
+          metadata: {
+            ...(transaction.metadata ?? {}),
+            provider_order_id: providerOrderId,
+            verification_failed_at: new Date().toISOString(),
+            verification_error: `razorpay_status_${razorpayPayment.status ?? 'unknown'}`,
+          },
+        })
+        .eq('id', transaction.id)
+        .is('booking_id', null);
+
+      return NextResponse.json(
+        { error: 'Payment failed in Razorpay. Please try another payment method.' },
+        { status: 409 },
+      );
+    }
+
+    return NextResponse.json(
+      { error: 'Payment is not captured yet. Please wait a moment and retry verification.' },
+      { status: 409 },
+    );
   }
 
   const metadata = (transaction.metadata ?? {}) as CheckoutMetadata;

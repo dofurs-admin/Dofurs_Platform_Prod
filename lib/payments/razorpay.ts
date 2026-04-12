@@ -58,6 +58,17 @@ export async function createRazorpayOrder(input: RazorpayOrderRequest): Promise<
   return order as RazorpayOrderResponse;
 }
 
+export async function fetchRazorpayPayment(providerPaymentId: string) {
+  const rz = getRazorpayInstance();
+  return rz.payments.fetch(providerPaymentId) as Promise<{
+    id?: string;
+    order_id?: string;
+    status?: string;
+    amount?: number;
+    currency?: string;
+  }>;
+}
+
 export function verifyPaymentSignature(input: {
   providerOrderId: string;
   providerPaymentId: string;
