@@ -3202,42 +3202,6 @@ export default function PremiumUserBookingFlow() {
         )}
 
         <div ref={stepContainerRef} className="px-0.5 pt-2.5 max-[380px]:px-0 max-[380px]:pt-2 sm:px-1 sm:pt-1">
-          <div className="mb-2.5 mt-1 rounded-[18px] border-2 border-[#d7b79d] bg-[#fffaf6] p-3 shadow-[0_6px_16px_rgba(126,82,49,0.08)] max-[380px]:p-2.5 sm:mb-4 sm:mt-1.5 sm:rounded-2xl sm:p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8a6445] sm:text-xs sm:tracking-[0.12em]">Service availability pincode checker</p>
-            <div className="mt-1.5 flex flex-col gap-1.5 sm:mt-2 sm:flex-row sm:items-center sm:gap-2">
-              <input
-                type="text"
-                inputMode="numeric"
-                value={manualPincode}
-                onChange={(event) => setManualPincode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="Enter 6-digit pincode"
-                className="w-full rounded-lg border border-[#dcbfa8] bg-white px-2.5 py-1.5 text-[13px] focus:border-coral focus:outline-none sm:px-3 sm:py-2 sm:text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => void handleManualPincodeCheck()}
-                disabled={isCheckingAreaCoverage}
-                className="rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-4 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:px-5 sm:py-2 sm:text-sm"
-              >
-                {isCheckingAreaCoverage ? 'Checking...' : 'Check availability'}
-              </button>
-            </div>
-
-            {areaCoverageError ? <p className="mt-2 text-[13px] text-amber-700 sm:text-sm">{areaCoverageError}</p> : null}
-
-            {hasCheckedAreaCoverage && areaCoverageServices.length === 0 && !areaCoverageError ? (
-              <p className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-1.5 text-[13px] font-medium text-rose-700 sm:py-2 sm:text-sm">
-                Services are not available on your pincode. We are working to bring services to your area. Please try another pincode.
-              </p>
-            ) : null}
-
-            {hasCheckedAreaCoverage && areaCoverageServices.length > 0 && !areaCoverageError ? (
-              <p className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[13px] font-medium text-emerald-700 sm:py-2 sm:text-sm">
-                Good news. Services are available for this pincode.
-              </p>
-            ) : null}
-          </div>
-
           {isDetectingPincode && !hasCheckedAreaCoverage ? (
             <p className="text-[13px] font-medium text-[#8a6445] sm:text-sm">Detecting your location and checking serviceability...</p>
           ) : null}
