@@ -10,11 +10,9 @@ import { usePincodeLookup } from '@/lib/hooks/usePincodeLookup';
 import type {
   AccountStatus,
   AddressLabel,
-  CommunicationPreference,
   OwnerProfile,
   UserAddress,
   UserEmergencyContact,
-  UserPreferences,
 } from '@/lib/owner-profile/types';
 
 const LocationPinMap = dynamic(() => import('@/components/forms/LocationPinMap'), { ssr: false });
@@ -24,20 +22,11 @@ type Props = {
   initialProfile: OwnerProfile;
   initialAddresses: UserAddress[];
   initialContacts: UserEmergencyContact[];
-  initialPreferences: UserPreferences | null;
 };
 
 function normalizeAddressLabel(label: string): AddressLabel | null {
   if (label === 'Home' || label === 'Office' || label === 'Other') {
     return label;
-  }
-
-  return null;
-}
-
-function normalizeCommunicationPreference(value: string): CommunicationPreference | null {
-  if (value === 'call' || value === 'whatsapp' || value === 'app') {
-    return value;
   }
 
   return null;
@@ -64,7 +53,6 @@ export default function UserOwnerProfileClient({
   initialProfile,
   initialAddresses,
   initialContacts,
-  initialPreferences,
 }: Props) {
   const { showToast } = useToast();
   const [isPending, startTransition] = useTransition();
@@ -76,23 +64,12 @@ export default function UserOwnerProfileClient({
   const [profile, setProfile] = useState<OwnerProfile>(initialProfile);
   const [addresses, setAddresses] = useState<UserAddress[]>(initialAddresses);
   const [contacts, setContacts] = useState<UserEmergencyContact[]>(initialContacts);
-  const [preferences, setPreferences] = useState<UserPreferences | null>(initialPreferences);
 
   const [basicForm, setBasicForm] = useState({
     full_name: initialProfile.full_name,
     phone_number: extractIndianPhoneDigits(initialProfile.phone_number),
     date_of_birth: initialProfile.date_of_birth ?? '',
     gender: initialProfile.gender ?? '',
-  });
-
-  const [householdForm, setHouseholdForm] = useState({
-    total_pets: initialProfile.total_pets,
-    first_pet_owner: initialProfile.first_pet_owner,
-    years_of_pet_experience: initialProfile.years_of_pet_experience ?? '',
-    lives_in: initialProfile.lives_in ?? '',
-    has_other_pets: initialProfile.has_other_pets,
-    number_of_people_in_house: initialProfile.number_of_people_in_house ?? '',
-    has_children: initialProfile.has_children,
   });
 
   const [reputationForm] = useState({
@@ -139,13 +116,6 @@ export default function UserOwnerProfileClient({
     relationship: '',
     phone_number: '',
     is_primary: false,
-  });
-
-  const [preferencesForm, setPreferencesForm] = useState({
-    preferred_service_time: initialPreferences?.preferred_service_time ?? '',
-    preferred_groomer_gender: initialPreferences?.preferred_groomer_gender ?? '',
-    communication_preference: initialPreferences?.communication_preference ?? '',
-    special_instructions: initialPreferences?.special_instructions ?? '',
   });
 
   const trustIndicator = useMemo(
@@ -216,55 +186,6 @@ export default function UserOwnerProfileClient({
       } catch (error) {
         setProfile(previous);
         showToast(error instanceof Error ? error.message : 'Failed to update basic information.', 'error');
-      }
-    });
-  }
-
-  function saveHouseholdInfo() {
-    const totalPets = Number(householdForm.total_pets);
-    const years = householdForm.years_of_pet_experience === '' ? null : Number(householdForm.years_of_pet_experience);
-    const people =
-      householdForm.number_of_people_in_house === '' ? null : Number(householdForm.number_of_people_in_house);
-
-    if (!Number.isInteger(totalPets) || totalPets < 0) {
-      showToast('Total pets must be a valid number greater than or equal to 0.', 'error');
-      return;
-    }
-
-    if (years !== null && (!Number.isInteger(years) || years < 0)) {
-      showToast('Years of pet experience must be a valid number greater than or equal to 0.', 'error');
-      return;
-    }
-
-    if (people !== null && (!Number.isInteger(people) || people < 1)) {
-      showToast('People in house must be at least 1.', 'error');
-      return;
-    }
-
-    const payload = {
-      total_pets: totalPets,
-      first_pet_owner: householdForm.first_pet_owner,
-      years_of_pet_experience: years,
-      lives_in: householdForm.lives_in.trim() || null,
-      has_other_pets: householdForm.has_other_pets,
-      number_of_people_in_house: people,
-      has_children: householdForm.has_children,
-    };
-
-    const previous = profile;
-    setProfile((current) => ({ ...current, ...payload }));
-
-    startTransition(async () => {
-      try {
-        const response = await ownerApiRequest<{ success: true; profile: OwnerProfile }>('/api/user/owner-profile', {
-          method: 'PATCH',
-          body: JSON.stringify({ household: payload }),
-        });
-        setProfile(response.profile);
-        showToast('Household information updated.', 'success');
-      } catch (error) {
-        setProfile(previous);
-        showToast(error instanceof Error ? error.message : 'Failed to update household information.', 'error');
       }
     });
   }
@@ -603,45 +524,6 @@ export default function UserOwnerProfileClient({
     });
   }
 
-  function savePreferences() {
-    const payload = {
-      preferred_service_time: preferencesForm.preferred_service_time.trim() || null,
-      preferred_groomer_gender: preferencesForm.preferred_groomer_gender.trim() || null,
-      communication_preference: normalizeCommunicationPreference(preferencesForm.communication_preference),
-      special_instructions: preferencesForm.special_instructions.trim() || null,
-    };
-
-    const previous = preferences;
-    setPreferences((current) =>
-      current
-        ? { ...current, ...payload }
-        : {
-            id: `optimistic-${Date.now()}`,
-            user_id: userId,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            ...payload,
-          },
-    );
-
-    startTransition(async () => {
-      try {
-        const response = await ownerApiRequest<{ success: true; preferences: UserPreferences }>(
-          '/api/user/owner-profile/preferences',
-          {
-            method: 'PUT',
-            body: JSON.stringify(payload),
-          },
-        );
-        setPreferences(response.preferences);
-        showToast('Preferences updated.', 'success');
-      } catch (error) {
-        setPreferences(previous);
-        showToast(error instanceof Error ? error.message : 'Failed to update preferences.', 'error');
-      }
-    });
-  }
-
   return (
     <div className="grid gap-5">
       <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
@@ -690,26 +572,7 @@ export default function UserOwnerProfileClient({
       </section>
 
       <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
-        <h2 className="text-lg font-semibold text-ink">2. Verification Status</h2>
-        <p className="mt-1 text-sm text-neutral-500">Your verification is managed by our Trust & Safety team.</p>
-        <div className="mt-3 flex flex-wrap gap-2 text-xs">
-          <span className="rounded-full border border-[#e8ccb3] px-3 py-1">
-            Phone: {profile.is_phone_verified ? '✅ Verified' : '⚪ Pending'}
-          </span>
-          <span className="rounded-full border border-[#e8ccb3] px-3 py-1">
-            Email: {profile.is_email_verified ? '✅ Verified' : '⚪ Pending'}
-          </span>
-          <span className="rounded-full border border-[#e8ccb3] px-3 py-1">KYC: {profile.kyc_status.replace('_', ' ')}</span>
-        </div>
-        {profile.kyc_status === 'not_submitted' && (
-          <p className="mt-3 text-sm text-amber-700">
-            Complete KYC to unlock full features. Contact support for assistance.
-          </p>
-        )}
-      </section>
-
-      <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
-        <h2 className="text-lg font-semibold text-ink">3. Addresses</h2>
+        <h2 className="text-lg font-semibold text-ink">2. Addresses</h2>
         {editingAddressId ? (
           <p className="mt-1 text-xs font-medium text-[#9a6a44]">Editing selected address. Existing values are pre-filled.</p>
         ) : null}
@@ -895,7 +758,7 @@ export default function UserOwnerProfileClient({
       </section>
 
       <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
-        <h2 className="text-lg font-semibold text-ink">4. Emergency Contacts</h2>
+        <h2 className="text-lg font-semibold text-ink">3. Emergency Contacts</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <input
             className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
@@ -980,126 +843,8 @@ export default function UserOwnerProfileClient({
       </section>
 
       <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
-        <h2 className="text-lg font-semibold text-ink">5. Preferences</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <input
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-            placeholder="Preferred service time"
-            value={preferencesForm.preferred_service_time}
-            onChange={(event) =>
-              setPreferencesForm((current) => ({ ...current, preferred_service_time: event.target.value }))
-            }
-          />
-          <input
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-            placeholder="Preferred groomer gender"
-            value={preferencesForm.preferred_groomer_gender}
-            onChange={(event) =>
-              setPreferencesForm((current) => ({ ...current, preferred_groomer_gender: event.target.value }))
-            }
-          />
-          <select
-            value={preferencesForm.communication_preference}
-            onChange={(event) =>
-              setPreferencesForm((current) => ({ ...current, communication_preference: event.target.value }))
-            }
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-          >
-            <option value="">Communication preference</option>
-            <option value="call">Call</option>
-            <option value="whatsapp">WhatsApp</option>
-            <option value="app">App</option>
-          </select>
-          <input
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm sm:col-span-2"
-            placeholder="Special instructions"
-            value={preferencesForm.special_instructions}
-            onChange={(event) =>
-              setPreferencesForm((current) => ({ ...current, special_instructions: event.target.value }))
-            }
-          />
-        </div>
-        <Button type="button" size="sm" disabled={isPending} onClick={savePreferences} className="mt-4">
-          Save Preferences
-        </Button>
-      </section>
-
-      <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
-        <h2 className="text-lg font-semibold text-ink">6. Household Information</h2>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <input
-            type="number"
-            min={0}
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-            placeholder="Total pets"
-            value={householdForm.total_pets}
-            onChange={(event) => setHouseholdForm((current) => ({ ...current, total_pets: Number(event.target.value) }))}
-          />
-          <input
-            type="number"
-            min={0}
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-            placeholder="Years of pet experience"
-            value={householdForm.years_of_pet_experience}
-            onChange={(event) =>
-              setHouseholdForm((current) => ({
-                ...current,
-                years_of_pet_experience: event.target.value ? Number(event.target.value) : '',
-              }))
-            }
-          />
-          <input
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-            placeholder="Lives in (Apartment/Villa/etc.)"
-            value={householdForm.lives_in}
-            onChange={(event) => setHouseholdForm((current) => ({ ...current, lives_in: event.target.value }))}
-          />
-          <input
-            type="number"
-            min={1}
-            className="rounded-xl border border-[#e8ccb3] px-4 py-2.5 text-sm"
-            placeholder="People in house"
-            value={householdForm.number_of_people_in_house}
-            onChange={(event) =>
-              setHouseholdForm((current) => ({
-                ...current,
-                number_of_people_in_house: event.target.value ? Number(event.target.value) : '',
-              }))
-            }
-          />
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={householdForm.first_pet_owner}
-              onChange={(event) => setHouseholdForm((current) => ({ ...current, first_pet_owner: event.target.checked }))}
-            />
-            First-time pet owner
-          </label>
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={householdForm.has_other_pets}
-              onChange={(event) => setHouseholdForm((current) => ({ ...current, has_other_pets: event.target.checked }))}
-            />
-            Has other pets
-          </label>
-          <label className="flex items-center gap-2 text-sm text-ink">
-            <input
-              type="checkbox"
-              checked={householdForm.has_children}
-              onChange={(event) => setHouseholdForm((current) => ({ ...current, has_children: event.target.checked }))}
-            />
-            Has children at home
-          </label>
-        </div>
-        <Button type="button" size="sm" disabled={isPending} onClick={saveHouseholdInfo} className="mt-4">
-          Save Household Information
-        </Button>
-      </section>
-
-      <section className="rounded-3xl border border-[#e8ccb3] bg-white p-6 shadow-premium-md">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold text-ink">7. Your Reputation</h2>
+          <h2 className="text-lg font-semibold text-ink">4. Your Reputation</h2>
           <span className="rounded-full border border-[#e8ccb3] px-3 py-1 text-xs">Trust: {trustIndicator}</span>
         </div>
 

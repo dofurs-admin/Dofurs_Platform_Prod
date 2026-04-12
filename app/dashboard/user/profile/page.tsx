@@ -52,7 +52,6 @@ export default async function UserProfilePage() {
       initialProfile={aggregate.profile}
       initialAddresses={aggregate.addresses}
       initialContacts={aggregate.emergencyContacts}
-      initialPreferences={aggregate.preferences}
     />
   );
 }
