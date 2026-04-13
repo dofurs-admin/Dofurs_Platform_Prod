@@ -50,6 +50,9 @@ export type ProviderBooking = {
   completion_completed_at?: string | null;
   completion_feedback_text?: string | null;
   requires_completion_feedback?: boolean;
+  has_customer_feedback?: boolean;
+  provider_customer_rating?: number | null;
+  provider_customer_notes?: string | null;
 };
 
 export type ProviderBlockedDate = {

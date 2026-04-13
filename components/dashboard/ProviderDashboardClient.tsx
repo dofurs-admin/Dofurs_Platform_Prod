@@ -136,6 +136,10 @@ export default function ProviderDashboardClient({
     {},
   );
   const [activeCompletionEditorId, setActiveCompletionEditorId] = useState<number | null>(null);
+  const [activeCustomerFeedbackEditorId, setActiveCustomerFeedbackEditorId] = useState<number | null>(null);
+  const [customerFeedbackDraft, setCustomerFeedbackDraft] = useState<
+    Record<number, { rating: number; notes: string }>
+  >({});
 
   // ── HTTP helper ───────────────────────────────────────────────────────────────
   const providerRequest = useCallback(
@@ -772,6 +776,71 @@ export default function ProviderDashboardClient({
     });
   }
 
+  function openCustomerFeedbackEditor(bookingId: number) {
+    const booking = providerBookings.find((item) => item.id === bookingId);
+
+    setCustomerFeedbackDraft((current) => ({
+      ...current,
+      [bookingId]: {
+        rating: booking?.provider_customer_rating ?? current[bookingId]?.rating ?? 5,
+        notes: booking?.provider_customer_notes ?? current[bookingId]?.notes ?? '',
+      },
+    }));
+
+    setActiveCustomerFeedbackEditorId(bookingId);
+  }
+
+  function saveCustomerFeedback(bookingId: number) {
+    const draft = customerFeedbackDraft[bookingId] ?? { rating: 5, notes: '' };
+    const notes = draft.notes.trim();
+
+    if (!Number.isFinite(draft.rating) || draft.rating < 1 || draft.rating > 5) {
+      showToast('Select a valid customer rating between 1 and 5.', 'error');
+      return;
+    }
+
+    if (notes.length > 4000) {
+      showToast('Customer notes must be 4000 characters or less.', 'error');
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        await providerRequest(
+          `/api/provider/bookings/${bookingId}/customer-feedback`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              rating: draft.rating,
+              notes: notes || undefined,
+            }),
+          },
+        );
+
+        setProviderBookings((current) =>
+          current.map((booking) =>
+            booking.id === bookingId
+              ? {
+                  ...booking,
+                  has_customer_feedback: true,
+                  provider_customer_rating: draft.rating,
+                  provider_customer_notes: notes || null,
+                }
+              : booking,
+          ),
+        );
+
+        setActiveCustomerFeedbackEditorId(null);
+        showToast('Customer feedback saved.', 'success');
+      } catch (error) {
+        showToast(
+          error instanceof Error ? error.message : 'Unable to save customer feedback.',
+          'error',
+        );
+      }
+    });
+  }
+
   // ── Early return for missing dashboard ────────────────────────────────────────
   if (!dashboard) {
     return (
@@ -794,6 +863,8 @@ export default function ProviderDashboardClient({
     reviewsPage.reviews.find((review) => review.id === activeReviewEditorId) ?? null;
   const activeCompletionBooking =
     providerBookings.find((booking) => booking.id === activeCompletionEditorId) ?? null;
+  const activeCustomerFeedbackBooking =
+    providerBookings.find((booking) => booking.id === activeCustomerFeedbackEditorId) ?? null;
 
   return (
     <DashboardPageLayout
@@ -826,6 +897,7 @@ export default function ProviderDashboardClient({
             }
             onMarkCashCollected={markCashCollected}
             onOpenCompletionEditor={setActiveCompletionEditorId}
+            onOpenCustomerFeedbackEditor={openCustomerFeedbackEditor}
             blockedDates={blockedDates}
             onManageBlockedDates={() => setIsManagingBlockedDates(true)}
             onManageAvailability={() => setIsManagingAvailability(true)}
@@ -939,6 +1011,20 @@ export default function ProviderDashboardClient({
           onCompleteBookingWithFeedback={(bookingId, feedback) =>
             setProviderBookingStatus(bookingId, 'completed', feedback, feedback)
           }
+          activeCustomerFeedbackBooking={activeCustomerFeedbackBooking}
+          onCloseCustomerFeedbackEditor={() => setActiveCustomerFeedbackEditorId(null)}
+          customerFeedbackDraft={customerFeedbackDraft}
+          onCustomerFeedbackChange={(bookingId, patch) =>
+            setCustomerFeedbackDraft((current) => ({
+              ...current,
+              [bookingId]: {
+                rating: current[bookingId]?.rating ?? 5,
+                notes: current[bookingId]?.notes ?? '',
+                ...patch,
+              },
+            }))
+          }
+          onSaveCustomerFeedback={saveCustomerFeedback}
         />
       </div>
     </DashboardPageLayout>

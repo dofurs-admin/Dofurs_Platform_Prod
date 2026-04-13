@@ -25,7 +25,7 @@ export const blogPosts: BlogPost[] = [
     category: 'Grooming',
     readTime: '6 min read',
     publishedOn: '28 Feb 2026',
-    heroImageSrc: '/Birthday/book-a-service.png',
+    heroImageSrc: '/blog/first-time-grooming-checklist.svg',
     heroImageAlt: 'First-time pet grooming checklist',
     sections: [
       {
@@ -63,7 +63,7 @@ export const blogPosts: BlogPost[] = [
     category: 'Veterinary Care',
     readTime: '5 min read',
     publishedOn: '28 Feb 2026',
-    heroImageSrc: '/Birthday/partners-with-dofurs.png',
+    heroImageSrc: '/blog/home-vet-visit-guide.svg',
     heroImageAlt: 'Home vet visit preparation',
     sections: [
       {
@@ -103,7 +103,7 @@ export const blogPosts: BlogPost[] = [
     category: 'Seasonal Care',
     readTime: '7 min read',
     publishedOn: '28 Feb 2026',
-    heroImageSrc: '/Birthday/dofurs-about-us.webp',
+    heroImageSrc: '/blog/bengaluru-monsoon-pet-care.svg',
     heroImageAlt: 'Monsoon pet care tips',
     sections: [
       {
@@ -141,7 +141,7 @@ export const blogPosts: BlogPost[] = [
     category: 'Behaviour',
     readTime: '5 min read',
     publishedOn: '28 Feb 2026',
-    heroImageSrc: '/Birthday/contact-us.webp',
+    heroImageSrc: '/blog/reduce-pet-anxiety-grooming.svg',
     heroImageAlt: 'Reducing pet anxiety before grooming',
     sections: [
       {
@@ -179,7 +179,7 @@ export const blogPosts: BlogPost[] = [
     category: 'Pet Sitting',
     readTime: '6 min read',
     publishedOn: '28 Feb 2026',
-    heroImageSrc: '/Birthday/faq-page.webp',
+    heroImageSrc: '/blog/questions-before-booking-pet-sitter.svg',
     heroImageAlt: 'Questions for hiring a pet sitter',
     sections: [
       {
@@ -222,7 +222,7 @@ export const blogPosts: BlogPost[] = [
     category: 'Grooming',
     readTime: '7 min read',
     publishedOn: '28 Feb 2026',
-    heroImageSrc: '/Birthday/pet-birthday.png',
+    heroImageSrc: '/blog/pet-grooming-frequency-guide.svg',
     heroImageAlt: 'Pet grooming frequency guide',
     sections: [
       {
@@ -248,6 +248,135 @@ export const blogPosts: BlogPost[] = [
         paragraphs: [
           'Persistent odour, matting, itchy skin, greasy coat texture, or overgrown nails are indicators that grooming should not be delayed.',
           'A proactive schedule improves comfort, reduces skin issues, and makes each session easier for your pet.'
+        ]
+      }
+    ]
+  },
+  {
+    slug: 'do-vaccinated-pets-live-longer',
+    title: 'Do Vaccinated Pets Live Longer? A Scientific Breakdown for Pet Parents',
+    excerpt:
+      'Vaccination is one of the most researched interventions in veterinary medicine. Here is what the science actually says about vaccines and your pet\'s lifespan.',
+    category: 'Veterinary Care',
+    readTime: '6 min read',
+    publishedOn: '13 Apr 2026',
+    heroImageSrc: '/blog/vaccinated-pets-live-longer.svg',
+    heroImageAlt: 'Do vaccinated pets live longer — a scientific breakdown',
+    sections: [
+      {
+        heading: 'What the research actually says',
+        paragraphs: [
+          'Every pet parent asks the same question at some point: am I doing enough to give my pet a long life? One of the most consistent answers in veterinary science points directly to timely vaccination.',
+          'The World Small Animal Veterinary Association (WSAVA) recognises vaccination as one of the most effective methods of preventing infectious diseases in companion animals. The diseases it protects against are not minor inconveniences — canine parvovirus carries an untreated mortality rate of up to 91%, canine distemper causes severe neurological complications, and feline panleukopenia kills more than 70% of affected kittens when left unmanaged.',
+          'These are not rare edge cases. They are common, preventable, and fatal — and vaccination is the primary line of defence.'
+        ]
+      },
+      {
+        heading: 'The lifespan connection',
+        paragraphs: [
+          'A key insight from veterinary epidemiology is that most reductions in pet lifespan occur due to early-age mortality. A large-scale study of owned dogs in the UK (O\'Neill et al., 2013, Journal of Veterinary Internal Medicine) found that median lifespan increases significantly when early deaths from preventable diseases are reduced.',
+          'It is important to understand the mechanism correctly. Vaccination does not directly extend lifespan the way a supplement might claim to. What it does is prevent early death — and that matters more than it sounds. When a pet survives the most dangerous infectious disease window, they gain the opportunity to reach their natural lifespan rather than being cut short by something preventable.',
+          'Population-level studies show that preventive care, including vaccination, can improve survival outcomes by 30–60% in real-world clinical settings.'
+        ],
+        bullets: [
+          'Prevents fatal infectious diseases before they take hold.',
+          'Reduces early-life mortality across puppies and kittens.',
+          'Allows pets to reach their natural, age-appropriate lifespan.',
+          'Lowers the probability of severe illness requiring emergency care.'
+        ]
+      },
+      {
+        heading: 'What this means for your pet in Bangalore',
+        paragraphs: [
+          'Bangalore\'s climate — warm, humid for much of the year, and increasingly dense in urban pet populations — creates conditions where infectious disease spreads more easily. Pets that visit parks, interact with other animals, or are boarded during travel face ongoing exposure risk.',
+          'Vaccination is not a one-time event at adoption. It is a recurring protocol with core vaccines, boosters, and annual reviews. A vet who knows your pet\'s history and local disease patterns is best placed to advise on the right schedule. If you are unsure whether your pet\'s records are current, that is worth checking today — not at the next appointment.',
+          'At Dofurs, our home vet consultations include vaccine record review as part of the visit. Book a consultation if you want a clear picture of where your pet\'s protection currently stands.'
+        ]
+      }
+    ]
+  },
+  {
+    slug: 'why-missing-vaccines-shortens-pet-life',
+    title: 'Why Missing Even One Vaccine Can Shorten Your Pet\'s Life',
+    excerpt:
+      'Most pet parents do not skip vaccines intentionally — they forget, delay, or assume one dose was enough. Clinical evidence shows that even small gaps in vaccination schedules increase risk significantly.',
+    category: 'Veterinary Care',
+    readTime: '5 min read',
+    publishedOn: '13 Apr 2026',
+    heroImageSrc: '/blog/missed-vaccine-risk.svg',
+    heroImageAlt: 'Why missing vaccines can shorten your pet\'s life',
+    sections: [
+      {
+        heading: 'The real risk of a missed dose',
+        paragraphs: [
+          'Skipping a vaccine rarely feels like a serious decision in the moment. Life gets busy, the appointment slips, and the pet seems healthy, so the urgency fades. But according to the American Veterinary Medical Association (AVMA), unvaccinated pets are at significantly higher risk of contracting and spreading infectious diseases — and that risk is not hypothetical.',
+          'Immunity from vaccines is not permanent and does not build from a single dose. It develops across a proper primary schedule and is maintained through timely boosters. Each missed step can interrupt that development and create a window of vulnerability that an exposure event can easily exploit.'
+        ]
+      },
+      {
+        heading: 'What mortality data tells us',
+        paragraphs: [
+          'Research published in Veterinary Microbiology (Decaro et al., 2005) on canine parvovirus documented significantly higher mortality rates in unvaccinated puppies compared to vaccinated dogs with comparable exposure. The gap in outcomes was not marginal — it was a defining factor in survival.',
+          'For cats, feline panleukopenia outbreaks consistently show high fatality rates in unvaccinated kittens. This is well established in Greene\'s Infectious Diseases of the Dog and Cat, a foundational clinical reference. The pattern across diseases is the same: vaccination status is one of the strongest predictors of outcome when infection occurs.',
+          'The American Animal Hospital Association (AAHA) further notes that incomplete vaccination protocols may leave animals unprotected — a reminder that partial compliance is not a safe middle ground.'
+        ],
+        bullets: [
+          'Unvaccinated puppies face dramatically higher parvovirus mortality than vaccinated peers.',
+          'Feline panleukopenia fatality rates are consistently high in unvaccinated kittens.',
+          'Gaps in the primary series interrupt immunity development, not just maintenance.',
+          'Missing a booster can reduce protection even in previously vaccinated pets.',
+          'Partial compliance does not offer partial protection — immunity thresholds matter.'
+        ]
+      },
+      {
+        heading: 'Building a schedule that actually sticks',
+        paragraphs: [
+          'The most common reason for missed vaccines is not cost or access — it is forgetting. Vaccination schedules are not intuitive, intervals vary by vaccine type and risk category, and without a reminder system most pet parents simply lose track.',
+          'The practical fix is simple: keep vaccination records in one accessible place, ask your vet to explain the upcoming schedule clearly at every visit, and set calendar reminders for the next due date before you leave the clinic. If you are unsure what your pet is currently protected against, a vet consultation is the fastest way to get clarity.',
+          'Dofurs home vet visits include a vaccination and preventive care review. Our vets can check your pet\'s current records, identify any gaps, and administer overdue vaccines during the same visit — so you do not have to make a separate trip.'
+        ]
+      }
+    ]
+  },
+  {
+    slug: 'vaccine-tracking-increases-pet-lifespan',
+    title: 'The Science of Timely Pet Care: Why Tracking Vaccines Increases Lifespan',
+    excerpt:
+      'Most pet owners intend to follow vaccination schedules. The ones who succeed use systems, not memory. Here is what the evidence says about adherence, consistency, and long-term outcomes.',
+    category: 'Preventive Care',
+    readTime: '6 min read',
+    publishedOn: '13 Apr 2026',
+    heroImageSrc: '/blog/vaccine-tracking-lifespan.svg',
+    heroImageAlt: 'Vaccine tracking and pet lifespan — the science of timely care',
+    sections: [
+      {
+        heading: 'Why good intentions are not enough',
+        paragraphs: [
+          'Preventive care fails most often not because of cost, access, or awareness — but because of human forgetting. A study published in Preventive Veterinary Medicine found that adherence to vaccination schedules drops significantly without active reminder systems. Missed care was most commonly attributed to forgetfulness, not deliberate neglect.',
+          'This matters because the benefit of vaccination is entirely dependent on completing the schedule correctly. A vaccine given at the wrong interval, or a booster missed by several months, does not simply provide slightly less protection — it may leave the animal in a window of incomplete immunity when exposure happens.'
+        ]
+      },
+      {
+        heading: 'What consistent tracking actually does',
+        paragraphs: [
+          'Research from the CDC on preventive care adherence in human healthcare — a directly comparable domain — shows that reminder systems improve compliance by 20–40%. The mechanism transfers well to veterinary care: when owners receive timely reminders and have easy access to records, they follow through significantly more often.',
+          'The outcome chain is direct. Better adherence leads to more complete vaccination coverage. More complete coverage leads to lower disease incidence. Lower disease incidence means higher survival rates. And at the population level, this translates into measurably longer average lifespans.',
+          'The difference between a traditional paper-record system and a structured digital approach is not just convenience — it is a clinical outcome difference. Paper records get lost, vaccination dates become unclear, and there is no prompt when a booster is due. Digital tracking with automated reminders removes each of those failure points.'
+        ],
+        bullets: [
+          'Digital records prevent lost or unclear vaccination histories.',
+          'Automated reminders remove the single biggest compliance barrier: forgetting.',
+          'Easy rescheduling reduces the gap between overdue care and completed care.',
+          'Visible health timelines help vets catch missed steps during consultations.',
+          'Consistent coverage means full immunity, not partial or lapsed protection.'
+        ]
+      },
+      {
+        heading: 'Practical steps for Bangalore pet parents',
+        paragraphs: [
+          'Start by locating your pet\'s current vaccination card or clinic records. Photograph or digitise them so they are not vulnerable to being misplaced. Ask your vet at the next visit to walk you through the upcoming schedule — what is due, when, and why — and set phone reminders for each date before you leave.',
+          'If your pet\'s records have gaps or you are unsure what was administered and when, a dedicated health consultation is worth scheduling. A vet who can review records, fill gaps, and put a clear forward schedule in place is the most efficient way to reset your baseline.',
+          'Dofurs offers home vet consultations specifically designed for this kind of preventive care review. Our vets bring the visit to your home, review your pet\'s complete health history, and administer any overdue vaccines on the spot — so your pet\'s protection is current without the stress of a clinic trip. Book a consultation to get started.'
         ]
       }
     ]

@@ -37,6 +37,7 @@ type Props = {
   ) => void;
   onMarkCashCollected: (bookingId: number, collectionMode?: 'cash' | 'upi' | 'other') => void;
   onOpenCompletionEditor: (bookingId: number) => void;
+  onOpenCustomerFeedbackEditor: (bookingId: number) => void;
   blockedDates: ProviderBlockedDate[];
   onManageBlockedDates: () => void;
   onManageAvailability: () => void;
@@ -60,6 +61,7 @@ export default function ProviderOperationsTab({
   onBookingStatusChange,
   onMarkCashCollected,
   onOpenCompletionEditor,
+  onOpenCustomerFeedbackEditor,
   blockedDates,
   onManageBlockedDates,
   onManageAvailability,
@@ -257,6 +259,17 @@ export default function ProviderOperationsTab({
                             onClick={() => onBookingStatusChange(booking.id, 'cancelled')}
                           >
                             Cancel
+                          </Button>
+                        )}
+                        {booking.booking_status === 'completed' && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => onOpenCustomerFeedbackEditor(booking.id)}
+                          >
+                            {booking.provider_customer_rating
+                              ? `Edit Customer Rating (${booking.provider_customer_rating}★)`
+                              : 'Rate Customer'}
                           </Button>
                         )}
                         <Button

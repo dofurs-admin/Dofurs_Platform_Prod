@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <radialGradient id="bg" cx="52%" cy="42%" r="74%">
+      <stop offset="0%" style="stop-color:#fde8d0"/>
+      <stop offset="55%" style="stop-color:#faf0e6"/>
+      <stop offset="100%" style="stop-color:#f5e4d2"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="48%">
+      <stop offset="0%" style="stop-color:#e39a5d;stop-opacity:0.18"/>
+      <stop offset="100%" style="stop-color:#e39a5d;stop-opacity:0"/>
+    </radialGradient>
+    <linearGradient id="coral" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f0b080"/>
+      <stop offset="100%" style="stop-color:#e39a5d"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#c07040" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <ellipse cx="400" cy="290" rx="310" ry="255" fill="url(#glow)"/>
+  <pattern id="dots" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1.6" fill="#c07840" opacity="0.09"/>
+  </pattern>
+  <rect width="800" height="600" fill="url(#dots)"/>
+  <circle cx="740" cy="70" r="80" fill="#e39a5d" opacity="0.07"/>
+  <circle cx="60" cy="540" r="65" fill="#f2cba8" opacity="0.14"/>
+
+  <!-- Zen concentric circles -->
+  <g transform="translate(400, 300)" opacity="0.10">
+    <circle cx="0" cy="0" r="200" fill="none" stroke="#e39a5d" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="155" fill="none" stroke="#e39a5d" stroke-width="2"/>
+    <circle cx="0" cy="0" r="110" fill="none" stroke="#e39a5d" stroke-width="1.5"/>
+  </g>
+
+  <!-- === DOG (sitting, calm) === -->
+  <g transform="translate(400, 330)" filter="url(#shadow)">
+    <!-- Body -->
+    <ellipse cx="0" cy="50" rx="80" ry="95" fill="#f2cba8" stroke="#e39a5d" stroke-width="3" opacity="0.90"/>
+    <!-- Hind haunches -->
+    <ellipse cx="-65" cy="110" rx="30" ry="22" fill="#f2cba8" stroke="#e39a5d" stroke-width="2.5" opacity="0.88"/>
+    <ellipse cx="65" cy="110" rx="30" ry="22" fill="#f2cba8" stroke="#e39a5d" stroke-width="2.5" opacity="0.88"/>
+    <!-- Head -->
+    <circle cx="0" cy="-78" r="62" fill="#f2cba8" stroke="#e39a5d" stroke-width="3" opacity="0.90"/>
+    <!-- Ears (floppy) -->
+    <ellipse cx="-50" cy="-68" rx="22" ry="42" fill="#e39a5d" opacity="0.72" transform="rotate(-18 -50 -68)"/>
+    <ellipse cx="50" cy="-68" rx="22" ry="42" fill="#e39a5d" opacity="0.72" transform="rotate(18 50 -68)"/>
+    <!-- Eyes (happy arcs) -->
+    <path d="M-22,-88 Q-14,-100 -6,-88" stroke="#6a3a18" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M6,-88 Q14,-100 22,-88" stroke="#6a3a18" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <!-- Nose -->
+    <ellipse cx="0" cy="-68" rx="11" ry="7" fill="#c07840" opacity="0.75"/>
+    <!-- Smile -->
+    <path d="M-14,-58 Q0,-46 14,-58" stroke="#c07840" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+    <!-- Front paws -->
+    <ellipse cx="-48" cy="130" rx="22" ry="15" fill="#f2cba8" stroke="#e39a5d" stroke-width="2.5" opacity="0.88"/>
+    <ellipse cx="48" cy="130" rx="22" ry="15" fill="#f2cba8" stroke="#e39a5d" stroke-width="2.5" opacity="0.88"/>
+    <!-- Tail curled -->
+    <path d="M80,20 Q130,-18 140,-60 Q148,-90 118,-98" stroke="#e39a5d" stroke-width="11" fill="none" stroke-linecap="round" opacity="0.72"/>
+    <circle cx="115" cy="-100" r="9" fill="#e39a5d" opacity="0.55"/>
+  </g>
+
+  <!-- Hearts floating -->
+  <g opacity="0.38">
+    <path d="M185,200 Q185,184 196,184 Q207,184 207,200 Q207,217 185,230 Q163,217 163,200 Q163,184 174,184 Q185,184 185,200Z" fill="#e39a5d"/>
+    <path d="M598,165 Q598,152 607,152 Q616,152 616,165 Q616,179 598,190 Q580,179 580,165 Q580,152 589,152 Q598,152 598,165Z" fill="#e39a5d" opacity="0.70"/>
+    <path d="M660,400 Q660,390 667,390 Q674,390 674,400 Q674,412 660,420 Q646,412 646,400 Q646,390 653,390 Q660,390 660,400Z" fill="#f2cba8" stroke="#e39a5d" stroke-width="1.5"/>
+    <path d="M138,420 Q138,413 143,413 Q148,413 148,420 Q148,428 138,434 Q128,428 128,420 Q128,413 133,413 Q138,413 138,420Z" fill="#e39a5d" opacity="0.50"/>
+  </g>
+
+  <!-- Category pill -->
+  <rect x="288" y="108" width="224" height="42" rx="21" fill="#e39a5d" opacity="0.16"/>
+  <rect x="288" y="108" width="224" height="42" rx="21" fill="none" stroke="#e39a5d" stroke-width="1.5" opacity="0.38"/>
+  <text x="400" y="135" font-family="'Plus Jakarta Sans',sans-serif" font-size="15" font-weight="700" fill="#c07840" text-anchor="middle" letter-spacing="1">BEHAVIOUR</text>
+</svg>

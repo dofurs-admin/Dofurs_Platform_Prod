@@ -27,6 +27,8 @@ type AdminBooking = {
   customer_email?: string | null;
   customer_phone?: string | null;
   provider_name?: string | null;
+  payment_mode?: string | null;
+  cash_collected?: boolean;
   completion_task_status?: 'pending' | 'completed' | null;
   completion_due_at?: string | null;
   completion_completed_at?: string | null;
@@ -125,6 +127,7 @@ type AdminBookingsViewProps = {
   onReassignProvider: (bookingId: number, providerId: number) => void;
   onOverrideStatus: (bookingId: number, status: 'confirmed' | 'completed' | 'cancelled' | 'no_show') => void;
   onApplyBookingAdjustment: (bookingId: number) => void;
+  onMarkCashPaymentReceived: (bookingId: number) => void;
 };
 
 export default function AdminBookingsView({
@@ -146,6 +149,7 @@ export default function AdminBookingsView({
   onReassignProvider,
   onOverrideStatus,
   onApplyBookingAdjustment,
+  onMarkCashPaymentReceived,
 }: AdminBookingsViewProps) {
   const [detailBookingId, setDetailBookingId] = useState<number | null>(null);
   const [messageTarget, setMessageTarget] = useState<{
@@ -269,6 +273,9 @@ export default function AdminBookingsView({
                 const canComplete = allowedTransitions.includes('completed');
                 const canNoShow = allowedTransitions.includes('no_show');
                 const canCancel = allowedTransitions.includes('cancelled');
+                const isCashBooking = booking.payment_mode === 'direct_to_provider';
+                const cashReceived = isCashBooking && booking.cash_collected === true;
+                const cashPending = isCashBooking && !cashReceived;
                 const isTerminalStatus = allowedTransitions.length === 0;
                 const nextAllowedStatusLabel = isTerminalStatus
                   ? 'Final state'
@@ -312,6 +319,12 @@ export default function AdminBookingsView({
                         {status === 'confirmed' && booking.completion_task_status === 'pending' && (
                           <Alert variant="warning" className="!p-2 !text-xs">Provider Follow-up Pending</Alert>
                         )}
+                        {cashPending && (status === 'pending' || status === 'confirmed') && (
+                          <Alert variant="warning" className="!p-2 !text-xs">Awaiting Cash</Alert>
+                        )}
+                        {cashReceived && (
+                          <Alert variant="success" className="!p-2 !text-xs">Cash Received</Alert>
+                        )}
                         {booking.completion_task_status === 'completed' && (
                           <Alert variant="success" className="!p-2 !text-xs">Provider Feedback Logged</Alert>
                         )}
@@ -346,8 +359,24 @@ export default function AdminBookingsView({
                           </Button>
                         ) : null}
                         {canComplete ? (
-                          <Button size="sm" variant="success" onClick={() => onOverrideStatus(booking.id, 'completed')} disabled={isPending}>
+                          <Button
+                            size="sm"
+                            variant="success"
+                            onClick={() => onOverrideStatus(booking.id, 'completed')}
+                            disabled={isPending || cashPending}
+                            title={cashPending ? 'Mark cash as received first' : undefined}
+                          >
                             Complete
+                          </Button>
+                        ) : null}
+                        {isCashBooking && (status === 'pending' || status === 'confirmed') && cashPending ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => onMarkCashPaymentReceived(booking.id)}
+                            disabled={isPending}
+                          >
+                            Mark Cash Received
                           </Button>
                         ) : null}
                         {canNoShow ? (

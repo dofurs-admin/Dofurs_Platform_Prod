@@ -142,7 +142,6 @@ export default function ReviewConfirmStep({
   const [isApplyingDiscount, setIsApplyingDiscount] = useState(false);
   const [availableWalletCredits, setAvailableWalletCredits] = useState(0);
   const [applyCredits, setApplyCredits] = useState(false);
-  const [showCashConfirmModal, setShowCashConfirmModal] = useState(false);
 
   useEffect(() => {
     fetch('/api/user/credit-wallet')
@@ -244,13 +243,7 @@ export default function ReviewConfirmStep({
           Back
         </button>
         <button
-          onClick={() => {
-            if (paymentChoice === 'cash') {
-              setShowCashConfirmModal(true);
-            } else {
-              onConfirm();
-            }
-          }}
+          onClick={onConfirm}
           disabled={isPending}
           className="rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-8 py-2.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
@@ -645,50 +638,13 @@ export default function ReviewConfirmStep({
           Back
         </button>
         <button
-          onClick={() => {
-            if (paymentChoice === 'cash') {
-              setShowCashConfirmModal(true);
-            } else {
-              onConfirm();
-            }
-          }}
+          onClick={onConfirm}
           disabled={isPending}
           className="w-full rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-8 py-2 sm:py-2.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
           {isPending ? 'Processing...' : paymentChoice === 'online' ? 'Proceed To Payment & Schedule' : 'Confirm & Schedule Booking'}
         </button>
       </div>
-
-      {/* Cash payment confirmation modal */}
-      {showCashConfirmModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-neutral-950">Confirm Cash Booking</h3>
-            <p className="mt-2 text-sm text-neutral-600">
-              You selected <span className="font-semibold">pay in cash</span>. The provider will collect <span className="font-semibold text-[#b25f27]">₹{totalAmount}</span> after the service.
-            </p>
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setShowCashConfirmModal(false)}
-                className="flex-1 rounded-full border border-neutral-200 px-4 py-2 text-sm font-medium text-neutral-700 hover:border-coral"
-              >
-                Go Back
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCashConfirmModal(false);
-                  onConfirm();
-                }}
-                className="flex-1 rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-4 py-2 text-sm font-semibold text-white hover:brightness-95"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

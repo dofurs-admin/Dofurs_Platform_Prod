@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { logSecurityEvent } from '@/lib/monitoring/security-log';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
 const querySchema = z.object({
   q: z.string().trim().max(120).optional(),
@@ -29,6 +30,8 @@ type BookingSearchRow = {
   completion_task_status: 'pending' | 'completed' | null;
   completion_due_at: string | null;
   completion_completed_at: string | null;
+  payment_mode: string | null;
+  cash_collected: boolean;
 };
 
 const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'] as const;
@@ -59,6 +62,7 @@ export async function GET(request: Request) {
   }
 
   const { user, role, supabase } = auth.context;
+  const adminSupabase = getSupabaseAdminClient();
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     q: url.searchParams.get('q') ?? undefined,
@@ -82,7 +86,41 @@ export async function GET(request: Request) {
     });
 
     if (!error) {
-      return NextResponse.json({ bookings: (data ?? []) as BookingSearchRow[] });
+      const bookings = ((data ?? []) as Array<Partial<BookingSearchRow>>).map((row) => ({
+        ...row,
+        payment_mode: row.payment_mode ?? null,
+        cash_collected: Boolean(row.cash_collected ?? false),
+      })) as BookingSearchRow[];
+
+      const bookingIds = bookings.map((booking) => booking.id).filter((id): id is number => Number.isFinite(id));
+
+      if (bookingIds.length > 0) {
+        const [{ data: paymentModes }, { data: paidCollections }] = await Promise.all([
+          adminSupabase
+            .from('bookings')
+            .select('id, payment_mode')
+            .in('id', bookingIds),
+          adminSupabase
+            .from('booking_payment_collections')
+            .select('booking_id')
+            .in('booking_id', bookingIds)
+            .eq('status', 'paid'),
+        ]);
+
+        const paymentModeByBookingId = new Map<number, string | null>();
+        for (const row of paymentModes ?? []) {
+          paymentModeByBookingId.set(Number(row.id), row.payment_mode ?? null);
+        }
+
+        const paidBookingIds = new Set<number>((paidCollections ?? []).map((row) => Number(row.booking_id)));
+
+        for (const booking of bookings) {
+          booking.payment_mode = paymentModeByBookingId.get(booking.id) ?? booking.payment_mode ?? null;
+          booking.cash_collected = paidBookingIds.has(booking.id);
+        }
+      }
+
+      return NextResponse.json({ bookings });
     }
 
     if (error.code !== '42883') {
@@ -91,7 +129,7 @@ export async function GET(request: Request) {
 
     const fallback = await supabase
       .from('bookings')
-      .select('id, user_id, provider_id, booking_start, booking_date, start_time, end_time, status, booking_status, booking_mode, service_type, users(name, email, phone), providers(name), provider_booking_completion_tasks(task_status, due_at, completed_at)')
+      .select('id, user_id, provider_id, booking_start, booking_date, start_time, end_time, status, booking_status, booking_mode, service_type, payment_mode, users(name, email, phone), providers(name), provider_booking_completion_tasks(task_status, due_at, completed_at)')
       .order('booking_start', { ascending: false })
       .limit(limit);
 
@@ -132,6 +170,8 @@ export async function GET(request: Request) {
           completion_task_status: taskData?.task_status ?? null,
           completion_due_at: taskData?.due_at ?? null,
           completion_completed_at: taskData?.completed_at ?? null,
+          payment_mode: row.payment_mode ?? null,
+          cash_collected: false,
         };
       })
       .filter((booking) => {
@@ -164,6 +204,20 @@ export async function GET(request: Request) {
           .toLowerCase()
           .includes(normalizedQuery);
       });
+
+    const bookingIds = bookings.map((booking) => booking.id);
+    if (bookingIds.length > 0) {
+      const { data: paidCollections } = await adminSupabase
+        .from('booking_payment_collections')
+        .select('booking_id')
+        .in('booking_id', bookingIds)
+        .eq('status', 'paid');
+
+      const paidBookingIds = new Set<number>((paidCollections ?? []).map((row) => Number(row.booking_id)));
+      for (const booking of bookings) {
+        booking.cash_collected = paidBookingIds.has(booking.id);
+      }
+    }
 
     return NextResponse.json({ bookings });
   } catch (error) {

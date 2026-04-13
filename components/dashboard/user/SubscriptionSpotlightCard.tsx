@@ -179,7 +179,7 @@ export default function SubscriptionSpotlightCard() {
           <p className="text-xs font-semibold uppercase tracking-wide text-[#a05a2c]">Subscription Services</p>
           <p className="mt-1 text-base font-bold text-ink">Save more with a grooming subscription</p>
           <p className="mt-0.5 text-sm text-ink/65">
-            Prepaid plans unlock priority slots and bundled credits for repeated care.
+            Prepaid plans unlock premium services and express customer support.
           </p>
         </div>
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-coral text-white shadow-soft">
@@ -189,10 +189,10 @@ export default function SubscriptionSpotlightCard() {
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1 rounded-full border border-[#ebc9ab] bg-white px-2.5 py-1 text-xs font-semibold text-[#8f4a1d]">
-          <Sparkles className="h-3.5 w-3.5" /> Priority Booking
+          <Sparkles className="h-3.5 w-3.5" /> Premium Services
         </span>
         <span className="inline-flex items-center gap-1 rounded-full border border-[#ebc9ab] bg-white px-2.5 py-1 text-xs font-semibold text-[#8f4a1d]">
-          <CalendarClock className="h-3.5 w-3.5" /> Credits for repeat visits
+          <CalendarClock className="h-3.5 w-3.5" /> Express Customer Support
         </span>
       </div>
 

@@ -18,6 +18,15 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().max(500).optional(),
 });
 
+type CustomerFeedbackRow = {
+  booking_id: number;
+  rating: number;
+  notes: string | null;
+  created_by_user_id: string;
+  created_by_role: 'provider' | 'admin' | 'staff';
+  created_at: string;
+};
+
 function normalizeStoragePathCandidate(
   value: string | null | undefined,
   bucket: 'user-photos' | 'pet-photos',
@@ -270,7 +279,41 @@ export async function GET(request: Request) {
           : undefined,
     }));
 
-    return NextResponse.json({ bookings: finalBookings });
+    const bookingIds = finalBookings.map((booking) => booking.id);
+    const feedbackByBookingId = new Map<number, CustomerFeedbackRow[]>();
+
+    if (bookingIds.length > 0) {
+      const { data: feedbackRows, error: feedbackError } = await adminSupabase
+        .from('customer_service_feedback')
+        .select('booking_id, rating, notes, created_by_user_id, created_by_role, created_at')
+        .in('booking_id', bookingIds)
+        .order('created_at', { ascending: false })
+        .returns<CustomerFeedbackRow[]>();
+
+      if (!feedbackError) {
+        for (const row of feedbackRows ?? []) {
+          const current = feedbackByBookingId.get(row.booking_id) ?? [];
+          current.push(row);
+          feedbackByBookingId.set(row.booking_id, current);
+        }
+      }
+    }
+
+    const bookingsWithFeedback = finalBookings.map((booking) => {
+      const entries = feedbackByBookingId.get(booking.id) ?? [];
+      const providerEntry = entries.find(
+        (entry) => entry.created_by_role === 'provider' && entry.created_by_user_id === user.id,
+      );
+
+      return {
+        ...booking,
+        has_customer_feedback: entries.length > 0,
+        provider_customer_rating: providerEntry?.rating ?? null,
+        provider_customer_notes: providerEntry?.notes ?? null,
+      };
+    });
+
+    return NextResponse.json({ bookings: bookingsWithFeedback });
   } catch (error) {
     const mapped = toFriendlyApiError(error, 'Unable to load provider bookings');
 

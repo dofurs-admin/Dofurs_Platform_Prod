@@ -55,6 +55,8 @@ type AdminBooking = {
   customer_email?: string | null;
   customer_phone?: string | null;
   provider_name?: string | null;
+  payment_mode?: string | null;
+  cash_collected?: boolean;
   completion_task_status?: 'pending' | 'completed' | null;
   completion_due_at?: string | null;
   completion_completed_at?: string | null;
@@ -2862,6 +2864,60 @@ export default function AdminDashboardClient({
     });
   }
 
+  function markCashPaymentReceived(bookingId: number) {
+    const booking = bookings.find((item) => item.id === bookingId);
+    if (!booking) {
+      showToast('Booking not found.', 'error');
+      return;
+    }
+
+    if (booking.payment_mode !== 'direct_to_provider') {
+      showToast('Manual collection is only available for direct-to-provider payments.', 'error');
+      return;
+    }
+
+    if (booking.cash_collected) {
+      showToast('Payment is already marked as received.', 'success');
+      return;
+    }
+
+    openConfirm({
+      title: 'Mark Cash As Received',
+      description: `Confirm cash has been collected for booking #${bookingId}. This will allow completion.`,
+      confirmLabel: 'Mark Received',
+      confirmVariant: 'warning',
+      onConfirm: () => doMarkCashPaymentReceived(bookingId),
+    });
+  }
+
+  function doMarkCashPaymentReceived(bookingId: number) {
+
+    setBookings((current) =>
+      current.map((item) => (item.id === bookingId ? { ...item, cash_collected: true } : item)),
+    );
+
+    startTransition(async () => {
+      try {
+        const response = await fetch(`/api/payments/bookings/${bookingId}/collect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ collectionMode: 'cash' }),
+        });
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+
+        if (!response.ok) {
+          throw new Error(payload.error ?? 'Unable to mark payment as received.');
+        }
+
+        await refreshBookings(bookingSearchDebounced);
+        showToast(`Cash payment received for booking #${bookingId}.`, 'success');
+      } catch (error) {
+        await refreshBookings(bookingSearchDebounced);
+        showToast(error instanceof Error ? error.message : 'Unable to mark payment as received.', 'error');
+      }
+    });
+  }
+
   function moderateProvider(providerId: number, action: 'enable' | 'disable') {
     if (action === 'disable') {
       openConfirm({
@@ -4735,6 +4791,7 @@ export default function AdminDashboardClient({
         onReassignProvider={reassignProvider}
         onOverrideStatus={overrideStatus}
         onApplyBookingAdjustment={applyBookingAdjustment}
+        onMarkCashPaymentReceived={markCashPaymentReceived}
       />
       ) : null}
 

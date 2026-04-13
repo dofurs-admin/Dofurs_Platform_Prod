@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" style="stop-color:#fde8d0"/>
+      <stop offset="55%" style="stop-color:#faf0e6"/>
+      <stop offset="100%" style="stop-color:#f5e4d2"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#e39a5d;stop-opacity:0.22"/>
+      <stop offset="100%" style="stop-color:#e39a5d;stop-opacity:0"/>
+    </radialGradient>
+    <linearGradient id="coral" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8a56a"/>
+      <stop offset="100%" style="stop-color:#d4845a"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#c07040" flood-opacity="0.22"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <ellipse cx="400" cy="290" rx="310" ry="255" fill="url(#glow)"/>
+  <pattern id="dots" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1.6" fill="#c07840" opacity="0.09"/>
+  </pattern>
+  <rect width="800" height="600" fill="url(#dots)"/>
+  <circle cx="740" cy="70" r="80" fill="#e39a5d" opacity="0.07"/>
+  <circle cx="60" cy="540" r="65" fill="#e39a5d" opacity="0.07"/>
+
+  <!-- === SYRINGE === -->
+  <g transform="translate(320, 300) rotate(-40)" filter="url(#shadow)">
+    <!-- Barrel -->
+    <rect x="-16" y="-100" width="32" height="160" rx="16" fill="url(#coral)" opacity="0.88"/>
+    <!-- Plunger grip -->
+    <rect x="-28" y="-108" width="56" height="20" rx="8" fill="#d4845a" opacity="0.8"/>
+    <rect x="-10" y="-120" width="20" height="18" rx="4" fill="#c07840" opacity="0.7"/>
+    <!-- Liquid inside -->
+    <rect x="-10" y="-60" width="20" height="80" rx="8" fill="#fff8f0" opacity="0.55"/>
+    <!-- Scale marks -->
+    <line x1="-16" y1="-20" x2="16" y2="-20" stroke="#fff" stroke-width="2" opacity="0.55"/>
+    <line x1="-16" y1="10" x2="16" y2="10" stroke="#fff" stroke-width="2" opacity="0.55"/>
+    <line x1="-16" y1="40" x2="16" y2="40" stroke="#fff" stroke-width="2" opacity="0.55"/>
+    <!-- Needle hub -->
+    <rect x="-10" y="60" width="20" height="20" rx="4" fill="#c07840" opacity="0.75"/>
+    <!-- Needle -->
+    <rect x="-3" y="80" width="6" height="55" rx="3" fill="#c07840" opacity="0.70"/>
+    <!-- Needle tip -->
+    <polygon points="-3,133 3,133 0,148" fill="#c07040" opacity="0.75"/>
+  </g>
+
+  <!-- === SHIELD with checkmark === -->
+  <g transform="translate(500, 295)" filter="url(#shadow)">
+    <path d="M0,-105 L80,-62 L80,18 Q80,95 0,135 Q-80,95 -80,18 L-80,-62 Z" fill="#f2cba8" stroke="#e39a5d" stroke-width="3.5" stroke-opacity="0.85" opacity="0.88"/>
+    <!-- Inner shield -->
+    <path d="M0,-82 L60,-48 L60,16 Q60,74 0,106 Q-60,74 -60,16 L-60,-48 Z" fill="#fff8f0" opacity="0.55"/>
+    <!-- Checkmark -->
+    <polyline points="-32,16 -8,42 40,-24" stroke="#e39a5d" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.92"/>
+  </g>
+
+  <!-- Heart accent -->
+  <g transform="translate(400, 460)" opacity="0.30">
+    <path d="M0,-24 Q0,-40 16,-40 Q32,-40 32,-24 Q32,-8 0,16 Q-32,-8 -32,-24 Q-32,-40 -16,-40 Q0,-40 0,-24Z" fill="#e39a5d"/>
+  </g>
+
+  <!-- Category pill -->
+  <rect x="252" y="108" width="296" height="42" rx="21" fill="#e39a5d" opacity="0.16"/>
+  <rect x="252" y="108" width="296" height="42" rx="21" fill="none" stroke="#e39a5d" stroke-width="1.5" opacity="0.38"/>
+  <text x="400" y="135" font-family="'Plus Jakarta Sans',sans-serif" font-size="15" font-weight="700" fill="#c07840" text-anchor="middle" letter-spacing="1">VETERINARY CARE</text>
+
+  <!-- Paw prints -->
+  <g transform="translate(120, 152)" opacity="0.16">
+    <ellipse cx="0" cy="0" rx="12" ry="14" fill="#e39a5d"/>
+    <ellipse cx="-16" cy="-14" rx="7" ry="8" fill="#e39a5d"/>
+    <ellipse cx="16" cy="-14" rx="7" ry="8" fill="#e39a5d"/>
+    <ellipse cx="-24" cy="2" rx="7" ry="8" fill="#e39a5d"/>
+    <ellipse cx="24" cy="2" rx="7" ry="8" fill="#e39a5d"/>
+  </g>
+  <g transform="translate(675, 490)" opacity="0.13">
+    <ellipse cx="0" cy="0" rx="10" ry="12" fill="#e39a5d"/>
+    <ellipse cx="-13" cy="-12" rx="6" ry="7" fill="#e39a5d"/>
+    <ellipse cx="13" cy="-12" rx="6" ry="7" fill="#e39a5d"/>
+    <ellipse cx="-20" cy="2" rx="6" ry="7" fill="#e39a5d"/>
+    <ellipse cx="20" cy="2" rx="6" ry="7" fill="#e39a5d"/>
+  </g>
+  <g transform="translate(680, 135)" opacity="0.11">
+    <ellipse cx="0" cy="0" rx="9" ry="11" fill="#e39a5d"/>
+    <ellipse cx="-12" cy="-11" rx="5" ry="6" fill="#e39a5d"/>
+    <ellipse cx="12" cy="-11" rx="5" ry="6" fill="#e39a5d"/>
+    <ellipse cx="-18" cy="2" rx="5" ry="6" fill="#e39a5d"/>
+    <ellipse cx="18" cy="2" rx="5" ry="6" fill="#e39a5d"/>
+  </g>
+</svg>

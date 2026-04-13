@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" style="stop-color:#fde8d0"/>
+      <stop offset="55%" style="stop-color:#faf0e6"/>
+      <stop offset="100%" style="stop-color:#f5e4d2"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#e39a5d;stop-opacity:0.20"/>
+      <stop offset="100%" style="stop-color:#e39a5d;stop-opacity:0"/>
+    </radialGradient>
+    <linearGradient id="coral" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8a56a"/>
+      <stop offset="100%" style="stop-color:#d4845a"/>
+    </linearGradient>
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="10" stdDeviation="18" flood-color="#c07040" flood-opacity="0.22"/>
+    </filter>
+    <filter id="shadow2" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#c07040" flood-opacity="0.16"/>
+    </filter>
+  </defs>
+
+  <rect width="800" height="600" fill="url(#bg)"/>
+  <ellipse cx="400" cy="290" rx="300" ry="250" fill="url(#glow)"/>
+  <pattern id="dots" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1.6" fill="#c07840" opacity="0.09"/>
+  </pattern>
+  <rect width="800" height="600" fill="url(#dots)"/>
+  <circle cx="740" cy="70" r="80" fill="#e39a5d" opacity="0.07"/>
+  <circle cx="60" cy="540" r="65" fill="#e39a5d" opacity="0.07"/>
+
+  <!-- === LARGE SPEECH BUBBLE (main) === -->
+  <g transform="translate(370, 265)" filter="url(#shadow)">
+    <rect x="-135" y="-115" width="270" height="200" rx="32" fill="url(#coral)" opacity="0.90"/>
+    <!-- Bubble tail -->
+    <polygon points="-50,85 -95,140 -10,90" fill="#d4845a" opacity="0.90"/>
+    <!-- Large ? -->
+    <text x="0" y="48" font-family="'Plus Jakarta Sans',Georgia,serif" font-size="130" font-weight="800" fill="#fff" text-anchor="middle" opacity="0.92">?</text>
+  </g>
+
+  <!-- === MEDIUM BUBBLE (top right) === -->
+  <g transform="translate(595, 190)" filter="url(#shadow2)">
+    <rect x="-72" y="-62" width="144" height="108" rx="22" fill="#f2cba8" opacity="0.92" stroke="#e39a5d" stroke-width="2.5"/>
+    <polygon points="40,46 72,90 18,50" fill="#f2cba8" opacity="0.92" stroke="#e39a5d" stroke-width="2" stroke-linejoin="round"/>
+    <text x="0" y="22" font-family="'Plus Jakarta Sans',Georgia,serif" font-size="70" font-weight="800" fill="#e39a5d" text-anchor="middle" opacity="0.88">?</text>
+  </g>
+
+  <!-- === SMALL BUBBLE (left) === -->
+  <g transform="translate(178, 225)">
+    <rect x="-46" y="-40" width="92" height="72" rx="16" fill="#fff8f0" stroke="#e39a5d" stroke-width="2.5" opacity="0.85"/>
+    <polygon points="-20,32 -50,64 -5,36" fill="#fff8f0" stroke="#e39a5d" stroke-width="2" stroke-linejoin="round" opacity="0.85"/>
+    <text x="0" y="14" font-family="'Plus Jakarta Sans',Georgia,serif" font-size="48" font-weight="800" fill="#e39a5d" text-anchor="middle" opacity="0.75">?</text>
+  </g>
+
+  <!-- Tiny bubble accent -->
+  <g transform="translate(650, 380)">
+    <circle cx="0" cy="0" r="28" fill="#e39a5d" opacity="0.16" stroke="#e39a5d" stroke-width="2" stroke-opacity="0.35"/>
+    <text x="0" y="11" font-family="serif" font-size="28" font-weight="800" fill="#e39a5d" text-anchor="middle" opacity="0.65">?</text>
+  </g>
+
+  <!-- Category pill -->
+  <rect x="276" y="108" width="248" height="42" rx="21" fill="#e39a5d" opacity="0.16"/>
+  <rect x="276" y="108" width="248" height="42" rx="21" fill="none" stroke="#e39a5d" stroke-width="1.5" opacity="0.38"/>
+  <text x="400" y="135" font-family="'Plus Jakarta Sans',sans-serif" font-size="15" font-weight="700" fill="#c07840" text-anchor="middle" letter-spacing="1">PET SITTING</text>
+
+  <!-- Paw prints -->
+  <g transform="translate(120, 152)" opacity="0.16">
+    <ellipse cx="0" cy="0" rx="12" ry="14" fill="#e39a5d"/>
+    <ellipse cx="-16" cy="-14" rx="7" ry="8" fill="#e39a5d"/>
+    <ellipse cx="16" cy="-14" rx="7" ry="8" fill="#e39a5d"/>
+    <ellipse cx="-24" cy="2" rx="7" ry="8" fill="#e39a5d"/>
+    <ellipse cx="24" cy="2" rx="7" ry="8" fill="#e39a5d"/>
+  </g>
+  <g transform="translate(670, 500)" opacity="0.13">
+    <ellipse cx="0" cy="0" rx="10" ry="12" fill="#e39a5d"/>
+    <ellipse cx="-13" cy="-12" rx="6" ry="7" fill="#e39a5d"/>
+    <ellipse cx="13" cy="-12" rx="6" ry="7" fill="#e39a5d"/>
+    <ellipse cx="-20" cy="2" rx="6" ry="7" fill="#e39a5d"/>
+    <ellipse cx="20" cy="2" rx="6" ry="7" fill="#e39a5d"/>
+  </g>
+</svg>

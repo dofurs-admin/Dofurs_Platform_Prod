@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -22,12 +23,128 @@ type Props = {
   onCancelRequest: (bookingId: number) => void;
 };
 
+type BookingReview = {
+  id: string;
+  rating: number;
+  review_text: string | null;
+  provider_response: string | null;
+  created_at: string;
+};
+
 export default function BookingDetailsModal({
   activeBooking,
   isCancellingBookingId,
   onClose,
   onCancelRequest,
 }: Props) {
+  const [review, setReview] = useState<BookingReview | null>(null);
+  const [canReview, setCanReview] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [isReviewLoading, setIsReviewLoading] = useState(false);
+  const [isSubmittingReview, startReviewTransition] = useTransition();
+
+  const isCompletedBooking = useMemo(() => {
+    if (!activeBooking) return false;
+    return resolveBookingStatus(activeBooking) === 'completed';
+  }, [activeBooking]);
+
+  useEffect(() => {
+    let active = true;
+
+    setReview(null);
+    setCanReview(false);
+    setReviewError(null);
+    setReviewText('');
+    setReviewRating(5);
+
+    if (!activeBooking || !isCompletedBooking) {
+      return () => {
+        active = false;
+      };
+    }
+
+    const bookingId = activeBooking.id;
+
+    async function loadReview() {
+      setIsReviewLoading(true);
+      try {
+        const response = await fetch(`/api/user/bookings/${bookingId}/review`, {
+          cache: 'no-store',
+        });
+
+        const payload = (await response.json().catch(() => null)) as {
+          canReview?: boolean;
+          review?: BookingReview | null;
+          error?: string;
+        } | null;
+
+        if (!active) return;
+
+        if (!response.ok) {
+          setReviewError(payload?.error ?? 'Unable to load review details.');
+          return;
+        }
+
+        setCanReview(Boolean(payload?.canReview));
+        setReview(payload?.review ?? null);
+      } catch {
+        if (!active) return;
+        setReviewError('Unable to load review details.');
+      } finally {
+        if (active) {
+          setIsReviewLoading(false);
+        }
+      }
+    }
+
+    void loadReview();
+
+    return () => {
+      active = false;
+    };
+  }, [activeBooking, isCompletedBooking]);
+
+  function submitReview() {
+    if (!activeBooking || !canReview || review || isSubmittingReview) {
+      return;
+    }
+
+    const bookingId = activeBooking.id;
+
+    setReviewError(null);
+
+    startReviewTransition(async () => {
+      try {
+        const response = await fetch(`/api/user/bookings/${bookingId}/review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rating: reviewRating,
+            reviewText: reviewText.trim() || undefined,
+          }),
+        });
+
+        const payload = (await response.json().catch(() => null)) as {
+          success?: boolean;
+          review?: BookingReview;
+          error?: string;
+        } | null;
+
+        if (!response.ok || !payload?.review) {
+          setReviewError(payload?.error ?? 'Unable to submit review.');
+          return;
+        }
+
+        setReview(payload.review);
+        setReviewText('');
+      } catch {
+        setReviewError('Unable to submit review.');
+      }
+    });
+  }
+
   return (
     <Modal
       isOpen={activeBooking !== null}
@@ -108,6 +225,78 @@ export default function BookingDetailsModal({
               </p>
             </div>
           </div>
+
+          {isCompletedBooking && (
+            <div className="rounded-xl border border-[#ead3bf] bg-white p-4 space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">
+                Service Review
+              </p>
+
+              {isReviewLoading ? (
+                <p className="text-sm text-neutral-500">Loading review details...</p>
+              ) : review ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-neutral-900">
+                    Your rating: {'★'.repeat(review.rating)}
+                  </p>
+                  {review.review_text ? (
+                    <p className="text-sm text-neutral-700">{review.review_text}</p>
+                  ) : (
+                    <p className="text-sm text-neutral-500">No written feedback provided.</p>
+                  )}
+                  {review.provider_response ? (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                        Provider Response
+                      </p>
+                      <p className="mt-1 text-sm text-emerald-900">{review.provider_response}</p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : canReview ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    {[1, 2, 3, 4, 5].map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setReviewRating(value)}
+                        className={`rounded-full border px-3 py-1 text-sm font-semibold ${
+                          reviewRating === value
+                            ? 'border-amber-300 bg-amber-50 text-amber-700'
+                            : 'border-neutral-200 bg-white text-neutral-500'
+                        }`}
+                      >
+                        {value}★
+                      </button>
+                    ))}
+                  </div>
+
+                  <textarea
+                    value={reviewText}
+                    onChange={(event) => setReviewText(event.target.value)}
+                    placeholder="Share what went well or what could improve (optional)"
+                    className="w-full rounded-xl border border-[#ead3bf] px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#e6c3a4]"
+                    rows={3}
+                    maxLength={3000}
+                  />
+
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-neutral-500">{reviewText.length}/3000</p>
+                    <Button type="button" onClick={submitReview} isLoading={isSubmittingReview}>
+                      Submit Review
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-neutral-500">
+                  Review will be available after service completion.
+                </p>
+              )}
+
+              {reviewError ? <p className="text-xs text-red-600">{reviewError}</p> : null}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 pt-3">
             <Link href="/forms/customer-booking">

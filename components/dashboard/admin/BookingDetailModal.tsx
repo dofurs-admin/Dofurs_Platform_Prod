@@ -32,6 +32,19 @@ type StatusEvent = {
   metadata: Record<string, unknown> | null;
 };
 
+type CustomerFeedbackEntry = {
+  id: string;
+  booking_id: number;
+  user_id: string;
+  provider_id: number;
+  rating: number;
+  notes: string | null;
+  created_by_user_id: string;
+  created_by_role: 'provider' | 'admin' | 'staff';
+  created_at: string;
+  updated_at: string;
+};
+
 type BookingDetail = {
   id: number;
   user_id: string;
@@ -78,9 +91,13 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [invoices, setInvoices] = useState<BookingInvoice[]>([]);
   const [notes, setNotes] = useState<BookingNote[]>([]);
+  const [customerFeedback, setCustomerFeedback] = useState<CustomerFeedbackEntry[]>([]);
   const [noteInput, setNoteInput] = useState('');
+  const [customerRatingInput, setCustomerRatingInput] = useState<number>(5);
+  const [customerFeedbackInput, setCustomerFeedbackInput] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
+  const [customerFeedbackError, setCustomerFeedbackError] = useState<string | null>(null);
   const [isLoading, startLoad] = useTransition();
   const [isSavingNote, startSave] = useTransition();
 
@@ -88,14 +105,19 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
     if (!isOpen || bookingId == null) return;
     setBooking(null);
     setNotes([]);
+    setCustomerFeedback([]);
     setInvoices([]);
     setLoadError(null);
+    setCustomerFeedbackError(null);
+    setCustomerFeedbackInput('');
+    setCustomerRatingInput(5);
 
     startLoad(async () => {
       try {
-        const [detailRes, notesRes] = await Promise.all([
+        const [detailRes, notesRes, customerFeedbackRes] = await Promise.all([
           fetch(`/api/admin/bookings/${bookingId}`, { cache: 'no-store' }),
           fetch(`/api/admin/bookings/${bookingId}/notes`, { cache: 'no-store' }),
+          fetch(`/api/admin/bookings/${bookingId}/customer-feedback`, { cache: 'no-store' }),
         ]);
 
         if (!detailRes.ok) {
@@ -115,6 +137,11 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
         if (notesRes.ok) {
           const notesData = await notesRes.json();
           setNotes(notesData.notes ?? []);
+        }
+
+        if (customerFeedbackRes.ok) {
+          const feedbackData = await customerFeedbackRes.json();
+          setCustomerFeedback(feedbackData.feedback ?? []);
         }
       } catch {
         setLoadError('Failed to load booking details. Please try again.');
@@ -138,6 +165,39 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
       const data = await res.json();
       setNotes((prev) => [data.note, ...prev]);
       setNoteInput('');
+    });
+  }
+
+  function handleSaveCustomerFeedback() {
+    if (bookingId == null) return;
+    setCustomerFeedbackError(null);
+
+    startSave(async () => {
+      const res = await fetch(`/api/admin/bookings/${bookingId}/customer-feedback`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          rating: customerRatingInput,
+          notes: customerFeedbackInput.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        setCustomerFeedbackError(payload?.error ?? 'Failed to save customer feedback.');
+        return;
+      }
+
+      const refreshRes = await fetch(`/api/admin/bookings/${bookingId}/customer-feedback`, {
+        cache: 'no-store',
+      });
+
+      if (refreshRes.ok) {
+        const data = await refreshRes.json();
+        setCustomerFeedback(data.feedback ?? []);
+      }
+
+      setCustomerFeedbackInput('');
     });
   }
 
@@ -330,6 +390,65 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
               </div>
             ) : (
               <p className="text-xs text-neutral-400">No notes yet.</p>
+            )}
+          </div>
+
+          {/* Customer feedback (provider/admin) */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">Customer Feedback</p>
+
+            {status === 'completed' ? (
+              <div className="space-y-2 rounded-xl border border-neutral-200 p-3">
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3, 4, 5].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setCustomerRatingInput(value)}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                        customerRatingInput === value
+                          ? 'border-amber-300 bg-amber-50 text-amber-700'
+                          : 'border-neutral-200 bg-white text-neutral-500'
+                      }`}
+                    >
+                      {value}★
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="input-field w-full resize-y min-h-[80px] text-sm"
+                  placeholder="Add internal service notes about customer behavior/coordination (optional)..."
+                  value={customerFeedbackInput}
+                  onChange={(event) => setCustomerFeedbackInput(event.target.value)}
+                  maxLength={4000}
+                />
+                {customerFeedbackError ? (
+                  <Alert variant="error" className="!py-1 !text-xs">{customerFeedbackError}</Alert>
+                ) : null}
+                <Button size="sm" onClick={handleSaveCustomerFeedback} disabled={isSavingNote}>
+                  Save Customer Feedback
+                </Button>
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-500">Available after booking is completed.</p>
+            )}
+
+            {customerFeedback.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                {customerFeedback.map((entry) => (
+                  <div key={entry.id} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-neutral-900">
+                        {entry.created_by_role === 'provider' ? 'Provider' : entry.created_by_role === 'staff' ? 'Staff' : 'Admin'} • {entry.rating}★
+                      </p>
+                      <p className="text-xs text-neutral-400">{fmtDt(entry.created_at)}</p>
+                    </div>
+                    <p className="mt-1 text-sm text-neutral-700">{entry.notes ?? 'No notes provided.'}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-400">No customer feedback yet.</p>
             )}
           </div>
 

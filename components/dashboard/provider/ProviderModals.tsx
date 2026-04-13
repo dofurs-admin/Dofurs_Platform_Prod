@@ -81,6 +81,16 @@ type Props = {
   completionFeedbackDraft: Record<number, string>;
   onCompletionFeedbackChange: (bookingId: number, value: string) => void;
   onCompleteBookingWithFeedback: (bookingId: number, feedback: string) => void;
+
+  // Customer feedback modal
+  activeCustomerFeedbackBooking: ProviderBooking | null;
+  onCloseCustomerFeedbackEditor: () => void;
+  customerFeedbackDraft: Record<number, { rating: number; notes: string }>;
+  onCustomerFeedbackChange: (
+    bookingId: number,
+    patch: Partial<{ rating: number; notes: string }>,
+  ) => void;
+  onSaveCustomerFeedback: (bookingId: number) => void;
 };
 
 export default function ProviderModals({
@@ -131,6 +141,11 @@ export default function ProviderModals({
   completionFeedbackDraft,
   onCompletionFeedbackChange,
   onCompleteBookingWithFeedback,
+  activeCustomerFeedbackBooking,
+  onCloseCustomerFeedbackEditor,
+  customerFeedbackDraft,
+  onCustomerFeedbackChange,
+  onSaveCustomerFeedback,
 }: Props) {
   return (
     <>
@@ -692,6 +707,83 @@ export default function ProviderModals({
                 }}
                 disabled={!(completionFeedbackDraft[activeCompletionBooking.id] ?? '').trim()}
               >
+                Submit
+              </Button>
+            </ModalFooter>
+          </>
+        ) : null}
+      </Modal>
+
+      {/* Customer Feedback Modal */}
+      <Modal
+        isOpen={activeCustomerFeedbackBooking !== null}
+        onClose={onCloseCustomerFeedbackEditor}
+        title="Rate Customer"
+        description="Capture service quality notes for customer handling and operational trust signals."
+        size="lg"
+      >
+        {activeCustomerFeedbackBooking ? (
+          <>
+            <div className="space-y-4 pb-2">
+              <div className="rounded-xl border border-neutral-200/70 bg-neutral-50/50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Booking
+                </p>
+                <p className="mt-2 text-sm font-medium text-neutral-900">
+                  #{activeCustomerFeedbackBooking.id}
+                </p>
+                <p className="text-sm text-neutral-600">
+                  {activeCustomerFeedbackBooking.booking_date} • {activeCustomerFeedbackBooking.start_time} -{' '}
+                  {activeCustomerFeedbackBooking.end_time}
+                </p>
+                {activeCustomerFeedbackBooking.owner_full_name ? (
+                  <p className="mt-1 text-sm text-neutral-700">
+                    Customer: {activeCustomerFeedbackBooking.owner_full_name}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-neutral-700">Customer Rating</p>
+                <div className="flex flex-wrap gap-2">
+                  {[1, 2, 3, 4, 5].map((value) => {
+                    const current = customerFeedbackDraft[activeCustomerFeedbackBooking.id]?.rating ?? 5;
+                    const selected = current === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() =>
+                          onCustomerFeedbackChange(activeCustomerFeedbackBooking.id, {
+                            rating: value,
+                          })
+                        }
+                        className={`rounded-full border px-3 py-1 text-sm font-semibold ${
+                          selected
+                            ? 'border-amber-300 bg-amber-50 text-amber-700'
+                            : 'border-neutral-200 bg-white text-neutral-500'
+                        }`}
+                      >
+                        {value}★
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <Input
+                label="Notes"
+                value={customerFeedbackDraft[activeCustomerFeedbackBooking.id]?.notes ?? ''}
+                onChange={(event) =>
+                  onCustomerFeedbackChange(activeCustomerFeedbackBooking.id, {
+                    notes: event.target.value,
+                  })
+                }
+                placeholder="Behavior, punctuality, safety, communication notes (optional)"
+              />
+            </div>
+            <ModalFooter className={PREMIUM_MODAL_FOOTER_CLASS}>
+              <Button onClick={() => onSaveCustomerFeedback(activeCustomerFeedbackBooking.id)}>
                 Submit
               </Button>
             </ModalFooter>
