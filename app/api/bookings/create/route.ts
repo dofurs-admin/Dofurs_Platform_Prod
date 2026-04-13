@@ -136,10 +136,22 @@ export async function POST(request: Request) {
   }
 
   if (role === 'provider') {
-    // Providers can book services from any provider as a customer.
-    // Only restrict when a provider tries to book on behalf of another user.
+    // Providers can book on behalf of customer accounts only.
     if (parsed.data.bookingUserId && parsed.data.bookingUserId !== user.id) {
-      return forbidden();
+      const { data: targetUser, error: targetUserError } = await admin
+        .from('users')
+        .select('id, roles(name)')
+        .eq('id', parsed.data.bookingUserId)
+        .maybeSingle<{ id: string; roles: { name: string } | Array<{ name: string }> | null }>();
+
+      if (targetUserError || !targetUser) {
+        return NextResponse.json({ error: 'Selected customer could not be verified.' }, { status: 404 });
+      }
+
+      const targetRole = (Array.isArray(targetUser.roles) ? targetUser.roles[0] : targetUser.roles)?.name ?? null;
+      if (targetRole === 'admin' || targetRole === 'staff' || targetRole === 'provider') {
+        return forbidden();
+      }
     }
   }
 
@@ -236,6 +248,7 @@ export async function POST(request: Request) {
       // Client pricing removed - calculated server-side only
       addOns: parsed.data.addOns,
       useSubscriptionCredit: parsed.data.useSubscriptionCredit,
+      paymentMode: parsed.data.paymentMode,
     };
 
     // Pass the user's authenticated client as 4th arg so the DB RPC function

@@ -344,10 +344,6 @@ export default function PetAndServiceStep({
                   <p className="text-xs font-semibold text-[#8f4a1d]">{totalSelectedServices}/{MAX_SERVICE_SELECTIONS} selected</p>
                 </div>
 
-                <p className="mb-3 rounded-xl border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2 text-xs font-medium text-[#8f4a1d]">
-                  You can add up to 2 services per booking in any combination.
-                </p>
-
                 {serviceSelectionRuleNote ? (
                   <p className="mb-3 rounded-xl border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2 text-xs font-medium text-[#8f4a1d]">
                     {serviceSelectionRuleNote}

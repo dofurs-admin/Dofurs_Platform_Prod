@@ -85,6 +85,7 @@ const bookingBaseSchema = z.object({
     .optional(),
   useSubscriptionCredit: z.boolean().optional(),
   walletCreditsAppliedInr: z.number().int().min(0).max(100_000).optional(),
+  paymentMode: z.enum(['direct_to_provider', 'platform', 'mixed']).optional(),
   pincode: z.string().trim().regex(/^[1-9]\d{5}$/, 'Invalid 6-digit Indian pincode').optional(),
   boardingEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });

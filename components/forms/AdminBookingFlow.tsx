@@ -117,6 +117,22 @@ type BookingCreateResponse = {
   booking: { id: number };
 };
 
+type CreditEligibilityResponse = {
+  eligible: boolean;
+  subscriptionId: string | null;
+  serviceType: string;
+  matchedCreditServiceType: string | null;
+  availableCredits: number;
+  totalCredits: number;
+  reason?: string | null;
+};
+
+type CreditWalletResponse = {
+  balance?: {
+    available_inr?: number;
+  };
+};
+
 type CatalogResponse = {
   canBookForUsers: boolean;
   bookableUsers: BookableUser[];
@@ -210,6 +226,13 @@ export default function AdminBookingFlow() {
   const [serviceType, setServiceType] = useState<string>('');
   const [discountCode, setDiscountCode] = useState('');
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
+  const [paymentChoice, setPaymentChoice] = useState<'cash' | 'subscription_credit'>('cash');
+  const [walletBalanceInr, setWalletBalanceInr] = useState(0);
+  const [walletCreditsToApply, setWalletCreditsToApply] = useState(0);
+  const [isLoadingWalletBalance, setIsLoadingWalletBalance] = useState(false);
+  const [creditEligibility, setCreditEligibility] = useState<CreditEligibilityResponse | null>(null);
+  const [isCheckingCreditEligibility, setIsCheckingCreditEligibility] = useState(false);
+  const [subscriptionCreditUnavailableReason, setSubscriptionCreditUnavailableReason] = useState<string | null>(null);
 
   const [bookingDate, setBookingDate] = useState('');
   const [slotStartTime, setSlotStartTime] = useState('');
@@ -238,6 +261,10 @@ export default function AdminBookingFlow() {
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setPaymentChoice('cash');
+    setWalletCreditsToApply(0);
+    setCreditEligibility(null);
+    setSubscriptionCreditUnavailableReason(null);
     setProviderNotes('');
     setAvailability({
       services: [],
@@ -332,6 +359,7 @@ export default function AdminBookingFlow() {
   const summaryBaseAmount = (selectedProvider?.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
   const summaryDiscount = totalSelectedServices > 1 ? 0 : discountPreview?.discountAmount ?? 0;
   const summaryTotal = discountPreview?.finalAmount ?? summaryBaseAmount;
+  const summaryPayableAfterWallet = Math.max(0, summaryTotal - walletCreditsToApply);
 
   const resetAddressDependentState = useCallback(() => {
     setPetServiceSelections({});
@@ -341,10 +369,156 @@ export default function AdminBookingFlow() {
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setPaymentChoice('cash');
+    setWalletCreditsToApply(0);
+    setCreditEligibility(null);
+    setSubscriptionCreditUnavailableReason(null);
     if (step > 1) {
       setStep(1);
     }
   }, [step]);
+
+  useEffect(() => {
+    if (!selectedBookingUserId) {
+      setWalletBalanceInr(0);
+      setWalletCreditsToApply(0);
+      return;
+    }
+
+    const bookingUserId = selectedBookingUserId;
+
+    let isMounted = true;
+
+    async function loadWalletBalance() {
+      setIsLoadingWalletBalance(true);
+
+      try {
+        const payload = await apiRequest<CreditWalletResponse>(
+          `/api/user/credit-wallet?userId=${encodeURIComponent(bookingUserId)}`,
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        const available = Math.max(0, Math.floor(Number(payload.balance?.available_inr ?? 0)));
+        setWalletBalanceInr(available);
+      } catch {
+        if (isMounted) {
+          setWalletBalanceInr(0);
+          setWalletCreditsToApply(0);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingWalletBalance(false);
+        }
+      }
+    }
+
+    void loadWalletBalance();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBookingUserId]);
+
+  useEffect(() => {
+    setWalletCreditsToApply((previous) => {
+      if (paymentChoice === 'subscription_credit') {
+        return 0;
+      }
+
+      const nextCap = Math.max(0, Math.min(walletBalanceInr, summaryTotal));
+      return Math.max(0, Math.min(previous, nextCap));
+    });
+  }, [paymentChoice, summaryTotal, walletBalanceInr]);
+
+  useEffect(() => {
+    if (!selectedBookingUserId || selectedServiceTypesForBundle.length === 0) {
+      setCreditEligibility(null);
+      setSubscriptionCreditUnavailableReason(null);
+      return;
+    }
+
+    const bookingUserId = selectedBookingUserId;
+
+    let isMounted = true;
+
+    async function loadCreditEligibility() {
+      setIsCheckingCreditEligibility(true);
+
+      try {
+        const responses = await Promise.all(
+          selectedServiceTypesForBundle.map(async (selectedServiceType) => {
+            const params = new URLSearchParams({
+              serviceType: selectedServiceType,
+              userId: bookingUserId,
+            });
+
+            return apiRequest<CreditEligibilityResponse>(`/api/credits/eligibility?${params.toString()}`);
+          }),
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        const ineligible = responses.find((payload) => !payload.eligible);
+        if (ineligible) {
+          setCreditEligibility(ineligible);
+          setSubscriptionCreditUnavailableReason(
+            ineligible.reason ?? 'Subscription credits are not available for one or more selected services.',
+          );
+          return;
+        }
+
+        const primary = responses[0];
+        const creditsByBucket = new Map<string, number>();
+
+        for (const response of responses) {
+          const bucketKey = (response.matchedCreditServiceType ?? response.serviceType).trim().toLowerCase();
+          const existing = creditsByBucket.get(bucketKey) ?? 0;
+          creditsByBucket.set(bucketKey, Math.max(existing, Number(response.availableCredits ?? 0)));
+        }
+
+        const totalAvailableCredits = Array.from(creditsByBucket.values()).reduce((sum, value) => sum + value, 0);
+        const hasEnoughCredits = totalAvailableCredits >= summaryTotal;
+
+        setCreditEligibility({
+          ...primary,
+          availableCredits: totalAvailableCredits,
+          eligible: hasEnoughCredits,
+        });
+
+        setSubscriptionCreditUnavailableReason(
+          hasEnoughCredits
+            ? null
+            : `Need ${Math.ceil(summaryTotal)} credits, but only ${Math.floor(totalAvailableCredits)} are available.`,
+        );
+      } catch {
+        if (isMounted) {
+          setCreditEligibility(null);
+          setSubscriptionCreditUnavailableReason('Unable to verify subscription credit eligibility right now.');
+        }
+      } finally {
+        if (isMounted) {
+          setIsCheckingCreditEligibility(false);
+        }
+      }
+    }
+
+    void loadCreditEligibility();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedBookingUserId, selectedServiceTypesForBundle, summaryTotal]);
+
+  useEffect(() => {
+    if (paymentChoice === 'subscription_credit' && !creditEligibility?.eligible) {
+      setPaymentChoice('cash');
+    }
+  }, [creditEligibility?.eligible, paymentChoice]);
 
   const openAddAddressModal = useCallback(() => {
     if (!selectedBookingUserId) {
@@ -1194,6 +1368,14 @@ export default function AdminBookingFlow() {
       return;
     }
 
+    if (paymentChoice === 'subscription_credit' && !creditEligibility?.eligible) {
+      showToast(
+        subscriptionCreditUnavailableReason ?? 'Subscription credit is not available for this booking.',
+        'error',
+      );
+      return;
+    }
+
     const addMinutesToTime = (time: string, minutesToAdd: number) => {
       const [hours, minutes] = time.split(':').map((value) => Number(value));
       const base = new Date();
@@ -1208,6 +1390,9 @@ export default function AdminBookingFlow() {
         let firstCreatedBookingId: number | undefined;
 
         for (const [index, entry] of bundleEntries.entries()) {
+          const useSubscriptionCredit = paymentChoice === 'subscription_credit';
+          const walletCreditsForEntry = useSubscriptionCredit ? 0 : index === 0 ? walletCreditsToApply : 0;
+
           const result = await apiRequest<BookingCreateResponse>('/api/bookings/create', {
             method: 'POST',
             body: JSON.stringify({
@@ -1223,6 +1408,9 @@ export default function AdminBookingFlow() {
               providerNotes: providerNotes.trim() || null,
               bookingUserId: selectedBookingUserId,
               discountCode: bundleEntries.length === 1 && index === 0 && discountCode.trim() ? discountCode.trim().toUpperCase() : undefined,
+              useSubscriptionCredit,
+              walletCreditsAppliedInr: walletCreditsForEntry > 0 ? walletCreditsForEntry : undefined,
+              paymentMode: useSubscriptionCredit ? 'platform' : 'direct_to_provider',
             }),
           });
 
@@ -1928,7 +2116,92 @@ export default function AdminBookingFlow() {
               <div className="mt-2 space-y-1 text-sm text-neutral-700">
                 <p>Base amount: Rs.{summaryBaseAmount}</p>
                 <p>Discount: -Rs.{summaryDiscount}</p>
-                <p className="font-semibold text-neutral-900">Total: Rs.{summaryTotal}</p>
+                <p>Wallet/Referral credits: -Rs.{walletCreditsToApply}</p>
+                <p className="font-semibold text-neutral-900">Total payable: Rs.{paymentChoice === 'subscription_credit' ? 0 : summaryPayableAfterWallet}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+              <p className="text-xs uppercase tracking-wide text-neutral-500">Payment</p>
+
+              <div className="mt-2 space-y-2 text-sm text-neutral-700">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="admin-payment-choice"
+                    checked={paymentChoice === 'cash'}
+                    onChange={() => setPaymentChoice('cash')}
+                    className="h-4 w-4 accent-coral"
+                  />
+                  <span>Cash collection after service</span>
+                </label>
+
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="admin-payment-choice"
+                    checked={paymentChoice === 'subscription_credit'}
+                    onChange={() => setPaymentChoice('subscription_credit')}
+                    disabled={!creditEligibility?.eligible}
+                    className="h-4 w-4 accent-coral"
+                  />
+                  <span>Use user subscription credits</span>
+                </label>
+
+                <p className="text-xs text-neutral-600">
+                  {isCheckingCreditEligibility
+                    ? 'Checking subscription credit eligibility...'
+                    : creditEligibility?.eligible
+                      ? `Subscription credits available: ${Math.floor(creditEligibility.availableCredits)}`
+                      : subscriptionCreditUnavailableReason ?? 'Subscription credit is not available.'}
+                </p>
+
+                <div className="rounded-lg border border-neutral-200 bg-white p-3">
+                  <label className="flex items-center gap-2 text-sm font-medium text-neutral-800">
+                    <input
+                      type="checkbox"
+                      checked={walletCreditsToApply > 0}
+                      disabled={paymentChoice === 'subscription_credit' || walletBalanceInr <= 0 || summaryTotal <= 0}
+                      onChange={(event) => {
+                        if (!event.target.checked) {
+                          setWalletCreditsToApply(0);
+                          return;
+                        }
+
+                        const initialCredits = Math.max(0, Math.min(walletBalanceInr, summaryTotal));
+                        setWalletCreditsToApply(initialCredits);
+                      }}
+                      className="h-4 w-4 accent-coral"
+                    />
+                    Apply wallet/referral credits
+                  </label>
+
+                  <p className="mt-1 text-xs text-neutral-600">
+                    {isLoadingWalletBalance
+                      ? 'Loading wallet balance...'
+                      : `Available wallet/referral credits: Rs.${walletBalanceInr}`}
+                  </p>
+
+                  <div className="mt-2 max-w-xs">
+                    <input
+                      type="number"
+                      min={0}
+                      max={Math.max(0, Math.min(walletBalanceInr, summaryTotal))}
+                      value={walletCreditsToApply}
+                      onChange={(event) => {
+                        const enteredValue = Number(event.target.value);
+                        const boundedValue = Math.max(0, Math.min(
+                          Number.isFinite(enteredValue) ? Math.floor(enteredValue) : 0,
+                          Math.max(0, Math.min(walletBalanceInr, summaryTotal)),
+                        ));
+                        setWalletCreditsToApply(boundedValue);
+                      }}
+                      disabled={paymentChoice === 'subscription_credit' || walletBalanceInr <= 0}
+                      className="h-10 w-full rounded-xl border border-neutral-200 px-3 text-sm disabled:bg-neutral-100"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
