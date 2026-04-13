@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AggressionLevel } from '@/lib/pets/types';
 import { calculatePetCompletionFromSections, derivePetCompletionSections } from '@/lib/utils/pet-completion';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export const PET_SHARE_ROLES = ['manager', 'viewer'] as const;
 export type PetShareRole = (typeof PET_SHARE_ROLES)[number];
@@ -89,7 +90,7 @@ export async function claimPendingPetShares(
     .update({
       shared_with_user_id: userId,
       status: 'active',
-      accepted_at: new Date().toISOString(),
+      accepted_at: getISTTimestamp(),
       revoked_at: null,
     })
     .ilike('invited_email', normalizedEmail)
@@ -442,7 +443,7 @@ export async function upsertPetShareForOwner(
   }
 
   const nextStatus: PetShareRecord['status'] = matchedUserId ? 'active' : 'pending';
-  const now = new Date().toISOString();
+  const now = getISTTimestamp();
 
   const upsertResult = await supabase
     .from('pet_shares')
@@ -508,7 +509,7 @@ export async function revokePetShareForOwner(
     .from('pet_shares')
     .update({
       status: 'revoked',
-      revoked_at: new Date().toISOString(),
+      revoked_at: getISTTimestamp(),
     })
     .eq('id', input.shareId)
     .eq('pet_id', input.petId)

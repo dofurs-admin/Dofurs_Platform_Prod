@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import type { Json } from '@/lib/supabase/database.types';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type BillingEscalationInvoiceRow = {
   id: string;
@@ -63,7 +64,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   const rows = (data ?? [])
     .map((invoice) => {
       const metadata = isRecord(invoice.metadata) ? invoice.metadata : {};
@@ -170,7 +171,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   let updated = 0;
 
   for (const invoice of invoices ?? []) {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type BillingMetricInvoice = {
   status: string;
@@ -19,7 +20,7 @@ function daysBetween(startIso: string, endIso: string) {
 }
 
 function daysSince(startIso: string) {
-  return daysBetween(startIso, new Date().toISOString());
+  return daysBetween(startIso, getISTTimestamp());
 }
 
 export async function GET(request: Request) {
@@ -99,7 +100,7 @@ export async function GET(request: Request) {
   const dsoDays = paidInvoiceCount > 0 ? dsoDaysTotal / paidInvoiceCount : 0;
 
   return NextResponse.json({
-    generated_at: new Date().toISOString(),
+    generated_at: getISTTimestamp(),
     totals: {
       invoices_considered: invoices.length,
       issued_amount_inr: issuedAmount,

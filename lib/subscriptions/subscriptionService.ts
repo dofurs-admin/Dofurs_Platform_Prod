@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isServiceTypeMatch } from '@/lib/subscriptions/serviceTypeMatching';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 function nowIso() {
-  return new Date().toISOString();
+  return getISTTimestamp();
 }
 
 function buildEndsAtIso(from: Date, durationDays: number) {

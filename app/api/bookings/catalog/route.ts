@@ -6,6 +6,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { claimPendingPetShares, listAccessiblePetsForUser } from '@/lib/pets/share-access';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -239,7 +240,7 @@ export async function GET(request: Request) {
     }
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   const { data: discountsData, error: discountsError } = await supabase
     .from('platform_discounts')
     .select(

@@ -144,6 +144,21 @@ type BookingCreateResponse = {
   booking: { id: number };
 };
 
+type BookingConfirmation = {
+  bookingIds: number[];
+  customerName: string;
+  providerName: string;
+  bookingDate: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  paymentMode: 'cash' | 'subscription_credit';
+  totalAmount: number;
+  discountAmount: number;
+  netAmount: number;
+  offlineMode: boolean;
+};
+
 type CreditEligibilityResponse = {
   eligible: boolean;
   subscriptionId: string | null;
@@ -221,6 +236,7 @@ export default function AdminBookingFlow() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [apiError, setApiError] = useState<string | null>(null);
+  const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null);
 
   const [bookableUsers, setBookableUsers] = useState<BookableUser[]>([]);
   const [pets, setPets] = useState<Pet[]>([]);
@@ -264,6 +280,7 @@ export default function AdminBookingFlow() {
 
   const [bookingDate, setBookingDate] = useState('');
   const [slotStartTime, setSlotStartTime] = useState('');
+  const [slotEndTime, setSlotEndTime] = useState('');
   const [allowPastSlots, setAllowPastSlots] = useState(false);
 
   const [providerServiceId, setProviderServiceId] = useState<string | null>(null);
@@ -288,6 +305,7 @@ export default function AdminBookingFlow() {
     setPetServiceSelections({});
     setBookingDate('');
     setSlotStartTime('');
+    setSlotEndTime('');
     setAllowPastSlots(false);
     setProviderServiceId(null);
     setDiscountCode('');
@@ -304,6 +322,7 @@ export default function AdminBookingFlow() {
       recommendedSlotStartTime: null,
       recommendedProviderServiceId: null,
     });
+    setBookingConfirmation(null);
     setStep(1);
   }, []);
 
@@ -384,8 +403,9 @@ export default function AdminBookingFlow() {
   }, [selectedAddress]);
 
   const pincode = selectedAddress?.pincode?.trim() ?? '';
+  const isFlowCompleted = bookingConfirmation !== null;
 
-  const stepProgress = (step / STEPS.length) * 100;
+  const stepProgress = isFlowCompleted ? 100 : (step / STEPS.length) * 100;
   const availabilityDebug = availability.debug ?? null;
 
   const summaryBaseAmount = (selectedProvider?.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
@@ -398,6 +418,7 @@ export default function AdminBookingFlow() {
     setServiceType('');
     setBookingDate('');
     setSlotStartTime('');
+    setSlotEndTime('');
     setAllowPastSlots(false);
     setProviderServiceId(null);
     setDiscountCode('');
@@ -720,6 +741,7 @@ export default function AdminBookingFlow() {
 
     setBookingDate('');
     setSlotStartTime('');
+    setSlotEndTime('');
     setProviderServiceId(null);
     setDiscountPreview(null);
   }, []);
@@ -758,6 +780,7 @@ export default function AdminBookingFlow() {
 
       setBookingDate('');
       setSlotStartTime('');
+      setSlotEndTime('');
       setProviderServiceId(null);
       setDiscountPreview(null);
     },
@@ -781,12 +804,16 @@ export default function AdminBookingFlow() {
   }, [discounts, serviceType]);
 
   const availableProviderCards = useMemo(() => {
+    if (allowPastSlots) {
+      return availability.providers;
+    }
+
     if (!bookingDate || !slotStartTime) {
       return availability.providers;
     }
 
     return availability.providers.filter((provider) => provider.availableForSelectedSlot);
-  }, [availability.providers, bookingDate, slotStartTime]);
+  }, [allowPastSlots, availability.providers, bookingDate, slotStartTime]);
 
   const loadCatalog = useCallback(async (nextUserId: string | null) => {
     const searchParams = new URLSearchParams();
@@ -953,6 +980,7 @@ export default function AdminBookingFlow() {
         // Reset date/slot/provider so admin must pick new ones
         setBookingDate('');
         setSlotStartTime('');
+        setSlotEndTime('');
         setProviderServiceId(null);
         setDiscountCode('');
         setDiscountPreview(null);
@@ -1101,10 +1129,6 @@ export default function AdminBookingFlow() {
       }
 
       setProviderServiceId(payload.recommendedProviderServiceId ?? payload.providers[0]?.providerServiceId ?? null);
-
-      if (!targetStartTime) {
-        setSlotStartTime(payload.recommendedSlotStartTime ?? payload.slotOptions[0]?.startTime ?? '');
-      }
     },
     [allowPastSlots, availabilityDebugEnabled, pincode, providerServiceId],
   );
@@ -1182,6 +1206,7 @@ export default function AdminBookingFlow() {
     });
     setBookingDate('');
     setSlotStartTime('');
+    setSlotEndTime('');
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
@@ -1300,8 +1325,13 @@ export default function AdminBookingFlow() {
     }
 
     if (targetStep >= 4) {
-      if (!bookingDate || !slotStartTime) {
-        showToast('Select booking date and slot first.', 'error');
+      if (!bookingDate || !slotStartTime || !slotEndTime) {
+        showToast('Select booking date, start time, and end time first.', 'error');
+        return false;
+      }
+
+      if (slotEndTime <= slotStartTime) {
+        showToast('End time must be after start time.', 'error');
         return false;
       }
     }
@@ -1372,8 +1402,13 @@ export default function AdminBookingFlow() {
   }
 
   function submitBooking() {
-    if (!selectedBookingUserId || selectedPetIds.length === 0 || !selectedAddress || !providerServiceId || !selectedProvider || !bookingDate || !slotStartTime) {
+    if (!selectedBookingUserId || selectedPetIds.length === 0 || !selectedAddress || !providerServiceId || !selectedProvider || !bookingDate || !slotStartTime || !slotEndTime) {
       showToast('Please complete all steps before creating booking.', 'error');
+      return;
+    }
+
+    if (slotEndTime <= slotStartTime) {
+      showToast('End time must be after start time.', 'error');
       return;
     }
 
@@ -1463,6 +1498,7 @@ export default function AdminBookingFlow() {
       try {
         let elapsedMinutes = 0;
         let firstCreatedBookingId: number | undefined;
+        const createdBookingIds: number[] = [];
 
         for (const [index, entry] of bundleEntries.entries()) {
           const useSubscriptionCredit = paymentChoice === 'subscription_credit';
@@ -1476,6 +1512,7 @@ export default function AdminBookingFlow() {
               providerServiceId: entry.providerServiceId,
               bookingDate,
               startTime: addMinutesToTime(slotStartTime, elapsedMinutes),
+              endTime: allowPastSlots && bundleEntries.length === 1 ? slotEndTime : undefined,
               bookingMode,
               locationAddress: bookingMode === 'home_visit' ? formatAddress(selectedAddress) : null,
               latitude: bookingMode === 'home_visit' ? selectedAddress.latitude : null,
@@ -1494,6 +1531,10 @@ export default function AdminBookingFlow() {
             firstCreatedBookingId = result.booking.id;
           }
 
+          if (result.booking?.id) {
+            createdBookingIds.push(result.booking.id);
+          }
+
           elapsedMinutes += entry.durationMinutes;
         }
 
@@ -1508,8 +1549,20 @@ export default function AdminBookingFlow() {
           showToast(`${bundleEntries.length} booking${bundleEntries.length === 1 ? '' : 's'} created successfully.`, 'success');
         }
 
-        setStep(1);
-        await loadCatalog(selectedBookingUserId);
+        setBookingConfirmation({
+          bookingIds: createdBookingIds,
+          customerName: selectedUser?.name?.trim() || selectedUser?.email || selectedUser?.id || 'Unknown customer',
+          providerName: selectedProvider.providerName,
+          bookingDate,
+          startTime: slotStartTime,
+          endTime: slotEndTime,
+          address: formatAddress(selectedAddress),
+          paymentMode: paymentChoice,
+          totalAmount: summaryBaseAmount,
+          discountAmount: summaryDiscount,
+          netAmount: summaryPayableAfterWallet,
+          offlineMode: allowPastSlots,
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Booking failed.';
         showToast(message, 'error');
@@ -1540,15 +1593,16 @@ export default function AdminBookingFlow() {
           <div className="pb-1">
             <div className="flex flex-wrap items-center gap-2 sm:inline-flex sm:min-w-max sm:gap-2">
               {STEPS.map((item, index) => {
-                const isActive = item.id === step;
-                const isCompleted = item.id < step;
+                const isActive = !isFlowCompleted && item.id === step;
+                const isCompleted = isFlowCompleted || item.id < step;
 
                 return (
                   <div key={item.id} className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => goToStep(item.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold transition sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm ${
+                      disabled={isFlowCompleted}
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] font-semibold transition disabled:cursor-default sm:gap-2 sm:px-3 sm:py-1.5 sm:text-sm ${
                         isActive
                           ? 'border-coral bg-orange-50 text-neutral-900'
                           : isCompleted
@@ -1580,10 +1634,48 @@ export default function AdminBookingFlow() {
 
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
             <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,_#f4a261_0%,_#e76f51_100%)] transition-[width] duration-300"
+              className={`h-full rounded-full transition-[width] duration-300 ${
+                isFlowCompleted
+                  ? 'bg-emerald-500'
+                  : 'bg-[linear-gradient(90deg,_#f4a261_0%,_#e76f51_100%)]'
+              }`}
               style={{ width: `${stepProgress}%` }}
             />
           </div>
+
+          {bookingConfirmation ? (
+            <section className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4">
+              <h4 className="text-base font-semibold text-emerald-900">Booking Confirmed</h4>
+              <p className="mt-1 text-sm text-emerald-800">Your booking has been created successfully.</p>
+              <div className="mt-3 grid gap-2 text-xs text-emerald-900 sm:grid-cols-2">
+                <p><span className="font-semibold">Booking IDs:</span> {bookingConfirmation.bookingIds.join(', ') || '—'}</p>
+                <p><span className="font-semibold">Customer:</span> {bookingConfirmation.customerName}</p>
+                <p><span className="font-semibold">Provider:</span> {bookingConfirmation.providerName}</p>
+                <p><span className="font-semibold">Date:</span> {bookingConfirmation.bookingDate}</p>
+                <p><span className="font-semibold">Time:</span> {bookingConfirmation.startTime} - {bookingConfirmation.endTime}</p>
+                <p><span className="font-semibold">Payment Mode:</span> {bookingConfirmation.paymentMode === 'subscription_credit' ? 'Subscription Credit' : 'Cash'}</p>
+                <p><span className="font-semibold">Service Total:</span> Rs.{bookingConfirmation.totalAmount}</p>
+                <p><span className="font-semibold">Discount:</span> Rs.{bookingConfirmation.discountAmount}</p>
+                <p className="sm:col-span-2"><span className="font-semibold">Amount Payable:</span> Rs.{bookingConfirmation.netAmount}</p>
+                <p className="sm:col-span-2"><span className="font-semibold">Address:</span> {bookingConfirmation.address}</p>
+                {bookingConfirmation.offlineMode ? <p className="sm:col-span-2 font-semibold">Offline manual booking mode was used.</p> : null}
+              </div>
+              <div className="mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBookingConfirmation(null);
+                    startTransition(async () => {
+                      await loadCatalog(selectedBookingUserId);
+                    });
+                  }}
+                  className="h-10 rounded-xl bg-coral px-4 text-sm font-semibold text-white"
+                >
+                  Start New Booking
+                </button>
+              </div>
+            </section>
+          ) : null}
 
           {availabilityDebugEnabled && (step === 2 || step === 3) && availabilityDebug ? (
             <details className="rounded-xl border border-amber-200 bg-amber-50/80 p-3" open>
@@ -1683,7 +1775,7 @@ export default function AdminBookingFlow() {
           ) : null}
         </div>
 
-        {step === 1 ? (
+        {!isFlowCompleted && step === 1 ? (
           <section className="space-y-4">
             <h4 className="text-sm font-semibold text-neutral-900 sm:text-base">Step 1. Select User, Pet, Address</h4>
             <p className="mt-1 text-xs text-neutral-600 sm:text-sm">Search customer, then choose pet and exact service address.</p>
@@ -1965,7 +2057,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {step === 2 ? (
+        {!isFlowCompleted && step === 2 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 2. Select Service & Apply Discounts</h4>
             <p className="mt-1 text-sm text-neutral-600">Services are filtered by selected address pincode.</p>
@@ -2126,10 +2218,10 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {step === 3 ? (
+        {!isFlowCompleted && step === 3 ? (
           <section className="space-y-4">
-            <h4 className="text-base font-semibold text-neutral-900">Step 3. Select Date & Recommended Slot</h4>
-            <p className="mt-1 text-sm text-neutral-600">Slots are computed from providers available for selected service in this pincode.</p>
+            <h4 className="text-base font-semibold text-neutral-900">Step 3. Select Date & Time Window</h4>
+            <p className="mt-1 text-sm text-neutral-600">Set start and end time manually for booking creation.</p>
 
             <div className="mt-4 max-w-xs">
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Booking Date</label>
@@ -2139,6 +2231,7 @@ export default function AdminBookingFlow() {
                 onChange={(event) => {
                   setBookingDate(event.target.value);
                   setSlotStartTime('');
+                  setSlotEndTime('');
                 }}
                 className="h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm"
               />
@@ -2151,6 +2244,7 @@ export default function AdminBookingFlow() {
                 onChange={(event) => {
                   setAllowPastSlots(event.target.checked);
                   setSlotStartTime('');
+                  setSlotEndTime('');
                 }}
                 className="h-4 w-4 rounded border-neutral-300 text-coral focus:ring-coral"
               />
@@ -2158,28 +2252,25 @@ export default function AdminBookingFlow() {
             </label>
 
             {bookingDate ? (
-              <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-                {availability.slotOptions.length === 0 ? (
-                  <p className="text-sm text-neutral-500">No slots available for this date in selected area.</p>
-                ) : (
-                  availability.slotOptions.map((slot) => {
-                    const selected = slotStartTime === slot.startTime;
-                    return (
-                      <button
-                        key={`${slot.startTime}-${slot.endTime}`}
-                        type="button"
-                        onClick={() => setSlotStartTime(slot.startTime)}
-                        className={`rounded-xl border p-3 text-left ${
-                          selected ? 'border-coral bg-orange-50' : 'border-neutral-200 bg-white hover:border-coral/50'
-                        }`}
-                      >
-                        <p className="text-sm font-semibold text-neutral-900">{slot.startTime} - {slot.endTime}</p>
-                        <p className="mt-1 text-xs text-neutral-600">{slot.availableProviderCount} providers available</p>
-                        {slot.recommended ? <p className="mt-1 text-xs font-semibold text-coral">Recommended</p> : null}
-                      </button>
-                    );
-                  })
-                )}
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  Start Time
+                  <input
+                    type="time"
+                    value={slotStartTime}
+                    onChange={(event) => setSlotStartTime(event.target.value)}
+                    className="mt-1 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                  />
+                </label>
+                <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  End Time
+                  <input
+                    type="time"
+                    value={slotEndTime}
+                    onChange={(event) => setSlotEndTime(event.target.value)}
+                    className="mt-1 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                  />
+                </label>
               </div>
             ) : null}
 
@@ -2202,7 +2293,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {step === 4 ? (
+        {!isFlowCompleted && step === 4 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 4. Provider Selection</h4>
             <p className="mt-1 text-sm text-neutral-600">Auto-assigned best match is preselected. Click any other provider to override.</p>
@@ -2235,9 +2326,13 @@ export default function AdminBookingFlow() {
                       <p className="mt-2 text-xs text-neutral-700">Service: {provider.serviceType}</p>
                       <p className="text-xs text-neutral-700">Price: Rs.{provider.basePrice}</p>
                       <p className="text-xs text-neutral-700">Duration: {provider.serviceDurationMinutes} mins</p>
-                      <p className={`mt-1 text-xs font-medium ${provider.availableForSelectedSlot ? 'text-emerald-700' : 'text-red-600'}`}>
-                        {provider.availableForSelectedSlot ? 'Available for selected slot' : 'Not available for selected slot'}
-                      </p>
+                      {allowPastSlots ? (
+                        <p className="mt-1 text-xs font-medium text-amber-700">Manual offline mode: availability restrictions are bypassed.</p>
+                      ) : (
+                        <p className={`mt-1 text-xs font-medium ${provider.availableForSelectedSlot ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {provider.availableForSelectedSlot ? 'Available for selected slot' : 'Not available for selected slot'}
+                        </p>
+                      )}
                     </button>
                   );
                 })
@@ -2263,7 +2358,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {step === 5 ? (
+        {!isFlowCompleted && step === 5 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 5. Final Booking Summary</h4>
             <p className="mt-1 text-sm text-neutral-600">Review all selections and create booking.</p>
@@ -2281,7 +2376,7 @@ export default function AdminBookingFlow() {
                 <p className="mt-1 text-sm font-semibold text-neutral-900">{serviceType || 'Not selected'}</p>
                 <p className="mt-1 text-xs text-neutral-700">Bundle size: {totalSelectedServices} service{totalSelectedServices === 1 ? '' : 's'}</p>
                 <p className="mt-1 text-xs text-neutral-700">Date: {bookingDate || 'Not selected'}</p>
-                <p className="mt-1 text-xs text-neutral-700">Slot: {slotStartTime || 'Not selected'}</p>
+                <p className="mt-1 text-xs text-neutral-700">Time: {slotStartTime && slotEndTime ? `${slotStartTime} - ${slotEndTime}` : 'Not selected'}</p>
                 <p className="mt-1 text-xs text-neutral-700">Provider: {selectedProvider?.providerName ?? 'Not selected'}</p>
               </div>
             </div>

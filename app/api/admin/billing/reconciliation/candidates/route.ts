@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -158,7 +159,7 @@ export async function GET(request: Request) {
   const queue = buildCandidateQueue({ invoices: invoices ?? [], unlinkedTxs });
 
   return NextResponse.json({
-    generated_at: new Date().toISOString(),
+    generated_at: getISTTimestamp(),
     totals: {
       invoices_considered: queue.length,
       with_candidates: queue.filter((row) => row.candidate_count > 0).length,
@@ -235,7 +236,7 @@ export async function POST(request: Request) {
   let matched = 0;
   const skipped: Array<{ invoice_id: string; reason: 'candidate_consumed' | 'update_failed'; detail?: string }> = [];
   const matchedTxIds = new Set<string>();
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
 
   for (const row of queue) {
     const candidate = row.candidates.find((item) => !linkedTxIds.has(item.payment_transaction_id) && !matchedTxIds.has(item.payment_transaction_id));

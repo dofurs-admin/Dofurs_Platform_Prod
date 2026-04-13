@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { requireRole, requireAuthenticatedUser } from '@/lib/auth/session';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTDateString } from '@/lib/utils/date';
 import ProviderTodayScheduleClient from '@/components/dashboard/ProviderTodayScheduleClient';
 import type { TodayBooking } from '@/components/dashboard/ProviderTodayScheduleClient';
 
@@ -80,7 +81,7 @@ export default async function ProviderTodayPage() {
     notFound();
   }
 
-  const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+  const today = getISTDateString();
 
   const bookingsResult = await supabase
     .from('bookings')
@@ -192,7 +193,12 @@ export default async function ProviderTodayPage() {
             </Link>
             <h1 className="text-xl font-bold text-neutral-950">Today&apos;s Schedule</h1>
             <p className="text-xs text-neutral-500">
-              {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              {new Date().toLocaleDateString('en-IN', {
+                timeZone: 'Asia/Kolkata',
+                weekday: 'long',
+                day: 'numeric',
+                month: 'long',
+              })}
             </p>
           </div>
           <div className="rounded-2xl border border-[#e7c4a7] bg-white px-4 py-3 text-center shadow-sm">

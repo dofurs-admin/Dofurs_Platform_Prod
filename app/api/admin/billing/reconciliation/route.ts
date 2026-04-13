@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type InvoiceRow = {
   id: string;
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
   const unlinkedTransactions = txRows.filter((tx) => !linkedInvoiceTxIds.has(tx.id));
 
   return NextResponse.json({
-    checked_at: new Date().toISOString(),
+    checked_at: getISTTimestamp(),
     totals: {
       invoices: invoiceRows.length,
       transactions: txRows.length,

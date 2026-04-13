@@ -1,5 +1,6 @@
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type FollowupInvoiceRow = {
   invoice_number: string;
@@ -131,7 +132,7 @@ export async function GET(request: Request) {
     status: 200,
     headers: {
       'content-type': 'text/csv; charset=utf-8',
-      'content-disposition': `attachment; filename="billing-followups-${new Date().toISOString().slice(0, 10)}.csv"`,
+      'content-disposition': `attachment; filename="billing-followups-${getISTTimestamp().slice(0, 10)}.csv"`,
       'cache-control': 'no-store',
     },
   });

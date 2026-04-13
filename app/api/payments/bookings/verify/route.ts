@@ -8,6 +8,7 @@ import { createServiceInvoice } from '@/lib/payments/invoiceService';
 import { createDiscountRedemption } from '@/lib/bookings/discounts';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { deductCredits } from '@/lib/credits/wallet';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -172,7 +173,7 @@ export async function POST(request: Request) {
           metadata: {
             ...(transaction.metadata ?? {}),
             provider_order_id: providerOrderId,
-            verification_failed_at: new Date().toISOString(),
+            verification_failed_at: getISTTimestamp(),
             verification_error: `razorpay_status_${razorpayPayment.status ?? 'unknown'}`,
           },
         })
@@ -254,7 +255,7 @@ export async function POST(request: Request) {
           .update({
             shared_with_user_id: transaction.user_id,
             status: 'active',
-            accepted_at: emailSharedAccess.accepted_at ?? new Date().toISOString(),
+            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
             revoked_at: null,
           })
           .eq('id', emailSharedAccess.id);
@@ -295,7 +296,7 @@ export async function POST(request: Request) {
         metadata: {
           ...(metadata ?? {}),
           provider_order_id: providerOrderId,
-          verification_failed_at: new Date().toISOString(),
+          verification_failed_at: getISTTimestamp(),
           verification_error: error instanceof Error ? error.message : 'booking_create_failed',
         },
       })
@@ -311,7 +312,7 @@ export async function POST(request: Request) {
   const updatedMetadata: CheckoutMetadata = {
     ...metadata,
     provider_order_id: providerOrderId,
-    verified_at: new Date().toISOString(),
+    verified_at: getISTTimestamp(),
   };
 
   const { data: updatedTx, error: updateError } = await admin
@@ -364,7 +365,7 @@ export async function POST(request: Request) {
     payload: {
       providerOrderId,
       providerPaymentId,
-      verifiedAt: new Date().toISOString(),
+      verifiedAt: getISTTimestamp(),
       bookingId: booking.id,
     },
   });
@@ -390,7 +391,7 @@ export async function POST(request: Request) {
         .update({
           metadata: {
             ...(updatedMetadata ?? {}),
-            credit_deduction_failed_at: new Date().toISOString(),
+            credit_deduction_failed_at: getISTTimestamp(),
             credit_deduction_error: creditError instanceof Error ? creditError.message : 'wallet_credit_deduction_failed',
           },
         })
@@ -421,7 +422,7 @@ export async function POST(request: Request) {
     // At scale this is tracked in billing_invoices table; admin dashboard flags missing invoices.
     console.error('[booking-verify] Invoice creation failed (non-blocking, requires admin reconciliation):', invoiceError);
     // Flag the booking so admin can find missing invoices easily
-    await admin.from('bookings').update({ admin_notes: `INVOICE_MISSING: Invoice creation failed at ${new Date().toISOString()}` }).eq('id', booking.id);
+    await admin.from('bookings').update({ admin_notes: `INVOICE_MISSING: Invoice creation failed at ${getISTTimestamp()}` }).eq('id', booking.id);
   }
 
   // Record discount redemption so usage limits are enforced correctly.

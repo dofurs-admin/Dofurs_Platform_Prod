@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 import type {
   AddMedicalRecordInput,
   AddVaccinationInput,
@@ -378,8 +379,8 @@ export async function getReminderPreferences(supabase: SupabaseClient, userId: s
       in_app_enabled: true,
       email_enabled: false,
       whatsapp_enabled: false,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: getISTTimestamp(),
+      updated_at: getISTTimestamp(),
     }
   );
 }

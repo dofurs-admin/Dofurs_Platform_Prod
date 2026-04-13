@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 import type {
   CreateServiceProviderApplicationInput,
   ServiceProviderApplication,
@@ -53,7 +54,7 @@ export async function updateServiceProviderApplicationStatus(
       status: input.status,
       admin_notes: input.admin_notes ?? null,
       reviewed_by: input.reviewed_by ?? null,
-      reviewed_at: new Date().toISOString(),
+      reviewed_at: getISTTimestamp(),
     })
     .eq('id', id)
     .select(SERVICE_PROVIDER_APPLICATION_COLUMNS)

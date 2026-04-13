@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { grantCredits } from '@/lib/credits/wallet';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export const REFERRAL_REWARD_INR = 500;
 export const MONTHLY_REFERRAL_LIMIT = 5;
@@ -150,7 +151,7 @@ export async function redeemReferralCode(
       referrer_user_id: referrerUserId,
       referee_user_id: refereeUserId,
       status: 'pending_first_booking',
-      referee_credited_at: new Date().toISOString(),
+      referee_credited_at: getISTTimestamp(),
     })
     .select('id')
     .single<{ id: string }>();
@@ -212,7 +213,7 @@ export async function processReferrerRewardOnFirstBooking(
     .from('referral_redemptions')
     .update({
       status: 'credited',
-      referrer_credited_at: new Date().toISOString(),
+      referrer_credited_at: getISTTimestamp(),
       completed_booking_id: bookingId,
     })
     .eq('referee_user_id', refereeUserId)

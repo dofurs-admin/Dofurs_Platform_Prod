@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { logAdminAction } from '@/lib/admin/audit';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const ALLOWED_STATUSES = ['active', 'paused', 'expired', 'cancelled'] as const;
 type SubscriptionStatus = (typeof ALLOWED_STATUSES)[number];
@@ -52,7 +53,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const patch: { status: string; ends_at?: string } = { status };
   if (status === 'expired' || status === 'cancelled') {
-    patch.ends_at = new Date().toISOString();
+    patch.ends_at = getISTTimestamp();
   }
 
   const { data, error } = await supabase

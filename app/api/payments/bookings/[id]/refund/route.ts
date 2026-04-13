@@ -3,6 +3,7 @@ import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { razorpay } from '@/lib/payments/razorpay';
 import { reverseDiscountRedemptionForBooking } from '@/lib/bookings/discounts';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -94,7 +95,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     .from('payment_transactions')
     .update({
       status: 'refunded',
-      metadata: { refund_id: refundResponse.id, refund_reason: reason, refunded_at: new Date().toISOString() },
+      metadata: { refund_id: refundResponse.id, refund_reason: reason, refunded_at: getISTTimestamp() },
     })
     .eq('id', tx.id);
 

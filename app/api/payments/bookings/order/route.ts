@@ -8,6 +8,7 @@ import { calculateBookingPrice } from '@/lib/service-catalog';
 import { evaluateDiscountForBooking } from '@/lib/bookings/discounts';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { getCreditBalance } from '@/lib/credits/wallet';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
           .update({
             shared_with_user_id: targetUserId,
             status: 'active',
-            accepted_at: emailSharedAccess.accepted_at ?? new Date().toISOString(),
+            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
             revoked_at: null,
           })
           .eq('id', emailSharedAccess.id);

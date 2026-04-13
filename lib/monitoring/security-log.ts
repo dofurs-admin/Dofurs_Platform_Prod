@@ -1,4 +1,5 @@
 import { randomUUID } from 'crypto';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type SecurityLogLevel = 'info' | 'warn' | 'error';
 
@@ -28,7 +29,7 @@ export function getOrCreateRequestId(request?: Request | null): string {
 
 export function logSecurityEvent(level: SecurityLogLevel, event: SecurityEvent, payload: SecurityLogPayload) {
   const entry = {
-    ts: new Date().toISOString(),
+    ts: getISTTimestamp(),
     level,
     event,
     requestId: payload.requestId ?? randomUUID(),

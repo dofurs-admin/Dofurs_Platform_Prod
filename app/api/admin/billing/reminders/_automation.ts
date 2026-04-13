@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { acquireDistributedLock, releaseDistributedLock } from '@/lib/api/distributed-lock';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export type ReminderTemplate = 'due_soon' | 'overdue_7' | 'overdue_14';
 export type ReminderChannel = 'email' | 'whatsapp';
@@ -111,7 +112,7 @@ export async function runBillingReminderAutomation(input: {
     }
 
     const invoices = data ?? [];
-    const nowIso = new Date().toISOString();
+    const nowIso = getISTTimestamp();
     const nowMs = Date.now();
 
     let scanned = 0;

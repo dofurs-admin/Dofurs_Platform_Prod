@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type BillingAutomationRunRow = {
   id: string;
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({
-    generated_at: new Date().toISOString(),
+    generated_at: getISTTimestamp(),
     limit,
     runs: data ?? [],
   });

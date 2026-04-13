@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export async function markBookingPaymentCollected(
   supabase: SupabaseClient,
@@ -12,7 +13,7 @@ export async function markBookingPaymentCollected(
     notes?: string | null;
   },
 ) {
-  const now = new Date().toISOString();
+  const now = getISTTimestamp();
 
   const { data: collection, error: collectionError } = await supabase
     .from('booking_payment_collections')

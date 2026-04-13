@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type RateLimitWindowRow = {
   key: string;
@@ -50,7 +51,7 @@ export async function GET() {
 
   const { supabase } = auth.context;
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   const since5m = minutesAgoIso(5);
   const since15m = minutesAgoIso(15);
   const since60m = minutesAgoIso(60);

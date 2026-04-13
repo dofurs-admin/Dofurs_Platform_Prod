@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export type BookingCompletionTaskStatus = 'pending' | 'completed';
 
@@ -139,10 +140,10 @@ export async function completeProviderBookingCompletionTask(
     booking_id: input.bookingId,
     provider_id: input.providerId,
     task_status: 'completed' as const,
-    completed_at: new Date().toISOString(),
+    completed_at: getISTTimestamp(),
     feedback_text: feedbackText,
-    prompted_at: new Date().toISOString(),
-    due_at: new Date().toISOString(),
+    prompted_at: getISTTimestamp(),
+    due_at: getISTTimestamp(),
   };
 
   const { data, error } = await supabase

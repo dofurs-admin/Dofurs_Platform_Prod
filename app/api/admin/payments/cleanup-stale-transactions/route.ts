@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const STALE_THRESHOLD_HOURS = 24;
 
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     .from('payment_transactions')
     .update({
       status: 'failed',
-      metadata: { abandoned_reason: 'stale_initiated_cleanup', abandoned_at: new Date().toISOString() },
+      metadata: { abandoned_reason: 'stale_initiated_cleanup', abandoned_at: getISTTimestamp() },
     })
     .in('id', staleIds)
     .eq('status', 'initiated');

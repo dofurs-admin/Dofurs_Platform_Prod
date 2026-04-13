@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export async function GET() {
   const auth = await requireApiRole(['user', 'provider', 'admin', 'staff']);
@@ -13,7 +14,7 @@ export async function GET() {
     .update({ status: 'expired' })
     .eq('user_id', user.id)
     .eq('status', 'active')
-    .lt('ends_at', new Date().toISOString());
+    .lt('ends_at', getISTTimestamp());
 
   const { data: subscriptions, error } = await supabase
     .from('user_subscriptions')

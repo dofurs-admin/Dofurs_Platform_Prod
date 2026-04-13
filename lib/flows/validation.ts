@@ -53,6 +53,7 @@ const bookingBaseSchema = z.object({
   providerId: z.number().int().positive(),
   bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   bookingMode: z.enum(['home_visit', 'clinic_visit', 'teleconsult']),
   locationAddress: z
     .string()
@@ -94,6 +95,10 @@ export const serviceBookingCreateSchema = bookingBaseSchema
     providerServiceId: z.string().uuid(),
   })
   .superRefine((data, ctx) => {
+    if (data.endTime && data.endTime <= data.startTime) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['endTime'], message: 'End time must be after start time.' });
+    }
+
     if (data.bookingDate < getISTDateString() && !data.allowPastBooking) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bookingDate'], message: 'Booking date cannot be in the past' });
     }

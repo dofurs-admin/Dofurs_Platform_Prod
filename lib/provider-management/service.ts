@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 import type {
   AdminProviderLocationModeration,
   AdminServiceGlobalRolloutInput,
@@ -1273,7 +1274,7 @@ export async function verifyDocument(
   documentId: string,
   verificationStatus: DocumentVerificationStatus,
 ) {
-  const verifiedAt = verificationStatus === 'approved' ? new Date().toISOString() : null;
+  const verifiedAt = verificationStatus === 'approved' ? getISTTimestamp() : null;
 
   const { data, error } = await supabase
     .from('provider_documents')

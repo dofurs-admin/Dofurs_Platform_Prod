@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 import type {
   CreateMessageInput,
   CreateNotificationInput,
@@ -93,7 +94,7 @@ export async function markNotificationRead(
 ): Promise<void> {
   const { error } = await supabase
     .from('notifications')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: getISTTimestamp() })
     .eq('id', notificationId)
     .eq('user_id', userId);
 
@@ -106,7 +107,7 @@ export async function markAllNotificationsRead(
 ): Promise<void> {
   const { error } = await supabase
     .from('notifications')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: getISTTimestamp() })
     .eq('user_id', userId)
     .is('read_at', null);
 
@@ -188,7 +189,7 @@ export async function markMessageRead(
 ): Promise<void> {
   const { error } = await supabase
     .from('messages')
-    .update({ read_at: new Date().toISOString() })
+    .update({ read_at: getISTTimestamp() })
     .eq('id', messageId)
     .eq('recipient_id', userId);
 

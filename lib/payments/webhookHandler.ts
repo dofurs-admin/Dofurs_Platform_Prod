@@ -4,6 +4,7 @@ import { createOrActivateSubscriptionFromPayment } from '@/lib/subscriptions/sub
 import { createSubscriptionInvoice, createServiceInvoice } from '@/lib/payments/invoiceService';
 import { createBooking } from '@/lib/bookings/service';
 import { createDiscountRedemption } from '@/lib/bookings/discounts';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const REPLAY_WINDOW_MS = 30 * 60 * 1000; // 30 minutes — covers legitimate network delays
 
@@ -136,7 +137,7 @@ async function processWebhookEvent(
 
     await supabase
       .from('payment_webhook_events')
-      .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+      .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
       .eq('provider', 'razorpay')
       .eq('provider_event_id', providerEventId);
 
@@ -148,7 +149,7 @@ async function processWebhookEvent(
 
     await supabase
       .from('payment_webhook_events')
-      .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+      .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
       .eq('provider', 'razorpay')
       .eq('provider_event_id', providerEventId);
 
@@ -158,7 +159,7 @@ async function processWebhookEvent(
   if (event.event !== 'payment.captured') {
     await supabase
       .from('payment_webhook_events')
-      .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+      .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
       .eq('provider', 'razorpay')
       .eq('provider_event_id', providerEventId);
 
@@ -248,7 +249,7 @@ async function processWebhookEvent(
 
   await supabase
     .from('payment_webhook_events')
-    .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+    .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
     .eq('provider', 'razorpay')
     .eq('provider_event_id', providerEventId);
 
@@ -451,7 +452,7 @@ async function processBookingPaymentCapture(
     console.warn(`[webhook] payment.captured for unknown order ${providerOrderId} — acknowledged without action.`);
     await supabase
       .from('payment_webhook_events')
-      .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+      .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
       .eq('provider', 'razorpay')
       .eq('provider_event_id', providerEventId);
     return { accepted: true, message: 'Unknown booking order — acknowledged.' };
@@ -468,7 +469,7 @@ async function processBookingPaymentCapture(
 
     await supabase
       .from('payment_webhook_events')
-      .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+      .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
       .eq('provider', 'razorpay')
       .eq('provider_event_id', providerEventId);
 
@@ -498,7 +499,7 @@ async function processBookingPaymentCapture(
 
     await supabase
       .from('payment_webhook_events')
-      .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+      .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
       .eq('provider', 'razorpay')
       .eq('provider_event_id', providerEventId);
 
@@ -552,7 +553,7 @@ async function processBookingPaymentCapture(
       metadata: {
         ...metadata,
         provider_order_id: providerOrderId,
-        webhook_recovery_at: new Date().toISOString(),
+        webhook_recovery_at: getISTTimestamp(),
       },
     })
     .eq('id', bookingTx.id)
@@ -610,7 +611,7 @@ async function processBookingPaymentCapture(
 
   await supabase
     .from('payment_webhook_events')
-    .update({ processed: true, processed_at: new Date().toISOString(), processing_error: null })
+    .update({ processed: true, processed_at: getISTTimestamp(), processing_error: null })
     .eq('provider', 'razorpay')
     .eq('provider_event_id', providerEventId);
 

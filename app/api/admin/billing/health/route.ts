@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type BookingRow = {
   id: number;
@@ -165,7 +166,7 @@ export async function GET(request: Request) {
       : 'critical';
 
   return NextResponse.json({
-    generated_at: new Date().toISOString(),
+    generated_at: getISTTimestamp(),
     window: {
       lookback_days: lookbackDays,
       since,

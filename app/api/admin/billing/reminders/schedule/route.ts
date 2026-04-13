@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 import {
   ALLOWED_BUCKETS,
   ALLOWED_CHANNELS,
@@ -79,7 +80,7 @@ async function maybeSendSchedulerFailureAlert(input: {
       channel: input.channel,
       dry_run: input.dryRun,
       error_message: input.errorMessage,
-      at: new Date().toISOString(),
+      at: getISTTimestamp(),
     }),
   }).catch(() => undefined);
 }
@@ -173,7 +174,7 @@ export async function POST(request: Request) {
   const bucket = bucketCandidate as RunBucket;
   const channel = channelCandidate as ReminderChannel;
   const supabase = getSupabaseAdminClient();
-  const startedAt = new Date().toISOString();
+  const startedAt = getISTTimestamp();
 
   try {
     const result = await runBillingReminderAutomation({
@@ -202,7 +203,7 @@ export async function POST(request: Request) {
       skipped_cooldown: result.skippedCooldown,
       escalated: result.escalated,
       started_at: startedAt,
-      finished_at: new Date().toISOString(),
+      finished_at: getISTTimestamp(),
       metadata: {
         source: 'billing_scheduler_cron',
       },
@@ -227,7 +228,7 @@ export async function POST(request: Request) {
       enforce_cooldown: enforceCooldown,
       error_message: message,
       started_at: startedAt,
-      finished_at: new Date().toISOString(),
+      finished_at: getISTTimestamp(),
       metadata: {
         source: 'billing_scheduler_cron',
       },

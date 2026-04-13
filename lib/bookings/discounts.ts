@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export type BookingDiscountPreview = {
   discountId: string;
@@ -210,14 +211,54 @@ export async function createDiscountRedemption(
     .select('id')
     .single<{ id: string }>();
 
-  if (error) {
-    if (error.code === '42P01') {
-      return { id: '' }; // table not yet migrated — non-fatal degradation
-    }
-    throw error;
+  if (!error) {
+    return { id: data?.id ?? '' };
   }
 
-  return { id: data?.id ?? '' };
+  if (error.code === '42P01') {
+    return { id: '' }; // table not yet migrated — non-fatal degradation
+  }
+
+  // Some environments may have the table but lack the expected unique/exclusion
+  // index required by ON CONFLICT (Postgres 42P10). Fall back to best-effort insert.
+  if (error.code === '42P10') {
+    const fallbackInsert = await supabase
+      .from('discount_redemptions')
+      .insert({
+        discount_id: input.discountId,
+        booking_id: input.bookingId,
+        user_id: input.userId,
+        discount_amount: input.discountAmount,
+      })
+      .select('id')
+      .maybeSingle<{ id: string }>();
+
+    if (!fallbackInsert.error) {
+      return { id: fallbackInsert.data?.id ?? '' };
+    }
+
+    if (fallbackInsert.error.code === '42P01') {
+      return { id: '' };
+    }
+
+    if (fallbackInsert.error.code === '23505') {
+      const existing = await supabase
+        .from('discount_redemptions')
+        .select('id')
+        .eq('booking_id', input.bookingId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ id: string }>();
+
+      if (!existing.error) {
+        return { id: existing.data?.id ?? '' };
+      }
+    }
+
+    throw fallbackInsert.error;
+  }
+
+  throw error;
 }
 
 export async function reverseDiscountRedemptionForBooking(
@@ -250,7 +291,7 @@ export async function reverseDiscountRedemptionForBooking(
   const { error: updateError } = await adminClient
     .from('discount_redemptions')
     .update({
-      reversed_at: new Date().toISOString(),
+      reversed_at: getISTTimestamp(),
       reversal_reason: reason,
     })
     .eq('id', redemption.id)

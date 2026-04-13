@@ -71,7 +71,7 @@ async function loadBookingDetailRow(supabase: ApiSupabaseClient, bookingId: numb
       id, user_id, provider_id, booking_start, booking_date, start_time, end_time,
       status, booking_status, booking_mode, service_type,
       location_address, internal_notes,
-      amount, discount_amount, final_price, price_at_booking, wallet_credits_applied_inr,
+      amount, discount_amount, final_price, price_at_booking, wallet_credits_applied_inr, payment_mode,
       discount_code, created_at,
       users(name, email, phone, address),
       providers(name, email, phone_number),

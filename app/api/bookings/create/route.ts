@@ -11,6 +11,8 @@ import { notifyBookingCreated } from '@/lib/notifications/service';
 import { deductCredits } from '@/lib/credits/wallet';
 import { haversineDistanceKm } from '@/lib/utils/geo-distance';
 import { reserveCreditForBooking } from '@/lib/subscriptions/creditTracking';
+import { createDiscountRedemption, evaluateDiscountForBooking } from '@/lib/bookings/discounts';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -42,6 +44,10 @@ export async function POST(request: Request) {
 
   if (parsed.data.allowPastBooking && role !== 'admin' && role !== 'staff') {
     return NextResponse.json({ error: 'Only admin or staff can create offline bookings for past slots.' }, { status: 403 });
+  }
+
+  if (parsed.data.allowPastBooking && !parsed.data.endTime) {
+    return NextResponse.json({ error: 'End time is required for offline booking mode.' }, { status: 400 });
   }
 
   try {
@@ -127,7 +133,7 @@ export async function POST(request: Request) {
           .update({
             shared_with_user_id: targetUserId,
             status: 'active',
-            accepted_at: emailSharedAccess.accepted_at ?? new Date().toISOString(),
+            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
             revoked_at: null,
           })
           .eq('id', emailSharedAccess.id);
@@ -234,6 +240,46 @@ export async function POST(request: Request) {
   }
 
   try {
+    const requestedDiscountCode = parsed.data.discountCode?.trim().toUpperCase() ?? null;
+    let resolvedDiscountPreview: {
+      discountId: string;
+      discountAmount: number;
+      finalAmount: number;
+    } | null = null;
+
+    if (requestedDiscountCode) {
+      const { data: providerServiceForDiscount, error: providerServiceForDiscountError } = await admin
+        .from('provider_services')
+        .select('service_type, base_price')
+        .eq('id', parsed.data.providerServiceId)
+        .eq('provider_id', parsed.data.providerId)
+        .maybeSingle<{ service_type: string; base_price: number }>();
+
+      if (providerServiceForDiscountError || !providerServiceForDiscount) {
+        return NextResponse.json({ error: 'Unable to validate discount for the selected service.' }, { status: 400 });
+      }
+
+      const discountEvaluation = await evaluateDiscountForBooking(admin, {
+        discountCode: requestedDiscountCode,
+        userId: targetUserId,
+        serviceType: providerServiceForDiscount.service_type,
+        baseAmount: Number(providerServiceForDiscount.base_price ?? 0),
+      });
+
+      if (!discountEvaluation.preview) {
+        return NextResponse.json(
+          { error: discountEvaluation.reason ?? 'Discount code is not valid or not applicable.' },
+          { status: 400 },
+        );
+      }
+
+      resolvedDiscountPreview = {
+        discountId: discountEvaluation.preview.discountId,
+        discountAmount: Number(discountEvaluation.preview.discountAmount ?? 0),
+        finalAmount: Number(discountEvaluation.preview.finalAmount ?? 0),
+      };
+    }
+
     // Security: Never trust client-provided finalPrice or discountAmount
     // All pricing calculated server-side in DB RPC
     const bookingInput = {
@@ -242,23 +288,48 @@ export async function POST(request: Request) {
       providerServiceId: parsed.data.providerServiceId,
       bookingDate: parsed.data.bookingDate,
       startTime: parsed.data.startTime,
+      endTime: parsed.data.endTime,
       bookingMode: parsed.data.bookingMode,
       locationAddress: parsed.data.locationAddress,
       latitude: parsed.data.latitude,
       longitude: parsed.data.longitude,
       providerNotes: parsed.data.providerNotes,
       bookingType: 'service' as const,
-      discountCode: parsed.data.discountCode,
+      discountCode: requestedDiscountCode ?? undefined,
       // Client pricing removed - calculated server-side only
       addOns: parsed.data.addOns,
       useSubscriptionCredit: parsed.data.useSubscriptionCredit,
       paymentMode: parsed.data.paymentMode,
+      allowPastBooking: parsed.data.allowPastBooking,
     };
 
     // Pass the user's authenticated client as 4th arg so the DB RPC function
     // `create_booking_atomic` can read auth.uid() from the JWT. The admin
     // client is still used for table queries that need RLS bypass.
     const booking = await createBooking(admin, targetUserId, bookingInput, supabase);
+
+    if (resolvedDiscountPreview) {
+      await admin
+        .from('bookings')
+        .update({
+          discount_code: requestedDiscountCode,
+          discount_amount: resolvedDiscountPreview.discountAmount,
+          final_price: resolvedDiscountPreview.finalAmount,
+        })
+        .eq('id', booking.id);
+
+      try {
+        await createDiscountRedemption(admin, {
+          discountId: resolvedDiscountPreview.discountId,
+          bookingId: booking.id,
+          userId: targetUserId,
+          discountAmount: resolvedDiscountPreview.discountAmount,
+        });
+      } catch (redemptionError) {
+        console.error('[bookings/create] non-fatal discount redemption persistence failure', redemptionError);
+      }
+    }
+
     let creditReservation: {
       reserved: boolean;
       linkId: string;

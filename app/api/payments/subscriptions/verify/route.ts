@@ -5,6 +5,7 @@ import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { createOrActivateSubscriptionFromPayment } from '@/lib/subscriptions/subscriptionService';
 import { createSubscriptionInvoice } from '@/lib/payments/invoiceService';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
     payload: {
       providerOrderId,
       providerPaymentId,
-      verifiedAt: new Date().toISOString(),
+      verifiedAt: getISTTimestamp(),
     },
   });
 

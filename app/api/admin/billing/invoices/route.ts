@@ -3,6 +3,7 @@ import { requireApiRole } from '@/lib/auth/api-auth';
 import { logAdminAction } from '@/lib/admin/audit';
 import type { Json } from '@/lib/supabase/database.types';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type InvoiceStatus = 'draft' | 'issued' | 'paid';
 
@@ -133,7 +134,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
 
   for (const invoice of invoices ?? []) {
     const metadata =
@@ -228,7 +229,7 @@ export async function POST(request: Request) {
   }
 
   const totalInr = Math.max(0, subtotalInr - discountInr + taxInr);
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   const bookingId = typeof bookingIdRaw === 'number' && Number.isFinite(bookingIdRaw) ? bookingIdRaw : null;
   const userSubscriptionId = typeof userSubscriptionIdRaw === 'string' && userSubscriptionIdRaw.trim() ? userSubscriptionIdRaw.trim() : null;
 

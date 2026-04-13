@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 function invoiceNumber(prefix: 'INV-SVC' | 'INV-SUB') {
   const now = new Date();
@@ -49,8 +50,8 @@ export async function createSubscriptionInvoice(
       discount_inr: 0,
       tax_inr: 0,
       total_inr: input.amountInr,
-      issued_at: new Date().toISOString(),
-      paid_at: new Date().toISOString(),
+      issued_at: getISTTimestamp(),
+      paid_at: getISTTimestamp(),
       metadata: { source: 'subscription_payment' },
     })
     .select('id, invoice_number')
@@ -100,7 +101,7 @@ export async function createServiceInvoice(
   const creditsApplied = Math.max(0, input.walletCreditsAppliedInr ?? 0);
   // total_inr = what the customer actually owed in cash/online payment
   const totalInr = Math.max(0, input.amountInr - creditsApplied);
-  const now = new Date().toISOString();
+  const now = getISTTimestamp();
 
   const { data: invoice, error: invoiceError } = await supabase
     .from('billing_invoices')

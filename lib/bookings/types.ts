@@ -70,6 +70,7 @@ export type CreateBookingInput = {
   providerServiceId?: string | null;
   bookingDate: string;
   startTime: string;
+  endTime?: string | null;
   bookingMode: BookingMode;
   locationAddress?: string | null;
   latitude?: number | null;
@@ -79,6 +80,7 @@ export type CreateBookingInput = {
   addOns?: Array<{ id: string; quantity: number }>;
   useSubscriptionCredit?: boolean;
   paymentMode?: 'direct_to_provider' | 'platform' | 'mixed' | string;
+  allowPastBooking?: boolean;
 };
 
 export type GetAvailableSlotsInput = {

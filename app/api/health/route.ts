@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 export async function GET() {
   const response = {
     status: 'ok' as 'ok' | 'degraded',
     db: 'unknown' as 'unknown' | 'connected' | 'error',
-    timestamp: new Date().toISOString(),
+    timestamp: getISTTimestamp(),
   };
 
   try {

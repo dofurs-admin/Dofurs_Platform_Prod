@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type ResolveAction =
   | 'link_payment_reference'
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invoice not found.' }, { status: 404 });
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   const metadata = isRecord(invoice.metadata) ? invoice.metadata : {};
   const reconciliationHistory = Array.isArray(metadata.reconciliation_history) ? metadata.reconciliation_history : [];
 

@@ -1,5 +1,7 @@
 import type { NextConfig } from 'next';
 
+process.env.TZ = 'Asia/Kolkata';
+
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const scriptSrcDirective = isDevelopment
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://scripts.clarity.ms https://cdn.jsdelivr.net"

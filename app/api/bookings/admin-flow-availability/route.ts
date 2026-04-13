@@ -534,7 +534,7 @@ export async function GET(request: Request) {
       debug.counts.scopedProviderServices = scopedProviderServices.length;
     }
 
-    if (!bookingDate || scopedProviderServices.length === 0) {
+    if (!bookingDate || scopedProviderServices.length === 0 || allowPastSlots) {
       const providerCards = scopedProviderServices.map((row) => {
         const providerProfile = providerProfileMap.get(row.provider_id);
 
@@ -548,7 +548,7 @@ export async function GET(request: Request) {
           basePrice: row.base_price,
           serviceDurationMinutes: row.service_duration_minutes ?? 30,
           availableSlotCount: 0,
-          availableForSelectedSlot: false,
+          availableForSelectedSlot: allowPastSlots ? true : false,
           availableSlotStartTimes: [] as string[],
           recommended: false,
           averageRating: providerProfile?.average_rating ?? null,

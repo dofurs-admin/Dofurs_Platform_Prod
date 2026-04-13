@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 function isSafeRedirectPath(next: string): boolean {
   if (typeof next !== 'string' || !next.startsWith('/') || next.startsWith('//')) return false;
@@ -152,7 +153,7 @@ export async function GET(request: Request) {
       message: err instanceof Error ? err.message : String(err),
       code: errorCode,
       transient: isTransient,
-      timestamp: new Date().toISOString(),
+      timestamp: getISTTimestamp(),
     });
     const fallbackMessage = isTransient
       ? 'Authentication temporarily unavailable. Please try again in a moment.'

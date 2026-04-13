@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type SchemaHealthCheck = {
   key: string;
@@ -52,7 +53,7 @@ export async function GET() {
           passed: 0,
           failed: 1,
         },
-        generated_at: new Date().toISOString(),
+        generated_at: getISTTimestamp(),
         error: `Health check RPC failed: ${error.message}. Ensure schema health migrations are applied, then retry.`,
       },
       { status: 200 },
@@ -80,7 +81,7 @@ export async function GET() {
           passed: 0,
           failed: 1,
         },
-        generated_at: new Date().toISOString(),
+        generated_at: getISTTimestamp(),
         error: 'Invalid health check response shape from database',
       },
       { status: 200 },

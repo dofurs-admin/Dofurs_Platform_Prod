@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 
 type BillingInvoiceReminderRow = {
   id: string;
@@ -97,7 +98,7 @@ export async function GET(request: Request) {
   };
 
   return NextResponse.json({
-    generated_at: new Date().toISOString(),
+    generated_at: getISTTimestamp(),
     summary,
     queue,
   });
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: fetchError.message }, { status: 500 });
   }
 
-  const nowIso = new Date().toISOString();
+  const nowIso = getISTTimestamp();
   const nowMs = Date.now();
   let sent = 0;
   const skipped: Array<{ invoice_id: string; reason: 'cadence' | 'cooldown' }> = [];

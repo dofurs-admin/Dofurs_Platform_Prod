@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTTimestamp } from '@/lib/utils/date';
 import {
   ALLOWED_BUCKETS,
   ALLOWED_CHANNELS,
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
 
   const bucket = bucketCandidate as RunBucket;
   const channel = channelCandidate as ReminderChannel;
-  const startedAt = new Date().toISOString();
+  const startedAt = getISTTimestamp();
 
   try {
     const result = await runBillingReminderAutomation({
@@ -62,7 +63,7 @@ export async function POST(request: Request) {
       skipped_cooldown: result.skippedCooldown,
       escalated: result.escalated,
       started_at: startedAt,
-      finished_at: new Date().toISOString(),
+      finished_at: getISTTimestamp(),
       metadata: {
         source: 'admin_billing_auto_run',
       },
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
       enforce_cooldown: enforceCooldown,
       error_message: message,
       started_at: startedAt,
-      finished_at: new Date().toISOString(),
+      finished_at: getISTTimestamp(),
       metadata: {
         source: 'admin_billing_auto_run',
       },

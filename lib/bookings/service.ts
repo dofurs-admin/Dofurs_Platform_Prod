@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getProviderIdByUserId } from '@/lib/provider-management/api';
 import type { BookingActorRole } from './state-transition-guard';
 import { reverseDiscountRedemptionForBooking } from './discounts';
+import { getISTTimestamp } from '@/lib/utils/date';
 import {
   resolveAvailableSlots,
   resolveDayAvailability,
@@ -268,7 +269,7 @@ async function createBookingCompatWithLegacyServiceId(
   paymentMode: string,
 ) {
   const durationMinutes = Math.max(1, providerService.service_duration_minutes ?? 30);
-  const endTime = addMinutesToTimeString(input.startTime, durationMinutes);
+  const endTime = input.endTime?.trim() || addMinutesToTimeString(input.startTime, durationMinutes);
 
   if (!endTime) {
     throw new Error('Invalid booking time.');
@@ -291,23 +292,25 @@ async function createBookingCompatWithLegacyServiceId(
     throw new Error('Invalid booking time.');
   }
 
-  const hasOverlap = (dayBookings ?? []).some((booking) => {
-    const status = (booking.booking_status ?? booking.status ?? '').toString();
-    if (status === 'cancelled' || status === 'no_show') {
-      return false;
+  if (!input.allowPastBooking) {
+    const hasOverlap = (dayBookings ?? []).some((booking) => {
+      const status = (booking.booking_status ?? booking.status ?? '').toString();
+      if (status === 'cancelled' || status === 'no_show') {
+        return false;
+      }
+
+      const existingStart = timeToMinutes(String(booking.start_time ?? ''));
+      const existingEnd = timeToMinutes(String(booking.end_time ?? ''));
+      if (existingStart == null || existingEnd == null) {
+        return false;
+      }
+
+      return requestedStart < existingEnd && requestedEnd > existingStart;
+    });
+
+    if (hasOverlap) {
+      throw new Error('Selected time slot is no longer available.');
     }
-
-    const existingStart = timeToMinutes(String(booking.start_time ?? ''));
-    const existingEnd = timeToMinutes(String(booking.end_time ?? ''));
-    if (existingStart == null || existingEnd == null) {
-      return false;
-    }
-
-    return requestedStart < existingEnd && requestedEnd > existingStart;
-  });
-
-  if (hasOverlap) {
-    throw new Error('Selected time slot is no longer available.');
   }
 
   const { data: inserted, error: insertError } = await supabase
@@ -503,7 +506,7 @@ async function runPostTransitionHooks(
           });
           await supabase
             .from('payment_transactions')
-            .update({ status: 'refunded', metadata: { refund_reason: 'provider_cancelled', refunded_at: new Date().toISOString() } })
+            .update({ status: 'refunded', metadata: { refund_reason: 'provider_cancelled', refunded_at: getISTTimestamp() } })
             .eq('id', paymentTx.id);
         }
       } catch (refundError) {
@@ -512,14 +515,14 @@ async function runPostTransitionHooks(
         console.error('CRITICAL: Auto-refund on provider cancellation failed — requires manual admin refund', {
           bookingId,
           error: refundError instanceof Error ? refundError.message : refundError,
-          timestamp: new Date().toISOString(),
+          timestamp: getISTTimestamp(),
         });
         // Store refund failure metadata on booking for admin visibility
         try {
           await supabase
             .from('bookings')
             .update({
-              admin_notes: `REFUND_FAILED: Auto-refund failed at ${new Date().toISOString()}. Requires manual processing.`,
+              admin_notes: `REFUND_FAILED: Auto-refund failed at ${getISTTimestamp()}. Requires manual processing.`,
             })
             .eq('id', bookingId);
         } catch { /* best effort */ }
@@ -862,6 +865,10 @@ async function createBookingWithLegacyServiceFallback(
   // verification to prevent double-bookings (P0 fix).
   const paymentMode = input.paymentMode ?? (input.useSubscriptionCredit ? 'platform' : 'direct_to_provider');
   const addOnsJsonb = input.addOns && input.addOns.length > 0 ? JSON.stringify(input.addOns) : null;
+
+  if (input.allowPastBooking && legacyService) {
+    return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+  }
 
   // Use the user's authenticated client for the RPC call when available.
   // The DB function checks auth.uid() which requires a user JWT — the admin

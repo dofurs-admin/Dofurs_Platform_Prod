@@ -5,6 +5,44 @@
 const IST_TZ = 'Asia/Kolkata';
 export const MAX_PET_AGE_YEARS = 99;
 
+function formatISTDateTimeParts(date: Date) {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: IST_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(date);
+  const valueByType: Record<string, string> = {};
+
+  for (const part of parts) {
+    if (part.type !== 'literal') {
+      valueByType[part.type] = part.value;
+    }
+  }
+
+  return {
+    year: valueByType.year,
+    month: valueByType.month,
+    day: valueByType.day,
+    hour: valueByType.hour,
+    minute: valueByType.minute,
+    second: valueByType.second,
+  };
+}
+
+/** Returns an ISO-like timestamp in IST with explicit +05:30 offset. */
+export function getISTTimestamp(date: Date = new Date()): string {
+  const parts = formatISTDateTimeParts(date);
+  const milliseconds = String(date.getMilliseconds()).padStart(3, '0');
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}.${milliseconds}+05:30`;
+}
+
 function formatDateInputValue(date: Date): string {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');

@@ -43,6 +43,7 @@ type BookingDetail = {
   status: string;
   booking_status: string | null;
   booking_mode: string | null;
+  payment_mode: string | null;
   service_type: string | null;
   address: string | null;
   pincode: string | null;
@@ -141,6 +142,14 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
   }
 
   const status = booking?.booking_status ?? booking?.status ?? '';
+  const servicePrice = booking ? Number(booking.subtotal_inr ?? booking.price_at_booking ?? booking.total_inr ?? booking.final_price ?? 0) : 0;
+  const storedDiscount = booking ? Number(booking.discount_inr ?? 0) : 0;
+  const payableBeforeWallet = booking
+    ? Number(booking.final_price ?? booking.total_inr ?? Math.max(servicePrice - storedDiscount, 0))
+    : 0;
+  const effectiveDiscount = Math.max(storedDiscount, Math.max(servicePrice - payableBeforeWallet, 0));
+  const walletApplied = booking ? Number(booking.wallet_credits_applied_inr ?? 0) : 0;
+  const netPayable = Math.max(0, servicePrice - effectiveDiscount - walletApplied);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Booking #${bookingId}`} size="xl">
@@ -210,13 +219,13 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
               {(booking.subtotal_inr ?? booking.price_at_booking) != null ? (
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Service Price</span>
-                  <span>{fmt(booking.subtotal_inr ?? booking.price_at_booking)}</span>
+                  <span>{fmt(servicePrice)}</span>
                 </div>
               ) : null}
-              {(booking.discount_inr ?? 0) > 0 ? (
+              {effectiveDiscount > 0 ? (
                 <div className="flex justify-between">
                   <span className="text-neutral-600">Discount {booking.discount_code ? `(${booking.discount_code})` : ''}</span>
-                  <span className="text-green-600">−{fmt(booking.discount_inr)}</span>
+                  <span className="text-green-600">−{fmt(effectiveDiscount)}</span>
                 </div>
               ) : null}
               {(booking.wallet_credits_applied_inr ?? 0) > 0 ? (
@@ -227,7 +236,30 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
               ) : null}
               <div className="flex justify-between border-t border-neutral-100 pt-1 font-semibold">
                 <span>Net Payable</span>
-                <span>{fmt(booking.final_price ?? booking.total_inr)}</span>
+                <span>{fmt(netPayable)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment information */}
+          <div className="rounded-xl border border-neutral-200 p-4">
+            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Payment Information</p>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Payment Mode</span>
+                <span className="capitalize">{booking.payment_mode ? booking.payment_mode.replace(/_/g, ' ') : '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Discount Code</span>
+                <span>{booking.discount_code ?? '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-600">Wallet Credits Applied</span>
+                <span>{fmt(walletApplied)}</span>
+              </div>
+              <div className="flex justify-between border-t border-neutral-100 pt-1 font-semibold">
+                <span>Amount to Collect</span>
+                <span>{fmt(netPayable)}</span>
               </div>
             </div>
           </div>
