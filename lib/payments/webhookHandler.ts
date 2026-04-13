@@ -418,6 +418,8 @@ type BookingCheckoutMetadata = {
     discountAmount?: number;
     finalAmount?: number;
     baseAmount?: number;
+    walletCreditsAppliedInr?: number;
+    payableAmount?: number;
   };
   [key: string]: unknown;
 };
@@ -581,12 +583,22 @@ async function processBookingPaymentCapture(
     // Create invoice for recovered booking payment.
     try {
       const serviceType = parsed.data.bookingMode.replace(/_/g, ' ');
+      const priceBreakdown = metadata.price_breakdown;
+      const discountInr = Math.max(0, Number(priceBreakdown?.discountAmount ?? 0));
+      const walletCreditsInr = Math.max(0, Number(priceBreakdown?.walletCreditsAppliedInr ?? 0));
+      const subtotalInr = Math.max(
+        0,
+        Number(priceBreakdown?.baseAmount ?? (Number(bookingTx.amount_inr) + walletCreditsInr + discountInr)),
+      );
+
       await createServiceInvoice(supabase, {
         userId: bookingTx.user_id,
         bookingId: booking.id,
         paymentTransactionId: bookingTx.id,
         description: `${serviceType} service booking — Razorpay (webhook recovery)`,
-        amountInr: Number(bookingTx.amount_inr),
+        amountInr: subtotalInr,
+        discountInr,
+        walletCreditsAppliedInr: walletCreditsInr,
         status: 'paid',
       });
     } catch (invoiceError) {

@@ -24,6 +24,8 @@ type CheckoutMetadata = {
     discountAmount?: number;
     finalAmount?: number;
     baseAmount?: number;
+    walletCreditsAppliedInr?: number;
+    payableAmount?: number;
     discountCode?: string | null;
   };
   [key: string]: unknown;
@@ -407,14 +409,22 @@ export async function POST(request: Request) {
   // Create service invoice for this online payment — required for tax compliance.
   try {
     const serviceType = parsedBookingPayload.data.bookingMode.replace(/_/g, ' ');
-    const grossAmountInr = Number(transaction.amount_inr) + requestedWalletCredits;
+    const priceBreakdown = metadata.price_breakdown;
+    const discountInr = Math.max(0, Number(priceBreakdown?.discountAmount ?? 0));
+    const walletCreditsInr = Math.max(0, Number(priceBreakdown?.walletCreditsAppliedInr ?? requestedWalletCredits));
+    const subtotalInr = Math.max(
+      0,
+      Number(priceBreakdown?.baseAmount ?? (Number(transaction.amount_inr) + walletCreditsInr + discountInr)),
+    );
+
     await createServiceInvoice(admin, {
       userId: transaction.user_id,
       bookingId: booking.id,
       paymentTransactionId: updatedTx.id,
       description: `${serviceType} service booking — Razorpay`,
-      amountInr: grossAmountInr,
-      walletCreditsAppliedInr: requestedWalletCredits,
+      amountInr: subtotalInr,
+      discountInr,
+      walletCreditsAppliedInr: walletCreditsInr,
       status: 'paid',
     });
   } catch (invoiceError) {

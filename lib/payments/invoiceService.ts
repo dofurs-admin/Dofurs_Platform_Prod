@@ -79,6 +79,7 @@ export async function createServiceInvoice(
     paymentTransactionId?: string | null;
     description: string;
     amountInr: number;
+    discountInr?: number;
     walletCreditsAppliedInr?: number;
     status: 'issued' | 'paid';
   },
@@ -98,9 +99,11 @@ export async function createServiceInvoice(
     return existingInvoice;
   }
 
+  const subtotalInr = Math.max(0, input.amountInr);
+  const discountInr = Math.max(0, input.discountInr ?? 0);
   const creditsApplied = Math.max(0, input.walletCreditsAppliedInr ?? 0);
-  // total_inr = what the customer actually owed in cash/online payment
-  const totalInr = Math.max(0, input.amountInr - creditsApplied);
+  // total_inr = subtotal - discount - wallet credits
+  const totalInr = Math.max(0, subtotalInr - discountInr - creditsApplied);
   const now = getISTTimestamp();
 
   const { data: invoice, error: invoiceError } = await supabase
@@ -112,8 +115,8 @@ export async function createServiceInvoice(
       status: input.status,
       booking_id: input.bookingId,
       payment_transaction_id: input.paymentTransactionId ?? null,
-      subtotal_inr: input.amountInr,
-      discount_inr: 0,
+      subtotal_inr: subtotalInr,
+      discount_inr: discountInr,
       tax_inr: 0,
       wallet_credits_applied_inr: creditsApplied,
       total_inr: totalInr,
@@ -132,15 +135,26 @@ export async function createServiceInvoice(
     item_type: 'service',
     description: input.description,
     quantity: 1,
-    unit_amount_inr: input.amountInr,
-    line_total_inr: input.amountInr,
+    unit_amount_inr: subtotalInr,
+    line_total_inr: subtotalInr,
   });
+
+  if (discountInr > 0) {
+    await supabase.from('billing_invoice_items').insert({
+      invoice_id: invoice.id,
+      item_type: 'discount',
+      description: 'Promotional discount applied',
+      quantity: 1,
+      unit_amount_inr: -discountInr,
+      line_total_inr: -discountInr,
+    });
+  }
 
   // Wallet credits deduction line item — shows as negative entry in the breakdown
   if (creditsApplied > 0) {
     await supabase.from('billing_invoice_items').insert({
       invoice_id: invoice.id,
-      item_type: 'credit_applied',
+      item_type: 'adjustment',
       description: 'Dofurs Credits Applied',
       quantity: 1,
       unit_amount_inr: -creditsApplied,

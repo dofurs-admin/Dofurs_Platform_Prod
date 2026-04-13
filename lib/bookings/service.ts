@@ -21,10 +21,10 @@ import type {
 } from './types';
 
 const BOOKING_SELECT =
-  'id, user_id, pet_id, provider_id, provider_service_id, service_type, booking_date, start_time, end_time, booking_mode, location_address, latitude, longitude, booking_status, cancellation_reason, cancellation_by, price_at_booking, admin_price_reference, provider_notes, internal_notes, payment_mode, platform_fee, provider_payout_status, wallet_credits_applied_inr, created_at, updated_at';
+  'id, user_id, pet_id, provider_id, provider_service_id, service_type, booking_date, start_time, end_time, booking_mode, location_address, latitude, longitude, booking_status, cancellation_reason, cancellation_by, price_at_booking, discount_amount, final_price, admin_price_reference, provider_notes, internal_notes, payment_mode, platform_fee, provider_payout_status, wallet_credits_applied_inr, created_at, updated_at';
 
 const BOOKING_SELECT_SCHEMA_FALLBACK =
-  'id, user_id, pet_id, provider_id, provider_service_id, service_type, booking_date, start_time, end_time, booking_mode, location_address, latitude, longitude, booking_status, price_at_booking, admin_price_reference, provider_notes, payment_mode, wallet_credits_applied_inr, created_at, updated_at';
+  'id, user_id, pet_id, provider_id, provider_service_id, service_type, booking_date, start_time, end_time, booking_mode, location_address, latitude, longitude, booking_status, price_at_booking, discount_amount, final_price, admin_price_reference, provider_notes, payment_mode, wallet_credits_applied_inr, created_at, updated_at';
 
 const BOOKING_SELECT_MINIMAL =
   'id, user_id, pet_id, provider_id, provider_service_id, service_type, booking_date, start_time, end_time, booking_mode, location_address, latitude, longitude, booking_status, status, price_at_booking, provider_notes, payment_mode, created_at, updated_at';
@@ -560,13 +560,15 @@ async function runPostTransitionHooks(
         .maybeSingle();
 
       if (!invoiceExisting) {
-        const amountInr = Number(bookingData.price_at_booking ?? 0);
-        if (amountInr > 0) {
+        const subtotalInr = Number(bookingData.price_at_booking ?? 0);
+        const discountInr = Number((bookingData as { discount_amount?: number | null }).discount_amount ?? 0);
+        if (subtotalInr > 0) {
           await createServiceInvoice(supabase, {
             userId: bookingData.user_id,
             bookingId,
             description: `${bookingData.service_type ?? 'Service'} booking`,
-            amountInr,
+            amountInr: subtotalInr,
+            discountInr,
             walletCreditsAppliedInr: Number(bookingData.wallet_credits_applied_inr ?? 0),
             status: bookingData.payment_mode === 'direct_to_provider' ? 'issued' : 'paid',
           });

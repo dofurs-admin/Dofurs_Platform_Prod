@@ -39,7 +39,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const { data: booking, error: bookingError } = await admin
       .from('bookings')
-      .select('id, user_id, provider_id, service_type, booking_status, payment_mode, price_at_booking, final_price, wallet_credits_applied_inr')
+      .select('id, user_id, provider_id, service_type, booking_status, payment_mode, price_at_booking, discount_amount, final_price, wallet_credits_applied_inr')
       .eq('id', bookingId)
       .eq('provider_id', providerId)
       .single<{
@@ -50,6 +50,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         booking_status: string;
         payment_mode: string | null;
         price_at_booking: number | null;
+        discount_amount: number | null;
         final_price: number | null;
         wallet_credits_applied_inr: number | null;
       }>();
@@ -73,8 +74,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     const walletCreditsAppliedInr = Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0));
-    const grossAmountInr = Number(booking.final_price ?? booking.price_at_booking ?? 0);
-    const amountInr = Math.max(0, grossAmountInr - walletCreditsAppliedInr);
+    const subtotalInr = Math.max(0, Number(booking.price_at_booking ?? booking.final_price ?? 0));
+    const discountInr = Math.max(0, Number(booking.discount_amount ?? 0));
+    const amountInr = Math.max(0, subtotalInr - discountInr - walletCreditsAppliedInr);
 
     if (amountInr <= 0) {
       return NextResponse.json(
@@ -110,7 +112,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       bookingId,
       paymentTransactionId: transaction.id,
       description: `${booking.service_type ?? 'Service'} booking payment (${collectionMode})`,
-      amountInr: grossAmountInr,
+      amountInr: subtotalInr,
+      discountInr,
       walletCreditsAppliedInr,
       status: 'paid',
     });
