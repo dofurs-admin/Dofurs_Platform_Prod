@@ -16,6 +16,7 @@
     "db:types": "node scripts/generate-supabase-types.mjs",
     "cleanup:billing-automation-runs": "node scripts/cleanup-billing-automation-runs.mjs",
     "audit:subscription-credits": "node scripts/audit-subscription-credit-bookings.mjs",
+    "audit:service-catalog-sync": "node scripts/audit-service-catalog-sync-risk.mjs",
     "test:load:core": "node scripts/load-test-core-flows.mjs",
     "release:gate": "node scripts/release-readiness-gate.mjs"
   },

@@ -4965,11 +4965,11 @@ export default function AdminDashboardClient({
             <p className="mt-1 text-sm font-semibold text-ink">{discountAnalytics.total_active_discounts}</p>
           </div>
           <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
-            <p className="text-[#6b6b6b]">Total Redemptions</p>
+            <p className="text-[#6b6b6b]">Total Redemptions (Completed)</p>
             <p className="mt-1 text-sm font-semibold text-ink">{discountAnalytics.total_redemptions}</p>
           </div>
           <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
-            <p className="text-[#6b6b6b]">Booking Redemption Rate</p>
+            <p className="text-[#6b6b6b]">Booking Redemption Rate (Completed)</p>
             <p className="mt-1 text-sm font-semibold text-ink">{discountAnalytics.booking_redemption_rate}%</p>
           </div>
         </div>

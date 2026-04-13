@@ -5,6 +5,7 @@ const checks = [
   { name: 'Typecheck', command: 'npx', args: ['tsc', '--noEmit'] },
   { name: 'Tests', command: 'npm', args: ['test'] },
   { name: 'Schema health', command: 'npm', args: ['run', 'test:schema-health'] },
+  { name: 'Service catalog sync-risk audit', command: 'npm', args: ['run', 'audit:service-catalog-sync', '--', '--fail-on-risk'] },
   { name: 'Build', command: 'npm', args: ['run', 'build'] },
 ];
 

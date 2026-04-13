@@ -49,6 +49,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.data.provider_id !== null) {
+      return NextResponse.json(
+        { error: 'Catalog services must be template rows. Use Provider management for provider rollout services.' },
+        { status: 400 },
+      );
+    }
+
     const { data: service, error } = await supabase
       .from('provider_services')
       .insert([parsed.data])

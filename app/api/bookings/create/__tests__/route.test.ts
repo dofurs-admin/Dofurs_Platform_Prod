@@ -80,6 +80,12 @@ function makeAdminSupabase(options?: {
     maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
   };
 
+  const providerServicesQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: { service_type: 'grooming' }, error: null }),
+  };
+
   const creditLinksQuery = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -101,6 +107,7 @@ function makeAdminSupabase(options?: {
       if (table === 'pet_shares') return petSharesQuery;
       if (table === 'provider_service_pincodes') return pincodeQuery;
       if (table === 'providers') return providersQuery;
+      if (table === 'provider_services') return providerServicesQuery;
       if (table === 'booking_subscription_credit_links') return creditLinksQuery;
       if (table === 'user_service_credits') return userServiceCreditsQuery;
       throw new Error(`Unexpected table: ${table}`);

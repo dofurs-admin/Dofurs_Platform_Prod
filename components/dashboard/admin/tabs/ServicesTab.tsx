@@ -440,8 +440,8 @@ export default function ServicesTab({
         <div className="mt-4 rounded-xl bg-neutral-50/60 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-ink">Global Service Rollout</p>
-              <p className="mt-1 text-xs text-[#6b6b6b]">Deploy a service configuration across selected providers or the full network.</p>
+              <p className="text-sm font-semibold text-ink">Advanced Bulk Rollout</p>
+              <p className="mt-1 text-xs text-[#6b6b6b]">Use this for controlled bulk updates. For daily operations, edit provider rollout and pincodes in the Providers tab.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full border border-neutral-200 bg-white px-2 py-0.5 text-[11px] font-medium text-ink">{rolloutTargetScopeLabel}</span>
@@ -451,7 +451,7 @@ export default function ServicesTab({
                 onClick={() => setShowRolloutConfiguration(true)}
                 className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-neutral-50"
               >
-                Edit Rollout
+                Configure Bulk Rollout
               </button>
             </div>
           </div>
@@ -484,11 +484,11 @@ export default function ServicesTab({
             <p className="mt-1 text-sm font-semibold text-ink">{discountAnalytics.total_active_discounts}</p>
           </div>
           <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
-            <p className="text-[#6b6b6b]">Total Redemptions</p>
+            <p className="text-[#6b6b6b]">Total Redemptions (Completed)</p>
             <p className="mt-1 text-sm font-semibold text-ink">{discountAnalytics.total_redemptions}</p>
           </div>
           <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
-            <p className="text-[#6b6b6b]">Booking Redemption Rate</p>
+            <p className="text-[#6b6b6b]">Booking Redemption Rate (Completed)</p>
             <p className="mt-1 text-sm font-semibold text-ink">{discountAnalytics.booking_redemption_rate}%</p>
           </div>
         </div>
@@ -537,7 +537,7 @@ export default function ServicesTab({
         onClose={() => setShowRolloutConfiguration(false)}
         size="xl"
         title="Edit Global Rollout"
-        description="Configure and deploy service pricing settings across providers."
+        description="Advanced operation: configure and deploy service settings across multiple providers."
       >
         <div className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-3">

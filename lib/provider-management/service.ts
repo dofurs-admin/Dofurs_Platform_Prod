@@ -1112,10 +1112,16 @@ export async function listPlatformDiscounts(supabase: SupabaseClient): Promise<P
 }
 
 export async function getPlatformDiscountAnalytics(supabase: SupabaseClient): Promise<PlatformDiscountAnalyticsSummary> {
-  const [discounts, redemptionsResult, bookingsCountResult] = await Promise.all([
+  const [discounts, redemptionsResult, completedBookingsCountResult] = await Promise.all([
     listPlatformDiscounts(supabase),
-    supabase.from('discount_redemptions').select('discount_id, discount_amount, reversed_at').limit(20000),
-    supabase.from('bookings').select('id', { count: 'exact', head: true }),
+    supabase
+      .from('discount_redemptions')
+      .select('discount_id, discount_amount, reversed_at, booking_id, bookings!inner(booking_status)')
+      .is('reversed_at', null)
+      .not('booking_id', 'is', null)
+      .eq('bookings.booking_status', 'completed')
+      .limit(20000),
+    supabase.from('bookings').select('id', { count: 'exact', head: true }).eq('booking_status', 'completed'),
   ]);
 
   if (redemptionsResult.error) {
@@ -1125,7 +1131,7 @@ export async function getPlatformDiscountAnalytics(supabase: SupabaseClient): Pr
         total_active_discounts: discounts.filter((item) => item.is_active).length,
         total_redemptions: 0,
         total_discount_amount: 0,
-        total_bookings: bookingsCountResult.count ?? 0,
+        total_bookings: completedBookingsCountResult.count ?? 0,
         booking_redemption_rate: 0,
         top_discounts: [],
       };
@@ -1133,17 +1139,35 @@ export async function getPlatformDiscountAnalytics(supabase: SupabaseClient): Pr
     throw redemptionsResult.error;
   }
 
-  if (bookingsCountResult.error) {
-    throw bookingsCountResult.error;
+  if (completedBookingsCountResult.error) {
+    throw completedBookingsCountResult.error;
   }
 
   const discountsById = new Map(discounts.map((item) => [item.id, item]));
   const aggregation = new Map<string, { redemption_count: number; total_discount_amount: number }>();
+  const redeemedBookingIds = new Set<number>();
+  const redemptionDeduplication = new Set<string>();
 
-  for (const row of redemptionsResult.data ?? []) {
-    if (row.reversed_at) {
+  const completedRedemptions = (redemptionsResult.data ?? []) as Array<{
+    booking_id: number | null;
+    discount_id: string;
+    discount_amount: number | null;
+    reversed_at: string | null;
+  }>;
+
+  for (const row of completedRedemptions) {
+    if (row.reversed_at || row.booking_id === null) {
       continue;
     }
+
+    const dedupeKey = `${row.discount_id}:${row.booking_id}`;
+
+    if (redemptionDeduplication.has(dedupeKey)) {
+      continue;
+    }
+
+    redemptionDeduplication.add(dedupeKey);
+    redeemedBookingIds.add(row.booking_id);
 
     const current = aggregation.get(row.discount_id) ?? { redemption_count: 0, total_discount_amount: 0 };
     current.redemption_count += 1;
@@ -1177,12 +1201,13 @@ export async function getPlatformDiscountAnalytics(supabase: SupabaseClient): Pr
     })
     .slice(0, 5);
 
-  const activeRedemptions = (redemptionsResult.data ?? []).filter((row) => !row.reversed_at);
-  const totalRedemptions = activeRedemptions.length;
+  const totalRedemptions = redeemedBookingIds.size;
   const totalDiscountAmount = Number(
-    activeRedemptions.reduce((sum, row) => sum + Number(row.discount_amount ?? 0), 0).toFixed(2),
+    Array.from(aggregation.values())
+      .reduce((sum, row) => sum + row.total_discount_amount, 0)
+      .toFixed(2),
   );
-  const totalBookings = bookingsCountResult.count ?? 0;
+  const totalBookings = completedBookingsCountResult.count ?? 0;
   const redemptionRate = totalBookings > 0 ? Number(((totalRedemptions / totalBookings) * 100).toFixed(2)) : 0;
 
   return {

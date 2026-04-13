@@ -55,6 +55,34 @@ export async function PUT(request: Request, context: RouteContext) {
       );
     }
 
+    if (parsed.data.provider_id !== undefined && parsed.data.provider_id !== null) {
+      return NextResponse.json(
+        { error: 'Provider rollout services must be managed from Provider management.' },
+        { status: 400 },
+      );
+    }
+
+    const { data: targetService, error: targetLookupError } = await supabase
+      .from('provider_services')
+      .select('id, provider_id')
+      .eq('id', id)
+      .maybeSingle<{ id: string; provider_id: number | null }>();
+
+    if (targetLookupError) {
+      return NextResponse.json({ error: targetLookupError.message }, { status: 500 });
+    }
+
+    if (!targetService) {
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    }
+
+    if (targetService.provider_id !== null) {
+      return NextResponse.json(
+        { error: 'This endpoint is for catalog templates only. Edit provider services from the Providers tab.' },
+        { status: 400 },
+      );
+    }
+
     const { data: service, error } = await supabase
       .from('provider_services')
       .update(parsed.data)
@@ -86,6 +114,27 @@ export async function DELETE(request: Request, context: RouteContext) {
 
   try {
     const { id } = await context.params;
+
+    const { data: targetService, error: targetLookupError } = await supabase
+      .from('provider_services')
+      .select('id, provider_id')
+      .eq('id', id)
+      .maybeSingle<{ id: string; provider_id: number | null }>();
+
+    if (targetLookupError) {
+      return NextResponse.json({ error: targetLookupError.message }, { status: 500 });
+    }
+
+    if (!targetService) {
+      return NextResponse.json({ error: 'Service not found' }, { status: 404 });
+    }
+
+    if (targetService.provider_id !== null) {
+      return NextResponse.json(
+        { error: 'Provider rollout services must be deleted from the Providers tab.' },
+        { status: 400 },
+      );
+    }
 
     // Nullify provider_service_id on any bookings that reference this service
     // so booking history is preserved while the FK is released.

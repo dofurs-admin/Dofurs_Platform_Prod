@@ -31,6 +31,7 @@ export async function loadAdminDashboardData(supabase: SupabaseClient) {
     supabase
       .from('provider_services')
       .select('*')
+      .is('provider_id', null)
       .order('display_order', { ascending: true }),
   ]);
 

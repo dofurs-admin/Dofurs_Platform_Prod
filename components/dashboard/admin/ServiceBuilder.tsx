@@ -14,7 +14,6 @@ type ServiceBuilderProps = {
 
 type ServiceDraft = {
   id?: string;
-  provider_id?: string;
   category_id: string;
   service_type: string;
   slug: string;
@@ -62,7 +61,6 @@ export default function ServiceBuilder({ initialServices, categories }: ServiceB
   const [isPending, startTransition] = useTransition();
   const { showToast } = useToast();
   const [serviceDraft, setServiceDraft] = useState<ServiceDraft>({
-    provider_id: '',
     category_id: '',
     service_type: '',
     slug: '',
@@ -102,7 +100,6 @@ export default function ServiceBuilder({ initialServices, categories }: ServiceB
 
   function resetServiceDraft() {
     setServiceDraft({
-      provider_id: '',
       category_id: '',
       service_type: '',
       slug: '',
@@ -135,7 +132,6 @@ export default function ServiceBuilder({ initialServices, categories }: ServiceB
   function loadServiceInDraft(service: Service) {
     setServiceDraft({
       id: service.id,
-      provider_id: service.provider_id?.toString(),
       category_id: service.category_id || '',
       service_type: service.service_type,
       slug: service.slug || '',
@@ -162,17 +158,11 @@ export default function ServiceBuilder({ initialServices, categories }: ServiceB
       return;
     }
 
-    const providerId = serviceDraft.provider_id?.trim() ? Number(serviceDraft.provider_id) : null;
     const basePrice = Number(serviceDraft.base_price);
     const surgePrice = parseOptionalNumber(serviceDraft.surge_price);
     const commissionPercentage = parseOptionalNumber(serviceDraft.commission_percentage);
     const serviceDurationMinutes = parseOptionalInteger(serviceDraft.service_duration_minutes);
     const displayOrder = parseOptionalInteger(serviceDraft.display_order) ?? 0;
-
-    if (providerId !== null && (!Number.isInteger(providerId) || providerId <= 0)) {
-      showToast('Please select a valid provider.', 'error');
-      return;
-    }
 
     if (!Number.isFinite(basePrice) || basePrice < 0) {
       showToast('Base price must be a valid non-negative number.', 'error');
@@ -197,7 +187,7 @@ export default function ServiceBuilder({ initialServices, categories }: ServiceB
     startTransition(async () => {
       try {
         const payload = {
-          provider_id: providerId,
+          provider_id: null,
           category_id: serviceDraft.category_id || null,
           service_type: serviceDraft.service_type.trim(),
           slug: serviceDraft.slug.trim().toLowerCase() || null,
@@ -282,7 +272,7 @@ export default function ServiceBuilder({ initialServices, categories }: ServiceB
           <div>
             <h2 className="text-xl font-semibold text-ink">Services</h2>
             <p className="mt-1 text-xs text-[#6b6b6b]">
-              Manage all service offerings in one clean, searchable list.
+              Manage template services for the catalog. Provider-specific rollout belongs in the Providers tab.
             </p>
           </div>
           <div className="flex items-center gap-2">

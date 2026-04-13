@@ -24,12 +24,12 @@ export default function AdminServicesView({
     <section className="space-y-4">
       <AdminSectionGuide
         title="How to Use Service Catalog"
-        subtitle="Build and manage the services offered on the platform"
+        subtitle="Build canonical service templates, then roll them out in the Providers view"
         steps={[
-          { title: 'Switch Panels', description: 'Use the "Service Types" and "Services" tabs to switch between managing categories and individual services.' },
-          { title: 'Service Types', description: 'Create and edit service categories (e.g., Grooming, Vet Visit). These are the top-level groups customers see.' },
-          { title: 'Add a Service', description: 'Under the Services panel, create specific service offerings with pricing, duration, and provider assignments.' },
-          { title: 'Edit Details', description: 'Click on any service type or service to update its name, description, pricing, or availability.' },
+          { title: 'Switch Panels', description: 'Use "Service Types" for categories and "Services" for catalog templates.' },
+          { title: 'Service Types', description: 'Create and edit top-level categories such as Grooming, Vet Visit, and Training.' },
+          { title: 'Catalog Services', description: 'Create service templates with default price, duration, media, and requirements.' },
+          { title: 'Provider Rollout', description: 'Assign templates and serviceable pincodes from the Providers tab only.' },
         ]}
       />
 
