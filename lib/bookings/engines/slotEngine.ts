@@ -129,18 +129,20 @@ export async function resolveAvailableSlots(
     providerId: number;
     bookingDate: string;
     serviceDurationMinutes?: number;
+    allowPastSlots?: boolean;
   },
 ): Promise<BookableSlot[]> {
   const { date: todayIst, minutesSinceMidnight } = getIstNowParts();
+  const allowPastSlots = input.allowPastSlots ?? false;
 
-  if (input.bookingDate < todayIst) {
+  if (!allowPastSlots && input.bookingDate < todayIst) {
     return [];
   }
 
   const isSameDay = input.bookingDate === todayIst;
 
   // Operational rule: after 6 PM IST, same-day bookings are closed.
-  if (isSameDay && minutesSinceMidnight >= 18 * 60) {
+  if (!allowPastSlots && isSameDay && minutesSinceMidnight >= 18 * 60) {
     return [];
   }
 
@@ -180,7 +182,7 @@ export async function resolveAvailableSlots(
         return false;
       }
 
-      if (isSameDay) {
+      if (isSameDay && !allowPastSlots) {
         const slotStartMinutes = timeToMinutes(slot.start_time);
 
         if (slotStartMinutes === null) {

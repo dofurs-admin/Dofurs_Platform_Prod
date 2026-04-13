@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getApiAuthContext, unauthorized } from '@/lib/auth/api-auth';
+import { forbidden, getApiAuthContext, unauthorized } from '@/lib/auth/api-auth';
 import { getAvailableSlots } from '@/lib/bookings/service';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
@@ -16,6 +16,8 @@ const querySchema = z.object({
   limitProviders: z.coerce.number().int().min(1).max(120).optional(),
   allowCoverageFallback: z.coerce.boolean().optional(),
   strictCoverage: z.coerce.boolean().optional(),
+  debug: z.coerce.boolean().optional(),
+  allowPastSlots: z.coerce.boolean().optional(),
 });
 
 type ProviderServiceRow = {
@@ -43,6 +45,8 @@ type ProviderServiceCoverageRow = {
   is_enabled: boolean;
 };
 
+type NormalizedProviderServiceRow = Omit<ProviderServiceRow, 'id'> & { id: string };
+
 function normalizeServiceId(value: string | number | null | undefined) {
   if (typeof value === 'string') {
     const trimmed = value.trim();
@@ -60,6 +64,19 @@ function normalizeServiceId(value: string | number | null | undefined) {
   }
 
   return null;
+}
+
+function normalizeServiceType(value: string | null | undefined) {
+  return (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function normalizePincode(value: string | null | undefined) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const digitsOnly = value.replace(/\D/g, '');
+  return /^[1-9]\d{5}$/.test(digitsOnly) ? digitsOnly : null;
 }
 
 type Slot = {
@@ -104,7 +121,7 @@ function matchesBookingMode(serviceMode: string | null | undefined, bookingMode:
 }
 
 export async function GET(request: Request) {
-  const { user } = await getApiAuthContext();
+  const { user, role } = await getApiAuthContext();
 
   if (!user) {
     return unauthorized();
@@ -122,41 +139,108 @@ export async function GET(request: Request) {
     limitProviders: url.searchParams.get('limitProviders') ?? undefined,
     allowCoverageFallback: url.searchParams.get('allowCoverageFallback') ?? undefined,
     strictCoverage: url.searchParams.get('strictCoverage') ?? undefined,
+    debug: url.searchParams.get('debug') ?? undefined,
+    allowPastSlots: url.searchParams.get('allowPastSlots') ?? undefined,
   });
 
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid query parameters', details: parsed.error.flatten() }, { status: 400 });
   }
 
-  const { pincode, serviceType, bookingMode, serviceDurationMinutes, bookingDate, startTime } = parsed.data;
+  const { serviceType, bookingMode, serviceDurationMinutes, bookingDate, startTime } = parsed.data;
+  const pincode = normalizePincode(parsed.data.pincode);
+
+  if (!pincode) {
+    return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
+  }
+
   const requestedServiceTypes = Array.from(
     new Set(
       [
         ...(parsed.data.serviceTypes
           ? parsed.data.serviceTypes
               .split(',')
-              .map((value) => value.trim().toLowerCase())
+              .map((value) => normalizeServiceType(value))
               .filter((value) => value.length > 0)
           : []),
-        ...(serviceType ? [serviceType.trim().toLowerCase()] : []),
+        ...(serviceType ? [normalizeServiceType(serviceType)] : []),
       ],
     ),
   );
   const limitProviders = parsed.data.limitProviders ?? 60;
   const allowCoverageFallback = parsed.data.allowCoverageFallback ?? false;
   const strictCoverage = parsed.data.strictCoverage ?? false;
+  const debugEnabled = parsed.data.debug ?? false;
+  const allowPastSlots = parsed.data.allowPastSlots ?? false;
+
+  if (allowPastSlots && role !== 'admin' && role !== 'staff') {
+    return forbidden();
+  }
   const adminClient = getSupabaseAdminClient();
 
+  const debug = debugEnabled
+    ? {
+        requested: {
+          pincode,
+          serviceType: serviceType ?? null,
+          serviceTypes: requestedServiceTypes,
+          bookingMode: bookingMode ?? null,
+          bookingDate: bookingDate ?? null,
+          startTime: startTime ?? null,
+          serviceDurationMinutes: serviceDurationMinutes ?? null,
+          strictCoverage,
+          allowCoverageFallback,
+          allowPastSlots,
+        },
+        counts: {
+          fetchedProviderServiceRows: 0,
+          excludedInvalidProviderServiceRows: 0,
+          excludedByBookingMode: 0,
+          afterBookingModeFilter: 0,
+          excludedByRequestedServiceType: 0,
+          afterRequestedServiceFilter: 0,
+          excludedByCoverage: 0,
+          eligibleProviderServices: 0,
+          effectiveProviderServices: 0,
+          scopedProviderServices: 0,
+          slotOptions: 0,
+          providersWithAnySlots: 0,
+          providersMatchingSelectedStartTime: 0,
+        },
+        exclusions: {
+          byBookingMode: [] as Array<{ providerServiceId: string; providerId: number; serviceType: string; serviceMode: string | null }>,
+          byRequestedServiceType: [] as Array<{ providerServiceId: string; providerId: number; serviceType: string }>,
+          byCoverage: [] as Array<{ providerServiceId: string; providerId: number; serviceType: string; configuredPincodes: string[] }>,
+          byNoSlotsOnDate: [] as Array<{ providerServiceId: string; providerId: number; serviceType: string }>,
+          bySelectedStartTime: [] as Array<{ providerServiceId: string; providerId: number; serviceType: string; selectedStartTime: string }>,
+        },
+      }
+    : null;
+
+  const DEBUG_LIMIT = 80;
+  const pushDebug = <T>(target: T[], value: T) => {
+    if (target.length < DEBUG_LIMIT) {
+      target.push(value);
+    }
+  };
+
+  const responsePayload = <T extends Record<string, unknown>>(payload: T) => {
+    if (!debug) {
+      return payload;
+    }
+
+    return {
+      ...payload,
+      debug,
+    };
+  };
+
   try {
-    let providerServicesQuery = adminClient
+    const providerServicesQuery = adminClient
       .from('provider_services')
       .select('id, provider_id, service_type, service_mode, service_duration_minutes, base_price')
       .eq('is_active', true)
       .order('service_type', { ascending: true });
-
-    if (requestedServiceTypes.length === 1) {
-      providerServicesQuery = providerServicesQuery.ilike('service_type', requestedServiceTypes[0]);
-    }
 
     const { data: providerServicesRows, error: providerServicesError } = await providerServicesQuery;
 
@@ -165,32 +249,83 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: mapped.message }, { status: mapped.status });
     }
 
-    const providerServices = ((providerServicesRows ?? []) as ProviderServiceRow[])
-      .map((row) => {
+    if (debug) {
+      debug.counts.fetchedProviderServiceRows = (providerServicesRows ?? []).length;
+    }
+
+    let providerServices: NormalizedProviderServiceRow[] = [];
+
+    for (const row of ((providerServicesRows ?? []) as ProviderServiceRow[])) {
         const normalizedId = normalizeServiceId(row.id);
         const normalizedProviderId = Number(row.provider_id);
 
         if (!normalizedId || !Number.isFinite(normalizedProviderId) || normalizedProviderId <= 0) {
-          return null;
+          if (debug) {
+            debug.counts.excludedInvalidProviderServiceRows += 1;
+          }
+          continue;
         }
 
-        return {
+        const normalizedRow: NormalizedProviderServiceRow = {
           ...row,
           id: normalizedId,
           provider_id: normalizedProviderId,
         };
-      })
-      .filter((row): row is Omit<ProviderServiceRow, 'id'> & { id: string } => Boolean(row))
-      .filter((row) => (bookingMode ? matchesBookingMode(row.service_mode, bookingMode) : true));
+
+        if (bookingMode && !matchesBookingMode(normalizedRow.service_mode, bookingMode)) {
+          if (debug) {
+            debug.counts.excludedByBookingMode += 1;
+            pushDebug(debug.exclusions.byBookingMode, {
+              providerServiceId: normalizedRow.id,
+              providerId: normalizedRow.provider_id,
+              serviceType: normalizedRow.service_type,
+              serviceMode: normalizedRow.service_mode,
+            });
+          }
+          continue;
+        }
+
+        providerServices.push(normalizedRow);
+    }
+
+    if (debug) {
+      debug.counts.afterBookingModeFilter = providerServices.length;
+    }
+
+    if (requestedServiceTypes.length > 0) {
+      const filtered: NormalizedProviderServiceRow[] = [];
+
+      for (const row of providerServices) {
+        if (requestedServiceTypes.includes(normalizeServiceType(row.service_type))) {
+          filtered.push(row);
+          continue;
+        }
+
+        if (debug) {
+          debug.counts.excludedByRequestedServiceType += 1;
+          pushDebug(debug.exclusions.byRequestedServiceType, {
+            providerServiceId: row.id,
+            providerId: row.provider_id,
+            serviceType: row.service_type,
+          });
+        }
+      }
+
+      providerServices = filtered;
+    }
+
+    if (debug) {
+      debug.counts.afterRequestedServiceFilter = providerServices.length;
+    }
 
     if (providerServices.length === 0) {
-      return NextResponse.json({
+      return NextResponse.json(responsePayload({
         services: [],
         providers: [],
         slotOptions: [],
         recommendedSlotStartTime: null,
         recommendedProviderServiceId: null,
-      });
+      }));
     }
 
     const providerIds = Array.from(new Set(providerServices.map((row) => row.provider_id)));
@@ -264,7 +399,7 @@ export async function GET(request: Request) {
         continue;
       }
 
-      const normalizedPincode = typeof row.pincode === 'string' ? row.pincode.trim() : '';
+      const normalizedPincode = normalizePincode(row.pincode);
       if (!normalizedPincode) {
         continue;
       }
@@ -274,32 +409,65 @@ export async function GET(request: Request) {
       coverageByService.set(normalizedServiceId, existing);
     }
 
-    const eligibleProviderServices = providerServices.filter((row) => {
+    const eligibleProviderServices: NormalizedProviderServiceRow[] = [];
+
+    for (const row of providerServices) {
       const configuredCoverage = coverageByService.get(row.id);
 
       // Strict mode is used by customer-facing serviceability checks and requires explicit pincode mapping.
       if (!configuredCoverage || configuredCoverage.size === 0) {
         if (strictCoverage) {
-          return false;
+          if (debug) {
+            debug.counts.excludedByCoverage += 1;
+            pushDebug(debug.exclusions.byCoverage, {
+              providerServiceId: row.id,
+              providerId: row.provider_id,
+              serviceType: row.service_type,
+              configuredPincodes: [],
+            });
+          }
+          continue;
         }
 
-        return true;
+        eligibleProviderServices.push(row);
+        continue;
       }
 
-      return configuredCoverage.has(pincode);
-    });
+      if (configuredCoverage.has(pincode)) {
+        eligibleProviderServices.push(row);
+        continue;
+      }
+
+      if (debug) {
+        debug.counts.excludedByCoverage += 1;
+        pushDebug(debug.exclusions.byCoverage, {
+          providerServiceId: row.id,
+          providerId: row.provider_id,
+          serviceType: row.service_type,
+          configuredPincodes: Array.from(configuredCoverage).slice(0, 10),
+        });
+      }
+    }
+
+    if (debug) {
+      debug.counts.eligibleProviderServices = eligibleProviderServices.length;
+    }
 
     const effectiveProviderServices =
       allowCoverageFallback && eligibleProviderServices.length === 0 ? providerServices : eligibleProviderServices;
 
+    if (debug) {
+      debug.counts.effectiveProviderServices = effectiveProviderServices.length;
+    }
+
     if (effectiveProviderServices.length === 0) {
-      return NextResponse.json({
+      return NextResponse.json(responsePayload({
         services: [],
         providers: [],
         slotOptions: [],
         recommendedSlotStartTime: null,
         recommendedProviderServiceId: null,
-      });
+      }));
     }
 
     const serviceSummaryMap = new Map<
@@ -341,7 +509,7 @@ export async function GET(request: Request) {
     );
 
     let scopedProviderServices = requestedServiceTypes.length > 0
-      ? effectiveProviderServices.filter((row) => requestedServiceTypes.includes(row.service_type.toLowerCase()))
+      ? effectiveProviderServices.filter((row) => requestedServiceTypes.includes(normalizeServiceType(row.service_type)))
       : effectiveProviderServices;
 
     if (requestedServiceTypes.length > 1 || serviceDurationMinutes !== undefined) {
@@ -349,7 +517,7 @@ export async function GET(request: Request) {
 
       for (const row of scopedProviderServices) {
         const existing = supportedServiceTypesByProvider.get(row.provider_id) ?? new Set<string>();
-        existing.add(row.service_type.toLowerCase());
+        existing.add(normalizeServiceType(row.service_type));
         supportedServiceTypesByProvider.set(row.provider_id, existing);
       }
 
@@ -360,6 +528,10 @@ export async function GET(request: Request) {
       );
 
       scopedProviderServices = scopedProviderServices.filter((row) => eligibleProviderIds.has(row.provider_id));
+    }
+
+    if (debug) {
+      debug.counts.scopedProviderServices = scopedProviderServices.length;
     }
 
     if (!bookingDate || scopedProviderServices.length === 0) {
@@ -397,7 +569,7 @@ export async function GET(request: Request) {
       const limitedProviderCards = sortedProviderCards.slice(0, limitProviders);
       const recommendedProvider = limitedProviderCards[0];
 
-      return NextResponse.json({
+      return NextResponse.json(responsePayload({
         services: serviceSummaries,
         providers: limitedProviderCards.map((item) => ({
           ...item,
@@ -406,7 +578,7 @@ export async function GET(request: Request) {
         slotOptions: [],
         recommendedSlotStartTime: null,
         recommendedProviderServiceId: recommendedProvider?.providerServiceId ?? null,
-      });
+      }));
     }
 
     if (requestedServiceTypes.length > 1) {
@@ -426,7 +598,7 @@ export async function GET(request: Request) {
           const representativeRow =
             (primaryServiceType
               ? [...providerRows]
-                  .filter((row) => row.service_type.toLowerCase() === primaryServiceType)
+                  .filter((row) => normalizeServiceType(row.service_type) === normalizeServiceType(primaryServiceType))
                   .sort((left, right) => left.base_price - right.base_price)[0]
               : null) ?? [...providerRows].sort((left, right) => left.base_price - right.base_price)[0];
 
@@ -440,6 +612,7 @@ export async function GET(request: Request) {
             providerId,
             bookingDate,
             serviceDurationMinutes: providerBundleDuration,
+            allowPastSlots,
           });
 
           slotsByProviderId.set(providerId, slots as Slot[]);
@@ -485,10 +658,50 @@ export async function GET(request: Request) {
         }))
         .sort(rankSlots);
 
+      if (debug) {
+        debug.counts.slotOptions = slotOptions.length;
+      }
+
       const recommendedSlot = slotOptions[0] ?? null;
       const selectedSlotTime = startTime ?? recommendedSlot?.startTime ?? null;
 
-      const primaryServiceType = serviceType?.trim().toLowerCase() ?? null;
+      if (debug) {
+        let providersWithAnySlots = 0;
+        let providersMatchingSelectedStartTime = 0;
+
+        for (const [providerId, providerRows] of rowsByProvider.entries()) {
+          const slots = slotsByProviderId.get(providerId) ?? [];
+          const availableSlots = slots.filter((slot) => slot.is_available);
+
+          if (availableSlots.length > 0) {
+            providersWithAnySlots += 1;
+          } else {
+            const representative = [...providerRows].sort((left, right) => left.base_price - right.base_price)[0];
+            pushDebug(debug.exclusions.byNoSlotsOnDate, {
+              providerServiceId: representative.id,
+              providerId,
+              serviceType: representative.service_type,
+            });
+          }
+
+          if (selectedSlotTime && availableSlots.some((slot) => slot.start_time === selectedSlotTime)) {
+            providersMatchingSelectedStartTime += 1;
+          } else if (selectedSlotTime && availableSlots.length > 0) {
+            const representative = [...providerRows].sort((left, right) => left.base_price - right.base_price)[0];
+            pushDebug(debug.exclusions.bySelectedStartTime, {
+              providerServiceId: representative.id,
+              providerId,
+              serviceType: representative.service_type,
+              selectedStartTime: selectedSlotTime,
+            });
+          }
+        }
+
+        debug.counts.providersWithAnySlots = providersWithAnySlots;
+        debug.counts.providersMatchingSelectedStartTime = providersMatchingSelectedStartTime;
+      }
+
+      const primaryServiceType = serviceType ? normalizeServiceType(serviceType) : null;
 
       const providers = Array.from(rowsByProvider.entries())
         .map(([providerId, providerRows]) => {
@@ -502,7 +715,7 @@ export async function GET(request: Request) {
           const representativeRow =
             (primaryServiceType
               ? [...providerRows]
-                  .filter((row) => row.service_type.toLowerCase() === primaryServiceType)
+                  .filter((row) => normalizeServiceType(row.service_type) === primaryServiceType)
                   .sort((left, right) => left.base_price - right.base_price)[0]
               : null) ?? [...providerRows].sort((left, right) => left.base_price - right.base_price)[0];
 
@@ -556,7 +769,7 @@ export async function GET(request: Request) {
       const recommendedProviderServiceId = limitedProviders[0]?.providerServiceId ?? null;
 
       return NextResponse.json(
-        {
+        responsePayload({
           services: serviceSummaries,
           providers: limitedProviders.map((item) => ({
             ...item,
@@ -570,7 +783,7 @@ export async function GET(request: Request) {
           })),
           recommendedSlotStartTime: recommendedSlot?.startTime ?? null,
           recommendedProviderServiceId,
-        },
+        }),
         {
           headers: {
             'Cache-Control': 'no-store, max-age=0',
@@ -587,6 +800,7 @@ export async function GET(request: Request) {
           providerId: row.provider_id,
           bookingDate,
           serviceDurationMinutes: serviceDurationMinutes ?? row.service_duration_minutes ?? undefined,
+          allowPastSlots,
         });
 
         slotsByProviderServiceId.set(row.id, slots as Slot[]);
@@ -630,6 +844,9 @@ export async function GET(request: Request) {
     }
 
     const slotOptions = Array.from(slotMap.values()).sort(rankSlots);
+    if (debug) {
+      debug.counts.slotOptions = slotOptions.length;
+    }
     const recommendedSlot = slotOptions[0] ?? null;
 
     const selectedSlotTime = startTime ?? recommendedSlot?.startTime ?? null;
@@ -679,10 +896,48 @@ export async function GET(request: Request) {
         return left.providerName.localeCompare(right.providerName);
       });
 
+    if (debug) {
+      const byProviderServiceId = new Map(scopedProviderServices.map((row) => [row.id, row]));
+      let providersWithAnySlots = 0;
+      let providersMatchingSelectedStartTime = 0;
+
+      for (const [providerServiceId, slots] of slotsByProviderServiceId.entries()) {
+        const row = byProviderServiceId.get(providerServiceId);
+        if (!row) {
+          continue;
+        }
+
+        const availableSlots = slots.filter((slot) => slot.is_available);
+        if (availableSlots.length > 0) {
+          providersWithAnySlots += 1;
+        } else {
+          pushDebug(debug.exclusions.byNoSlotsOnDate, {
+            providerServiceId,
+            providerId: row.provider_id,
+            serviceType: row.service_type,
+          });
+        }
+
+        if (selectedSlotTime && availableSlots.some((slot) => slot.start_time === selectedSlotTime)) {
+          providersMatchingSelectedStartTime += 1;
+        } else if (selectedSlotTime && availableSlots.length > 0) {
+          pushDebug(debug.exclusions.bySelectedStartTime, {
+            providerServiceId,
+            providerId: row.provider_id,
+            serviceType: row.service_type,
+            selectedStartTime: selectedSlotTime,
+          });
+        }
+      }
+
+      debug.counts.providersWithAnySlots = providersWithAnySlots;
+      debug.counts.providersMatchingSelectedStartTime = providersMatchingSelectedStartTime;
+    }
+
     const limitedProviders = providers.slice(0, limitProviders);
     const recommendedProviderServiceId = limitedProviders[0]?.providerServiceId ?? null;
 
-    return NextResponse.json({
+    return NextResponse.json(responsePayload({
       services: serviceSummaries,
       providers: limitedProviders.map((item) => ({
         ...item,
@@ -696,7 +951,7 @@ export async function GET(request: Request) {
       })),
       recommendedSlotStartTime: recommendedSlot?.startTime ?? null,
       recommendedProviderServiceId,
-    }, {
+    }), {
       headers: {
         'Cache-Control': 'no-store, max-age=0',
       },

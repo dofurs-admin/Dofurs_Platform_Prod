@@ -51,10 +51,7 @@ export const authSignupSchema = z.object({
 const bookingBaseSchema = z.object({
   petId: z.number().int().positive(),
   providerId: z.number().int().positive(),
-  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(
-    (val) => val >= getISTDateString(),
-    { message: 'Booking date cannot be in the past' },
-  ),
+  bookingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   bookingMode: z.enum(['home_visit', 'clinic_visit', 'teleconsult']),
   locationAddress: z
@@ -88,6 +85,7 @@ const bookingBaseSchema = z.object({
   paymentMode: z.enum(['direct_to_provider', 'platform', 'mixed']).optional(),
   pincode: z.string().trim().regex(/^[1-9]\d{5}$/, 'Invalid 6-digit Indian pincode').optional(),
   boardingEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  allowPastBooking: z.boolean().optional(),
 });
 
 export const serviceBookingCreateSchema = bookingBaseSchema
@@ -96,6 +94,10 @@ export const serviceBookingCreateSchema = bookingBaseSchema
     providerServiceId: z.string().uuid(),
   })
   .superRefine((data, ctx) => {
+    if (data.bookingDate < getISTDateString() && !data.allowPastBooking) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['bookingDate'], message: 'Booking date cannot be in the past' });
+    }
+
     if (data.bookingMode === 'home_visit') {
       if (!data.locationAddress?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['locationAddress'], message: 'Location address is required for home visits.' });

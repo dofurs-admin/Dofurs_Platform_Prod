@@ -763,6 +763,11 @@ export default function ProvidersTab({
       ...c,
       [providerId]: { id: service.id, service_pincodes: (pincodesByService[service.id] ?? []).join(', ') },
     }));
+
+    setSelectedServiceTypesByProvider((c) => ({
+      ...c,
+      [providerId]: [service.service_type],
+    }));
   }
 
   function toggleProviderServiceSelection(

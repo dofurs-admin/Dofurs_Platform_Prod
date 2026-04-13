@@ -85,6 +85,7 @@ export type GetAvailableSlotsInput = {
   providerId: number;
   bookingDate: string;
   serviceDurationMinutes?: number;
+  allowPastSlots?: boolean;
 };
 
 export type ProviderBookingsQuery = {

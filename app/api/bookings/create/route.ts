@@ -40,6 +40,10 @@ export async function POST(request: Request) {
 
   const targetUserId = parsed.data.bookingUserId ?? user.id;
 
+  if (parsed.data.allowPastBooking && role !== 'admin' && role !== 'staff') {
+    return NextResponse.json({ error: 'Only admin or staff can create offline bookings for past slots.' }, { status: 403 });
+  }
+
   try {
     assertRoleCanCreateBookingForUser(role as 'user' | 'provider' | 'admin' | 'staff', user.id, targetUserId);
   } catch (err) { console.error(err);

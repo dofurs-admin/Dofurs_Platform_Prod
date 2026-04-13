@@ -110,6 +110,33 @@ type AdminFlowAvailabilityResponse = {
   slotOptions: AvailabilitySlot[];
   recommendedSlotStartTime: string | null;
   recommendedProviderServiceId: string | null;
+  debug?: {
+    requested: {
+      pincode: string;
+      serviceType: string | null;
+      serviceTypes: string[];
+      bookingMode: string | null;
+      bookingDate: string | null;
+      startTime: string | null;
+      serviceDurationMinutes: number | null;
+      strictCoverage: boolean;
+      allowCoverageFallback: boolean;
+      allowPastSlots?: boolean;
+    };
+    counts: Record<string, number>;
+    exclusions: {
+      byBookingMode: Array<{ providerServiceId: string; providerId: number; serviceType: string; serviceMode: string | null }>;
+      byRequestedServiceType: Array<{ providerServiceId: string; providerId: number; serviceType: string }>;
+      byCoverage: Array<{ providerServiceId: string; providerId: number; serviceType: string; configuredPincodes: string[] }>;
+      byNoSlotsOnDate: Array<{ providerServiceId: string; providerId: number; serviceType: string }>;
+      bySelectedStartTime: Array<{
+        providerServiceId: string;
+        providerId: number;
+        serviceType: string;
+        selectedStartTime: string;
+      }>;
+    };
+  };
 };
 
 type BookingCreateResponse = {
@@ -186,6 +213,7 @@ export default function AdminBookingFlow() {
     const parsed = Number.parseInt(rescheduleQuery, 10);
     return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
   }, [rescheduleQuery]);
+  const availabilityDebugEnabled = searchParams.get('availabilityDebug') === '1';
   const isRescheduleMode = rescheduleBookingId !== null;
   const hasHydratedRescheduleRef = useRef(false);
 
@@ -236,6 +264,7 @@ export default function AdminBookingFlow() {
 
   const [bookingDate, setBookingDate] = useState('');
   const [slotStartTime, setSlotStartTime] = useState('');
+  const [allowPastSlots, setAllowPastSlots] = useState(false);
 
   const [providerServiceId, setProviderServiceId] = useState<string | null>(null);
   const [providerNotes, setProviderNotes] = useState('');
@@ -247,6 +276,7 @@ export default function AdminBookingFlow() {
     recommendedSlotStartTime: null,
     recommendedProviderServiceId: null,
   });
+  const availabilityRequestSeqRef = useRef(0);
 
   const selectedUser = useMemo(
     () => bookableUsers.find((item) => item.id === selectedBookingUserId) ?? null,
@@ -258,6 +288,7 @@ export default function AdminBookingFlow() {
     setPetServiceSelections({});
     setBookingDate('');
     setSlotStartTime('');
+    setAllowPastSlots(false);
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
@@ -355,6 +386,7 @@ export default function AdminBookingFlow() {
   const pincode = selectedAddress?.pincode?.trim() ?? '';
 
   const stepProgress = (step / STEPS.length) * 100;
+  const availabilityDebug = availability.debug ?? null;
 
   const summaryBaseAmount = (selectedProvider?.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
   const summaryDiscount = totalSelectedServices > 1 ? 0 : discountPreview?.discountAmount ?? 0;
@@ -366,6 +398,7 @@ export default function AdminBookingFlow() {
     setServiceType('');
     setBookingDate('');
     setSlotStartTime('');
+    setAllowPastSlots(false);
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
@@ -999,6 +1032,7 @@ export default function AdminBookingFlow() {
       preserveProviderSelection?: boolean;
     }) => {
       if (!pincode) {
+        availabilityRequestSeqRef.current += 1;
         setAvailability({
           services: [],
           providers: [],
@@ -1027,7 +1061,24 @@ export default function AdminBookingFlow() {
         query.set('startTime', targetStartTime);
       }
 
+      if (allowPastSlots) {
+        query.set('allowPastSlots', 'true');
+      }
+
+      if (availabilityDebugEnabled) {
+        query.set('debug', 'true');
+      }
+
+      const requestSeq = ++availabilityRequestSeqRef.current;
       const payload = await apiRequest<AdminFlowAvailabilityResponse>(`/api/bookings/admin-flow-availability?${query.toString()}`);
+
+      if (requestSeq !== availabilityRequestSeqRef.current) {
+        return;
+      }
+
+      if (availabilityDebugEnabled && payload.debug && (payload.services.length === 0 || payload.slotOptions.length === 0)) {
+        console.info('[AdminBookingFlow] availability-debug', payload.debug);
+      }
 
       setAvailability(payload);
 
@@ -1055,7 +1106,7 @@ export default function AdminBookingFlow() {
         setSlotStartTime(payload.recommendedSlotStartTime ?? payload.slotOptions[0]?.startTime ?? '');
       }
     },
-    [pincode, providerServiceId],
+    [allowPastSlots, availabilityDebugEnabled, pincode, providerServiceId],
   );
 
   useEffect(() => {
@@ -1102,7 +1153,7 @@ export default function AdminBookingFlow() {
         showToast(message, 'error');
       }
     });
-  }, [bookingDate, pincode, refreshAvailability, selectedServiceTypesForBundle, serviceType, slotStartTime, showToast]);
+  }, [allowPastSlots, bookingDate, pincode, refreshAvailability, selectedServiceTypesForBundle, serviceType, slotStartTime, showToast]);
 
   useEffect(() => {
     if (!serviceType) {
@@ -1116,12 +1167,36 @@ export default function AdminBookingFlow() {
     }
 
     setServiceType('');
+    setPetServiceSelections((previous) => {
+      const next = { ...previous };
+
+      for (const selectedPetId of selectedPetIds) {
+        const current = next[selectedPetId] ?? { serviceType: null, quantity: 1 };
+        next[selectedPetId] = {
+          ...current,
+          serviceType: null,
+        };
+      }
+
+      return next;
+    });
     setBookingDate('');
     setSlotStartTime('');
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
-  }, [availability.services, serviceType]);
+
+    if (pincode) {
+      startTransition(async () => {
+        try {
+          await refreshAvailability({});
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to refresh service availability.';
+          showToast(message, 'error');
+        }
+      });
+    }
+  }, [availability.services, pincode, refreshAvailability, selectedPetIds, serviceType, showToast]);
 
   useEffect(() => {
     if (!serviceType) {
@@ -1411,6 +1486,7 @@ export default function AdminBookingFlow() {
               useSubscriptionCredit,
               walletCreditsAppliedInr: walletCreditsForEntry > 0 ? walletCreditsForEntry : undefined,
               paymentMode: useSubscriptionCredit ? 'platform' : 'direct_to_provider',
+              allowPastBooking: allowPastSlots,
             }),
           });
 
@@ -1508,6 +1584,103 @@ export default function AdminBookingFlow() {
               style={{ width: `${stepProgress}%` }}
             />
           </div>
+
+          {availabilityDebugEnabled && (step === 2 || step === 3) && availabilityDebug ? (
+            <details className="rounded-xl border border-amber-200 bg-amber-50/80 p-3" open>
+              <summary className="cursor-pointer text-sm font-semibold text-amber-900">Availability Debug</summary>
+              <p className="mt-1 text-xs text-amber-800">
+                Use this to verify why services/providers/slots were filtered for the current selection.
+              </p>
+
+              <div className="mt-3 grid gap-2 text-xs text-amber-900 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Pincode</p>
+                  <p>{availabilityDebug.requested.pincode}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Service Type</p>
+                  <p>{availabilityDebug.requested.serviceType ?? 'Any'}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Booking Date</p>
+                  <p>{availabilityDebug.requested.bookingDate ?? 'Not selected'}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Selected Start Time</p>
+                  <p>{availabilityDebug.requested.startTime ?? 'Not selected'}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Strict Coverage</p>
+                  <p>{availabilityDebug.requested.strictCoverage ? 'Yes' : 'No'}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Coverage Fallback</p>
+                  <p>{availabilityDebug.requested.allowCoverageFallback ? 'Yes' : 'No'}</p>
+                </div>
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="font-semibold">Allow Past Slots</p>
+                  <p>{availabilityDebug.requested.allowPastSlots ? 'Yes' : 'No'}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 rounded-lg border border-amber-200 bg-white/70 p-2">
+                <p className="text-xs font-semibold text-amber-900">Pipeline Counts</p>
+                <div className="mt-2 grid gap-1 text-xs text-amber-900 sm:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(availabilityDebug.counts).map(([key, value]) => (
+                    <p key={key}>
+                      <span className="font-medium">{key}:</span> {value}
+                    </p>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-2">
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="text-xs font-semibold text-amber-900">
+                    Excluded by Coverage ({availabilityDebug.exclusions.byCoverage.length})
+                  </p>
+                  {availabilityDebug.exclusions.byCoverage.length > 0 ? (
+                    <pre className="mt-2 max-h-28 overflow-auto rounded bg-amber-100/60 p-2 text-[10px] text-amber-950">
+                      {JSON.stringify(availabilityDebug.exclusions.byCoverage.slice(0, 6), null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="text-xs font-semibold text-amber-900">
+                    Excluded by Service Type ({availabilityDebug.exclusions.byRequestedServiceType.length})
+                  </p>
+                  {availabilityDebug.exclusions.byRequestedServiceType.length > 0 ? (
+                    <pre className="mt-2 max-h-28 overflow-auto rounded bg-amber-100/60 p-2 text-[10px] text-amber-950">
+                      {JSON.stringify(availabilityDebug.exclusions.byRequestedServiceType.slice(0, 6), null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="text-xs font-semibold text-amber-900">
+                    No Slots On Date ({availabilityDebug.exclusions.byNoSlotsOnDate.length})
+                  </p>
+                  {availabilityDebug.exclusions.byNoSlotsOnDate.length > 0 ? (
+                    <pre className="mt-2 max-h-28 overflow-auto rounded bg-amber-100/60 p-2 text-[10px] text-amber-950">
+                      {JSON.stringify(availabilityDebug.exclusions.byNoSlotsOnDate.slice(0, 6), null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+
+                <div className="rounded-lg border border-amber-200 bg-white/70 p-2">
+                  <p className="text-xs font-semibold text-amber-900">
+                    Not Matching Selected Time ({availabilityDebug.exclusions.bySelectedStartTime.length})
+                  </p>
+                  {availabilityDebug.exclusions.bySelectedStartTime.length > 0 ? (
+                    <pre className="mt-2 max-h-28 overflow-auto rounded bg-amber-100/60 p-2 text-[10px] text-amber-950">
+                      {JSON.stringify(availabilityDebug.exclusions.bySelectedStartTime.slice(0, 6), null, 2)}
+                    </pre>
+                  ) : null}
+                </div>
+              </div>
+            </details>
+          ) : null}
         </div>
 
         {step === 1 ? (
@@ -1970,6 +2143,19 @@ export default function AdminBookingFlow() {
                 className="h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm"
               />
             </div>
+
+            <label className="mt-2 inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
+              <input
+                type="checkbox"
+                checked={allowPastSlots}
+                onChange={(event) => {
+                  setAllowPastSlots(event.target.checked);
+                  setSlotStartTime('');
+                }}
+                className="h-4 w-4 rounded border-neutral-300 text-coral focus:ring-coral"
+              />
+              Offline booking mode (allow past dates/slots for admin records)
+            </label>
 
             {bookingDate ? (
               <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
