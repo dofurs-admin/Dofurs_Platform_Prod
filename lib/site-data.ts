@@ -27,6 +27,16 @@ export const footerPolicyLinks = [
   { label: 'Cancellation & Adjustment', href: '/cancellation-adjustment-policy' },
 ] as const;
 
+// Navigation dropdown items — explicit hrefs to service landing pages
+export const navServiceItems = [
+  { title: 'Grooming', href: '/services/grooming', badge: 'Active' },
+  { title: 'Pet Birthday', href: '/services/pet-birthday', badge: null },
+  { title: 'Pet Boarding', href: '/services/pet-boarding', badge: null },
+  { title: 'Vet Visits', href: '/services/vet-visits', badge: null },
+  { title: 'Pet Sitting', href: '/services/pet-sitting', badge: null },
+  { title: 'Training', href: '/services/training', badge: null },
+] as const;
+
 export const services = [
   {
     title: 'Grooming',

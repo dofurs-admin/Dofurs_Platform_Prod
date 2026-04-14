@@ -4926,41 +4926,80 @@ export default function AdminDashboardClient({
           {serviceSummary.length === 0 ? (
             <p className="mt-2 text-xs text-[#6b6b6b]">No services found yet.</p>
           ) : (
-            <ul className="mt-2 grid gap-2">
-              {serviceSummary.map((service) => (
-                <li key={service.service_type} className="rounded-lg bg-white/70 p-2 text-xs">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-medium text-neutral-950">
-                      {service.service_type} • Providers: {service.provider_count} • Active:{' '}
-                      <span className="text-green-700">{service.active_count}</span> • Inactive:{' '}
-                      <span className="text-red-700">{service.inactive_count}</span> • Avg Price: ₹{service.average_base_price}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        onClick={() => setServiceActivation(service.service_type, true)}
-                        disabled={isPending}
-                        variant="secondary"
-                        size="sm"
-                        className="border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
-                      >
-                        Enable
-                      </Button>
-                      <Button
-                        type="button"
-                        onClick={() => setServiceActivation(service.service_type, false)}
-                        disabled={isPending}
-                        variant="ghost"
-                        size="sm"
-                        className="border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-                      >
-                        Disable
-                      </Button>
+            <div className="mt-2 max-h-[28rem] overflow-y-auto pr-1">
+              <div className="sticky top-0 z-10 -mx-1 mb-2 flex flex-wrap items-center gap-2 bg-neutral-50/95 px-1 py-1 text-[11px] text-neutral-700 backdrop-blur">
+                <span className="rounded-full border border-green-200 bg-green-50 px-2 py-0.5 font-medium text-green-700">Enabled</span>
+                <span className="rounded-full border border-red-200 bg-red-50 px-2 py-0.5 font-medium text-red-700">Disabled</span>
+                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-medium text-amber-700">Partial / No rollout</span>
+              </div>
+              <ul className="grid gap-2">
+                {serviceSummary.map((service) => {
+                const isFullyEnabled = service.active_count > 0 && service.inactive_count === 0;
+                const isFullyDisabled = service.inactive_count > 0 && service.active_count === 0;
+                const statusLabel = isFullyEnabled
+                  ? 'Enabled'
+                  : isFullyDisabled
+                    ? 'Disabled'
+                    : service.active_count > 0 && service.inactive_count > 0
+                      ? 'Partially enabled'
+                      : 'No provider rollout';
+
+                  return (
+                    <li key={service.service_type} className="rounded-lg bg-white/70 p-2 text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            'rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide',
+                            isFullyEnabled
+                              ? 'border-green-200 bg-green-50 text-green-700'
+                              : isFullyDisabled
+                                ? 'border-red-200 bg-red-50 text-red-700'
+                                : 'border-amber-200 bg-amber-50 text-amber-700',
+                          )}
+                        >
+                          {statusLabel}
+                        </span>
+                        <p className="font-medium text-neutral-950">
+                          {service.service_type} • Providers: {service.provider_count} • Active:{' '}
+                          <span className="text-green-700">{service.active_count}</span> • Inactive:{' '}
+                          <span className="text-red-700">{service.inactive_count}</span> • Avg Price: ₹{service.average_base_price}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          onClick={() => setServiceActivation(service.service_type, true)}
+                          disabled={isPending || isFullyEnabled}
+                          variant="secondary"
+                          size="sm"
+                          className={cn(
+                            'border-green-200 text-green-700',
+                            isFullyEnabled ? 'bg-green-100' : 'bg-green-50 hover:bg-green-100',
+                          )}
+                        >
+                          Enable
+                        </Button>
+                        <Button
+                          type="button"
+                          onClick={() => setServiceActivation(service.service_type, false)}
+                          disabled={isPending || isFullyDisabled}
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            'border-red-200 text-red-700',
+                            isFullyDisabled ? 'bg-red-100' : 'bg-red-50 hover:bg-red-100',
+                          )}
+                        >
+                          Disable
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </div>
 

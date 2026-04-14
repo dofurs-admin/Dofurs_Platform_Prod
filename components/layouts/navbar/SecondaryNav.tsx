@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { type RefObject } from 'react';
 import { theme } from '@/lib/theme';
-import { footerInfoLinks, footerPolicyLinks, links, services as marketplaceServices } from '@/lib/site-data';
+import { footerInfoLinks, footerPolicyLinks, links, navServiceItems } from '@/lib/site-data';
 import type { SecondaryMenuKey } from './types';
 
 interface SecondaryNavProps {
@@ -118,21 +118,26 @@ export function SecondaryNav({
               <div
                 ref={servicesDropdownRef}
                 id="secondary-services-menu"
-                className="absolute left-1/2 top-[calc(100%+0.45rem)] z-[62] w-[min(430px,86vw)] overflow-hidden rounded-2xl border border-[#e7c9ae] bg-[linear-gradient(145deg,#fff8ef,#fff2e6_55%,#fff9f3)] p-4 shadow-soft-md animate-[dropdown-enter_260ms_cubic-bezier(0.2,0.8,0.2,1)_1]"
+                className="absolute left-1/2 top-[calc(100%+0.45rem)] z-[62] w-[min(260px,86vw)] overflow-hidden rounded-2xl border border-[#e7c9ae] bg-[linear-gradient(145deg,#fff8ef,#fff2e6_55%,#fff9f3)] p-4 shadow-soft-md animate-[dropdown-enter_260ms_cubic-bezier(0.2,0.8,0.2,1)_1]"
                 style={{ translate: `calc(-50% + ${secondaryDropdownShift.services}px) 0` }}
               >
                 <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8f6645]">Service Categories</p>
                 <div className="mt-2 grid divide-y divide-[#edd7c3]/75">
-                  {marketplaceServices.map((item, index) => (
+                  {navServiceItems.map((item, index) => (
                     <Link
                       key={item.title}
-                      href={`/forms/customer-booking?search=${encodeURIComponent(item.title)}#start-your-booking`}
-                      className="group flex items-center gap-2 py-2.5 text-[13px] font-medium text-[#664934] transition-colors duration-200 hover:text-coral animate-[dropdown-item-enter_240ms_cubic-bezier(0.2,0.8,0.2,1)_both]"
+                      href={item.href}
+                      className="group flex items-center justify-between gap-2 py-2.5 text-[13px] font-medium text-[#664934] transition-colors duration-200 hover:text-coral animate-[dropdown-item-enter_240ms_cubic-bezier(0.2,0.8,0.2,1)_both]"
                       style={{ animationDelay: `${index * 28}ms` }}
                       onClick={onCloseMenu}
                     >
-                      <span className="h-1 w-1 rounded-full bg-[#d6a079] transition-colors group-hover:bg-coral" aria-hidden="true" />
-                      {item.title}
+                      <span className="flex items-center gap-2">
+                        <span className="h-1 w-1 rounded-full bg-[#d6a079] transition-colors group-hover:bg-coral" aria-hidden="true" />
+                        {item.title}
+                      </span>
+                      {item.badge === 'Active' && (
+                        <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-100">Live</span>
+                      )}
                     </Link>
                   ))}
                 </div>

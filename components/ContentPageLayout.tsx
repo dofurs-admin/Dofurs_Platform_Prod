@@ -17,6 +17,7 @@ type ContentPageLayoutProps = {
   heroImageSrc?: string;
   heroImageAlt?: string;
   heroImageFirstOnMobile?: boolean;
+  heroImageObjectPosition?: string;
   hideHero?: boolean;
   children: React.ReactNode;
   belowContent?: React.ReactNode;
@@ -28,6 +29,7 @@ export default function ContentPageLayout({
   heroImageSrc = '/Birthday/partners-with-dofurs.png',
   heroImageAlt = 'Dofurs pet care',
   heroImageFirstOnMobile = false,
+  heroImageObjectPosition = 'center',
   hideHero = false,
   children,
   belowContent,
@@ -75,7 +77,8 @@ export default function ContentPageLayout({
                     alt={heroImageAlt}
                     fill
                     sizes="(max-width: 1024px) 100vw, 35vw"
-                    className="object-cover object-[center_40%]"
+                    className="object-cover"
+                    style={{ objectPosition: heroImageObjectPosition }}
                     priority
                     placeholder="blur"
                     blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iMzAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjQwIiBoZWlnaHQ9IjMwIiBmaWxsPSIjZjVlNmQ4Ii8+PC9zdmc+"

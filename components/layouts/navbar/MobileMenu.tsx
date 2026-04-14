@@ -5,7 +5,7 @@ import { ChevronDown, MapPin, Search, ShoppingBag } from 'lucide-react';
 import { type RefObject } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
-import { footerInfoLinks, footerPolicyLinks, links, services as marketplaceServices } from '@/lib/site-data';
+import { footerInfoLinks, footerPolicyLinks, links, navServiceItems } from '@/lib/site-data';
 import { LocationEditor } from './LocationEditor';
 import type { SecondaryMenuKey } from './types';
 
@@ -195,11 +195,11 @@ export function MobileMenu({
 
             {secondaryMenuOpen === 'services' ? (
               <div id="mobile-secondary-services-menu" className="grid gap-1 pb-1 animate-[accordion-reveal_240ms_cubic-bezier(0.2,0.8,0.2,1)_1]">
-                {marketplaceServices.map((item, index) => (
+                {navServiceItems.map((item, index) => (
                   <Link
                     key={`mobile-${item.title}`}
-                    href={`/forms/customer-booking?search=${encodeURIComponent(item.title)}#start-your-booking`}
-                    className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-ink/85 transition hover:bg-white/70 hover:text-coral animate-[dropdown-item-enter_220ms_cubic-bezier(0.2,0.8,0.2,1)_both]"
+                    href={item.href}
+                    className="flex items-center justify-between rounded-lg px-3 py-1.5 text-[13px] font-medium text-ink/85 transition hover:bg-white/70 hover:text-coral animate-[dropdown-item-enter_220ms_cubic-bezier(0.2,0.8,0.2,1)_both]"
                     style={{ animationDelay: `${index * 24}ms` }}
                     onClick={() => {
                       onSecondaryMenuClose();
@@ -207,6 +207,9 @@ export function MobileMenu({
                     }}
                   >
                     {item.title}
+                    {item.badge === 'Active' && (
+                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Live</span>
+                    )}
                   </Link>
                 ))}
               </div>
