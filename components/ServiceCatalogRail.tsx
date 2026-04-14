@@ -11,6 +11,7 @@ type GroomingPackage = {
   features: string[];
   badge?: string;
   badgeVariant?: 'popular' | 'best-value' | 'premium' | 'deal' | 'special' | 'coming-soon';
+  isBookable?: boolean;
 };
 
 const PACKAGES: GroomingPackage[] = [
@@ -24,21 +25,21 @@ const PACKAGES: GroomingPackage[] = [
   {
     title: 'Summer Bonanza',
     price: 1199,
-    features: ['Bathing, Drying & Conditioning', 'Shampoo & Conditioner', 'Brushing & De-shedding', 'De-matting', 'Nail Clipping & Paw Cleaning'],
+    features: ['Bathing, Drying & Conditioning', 'Shampoo & Conditioner', 'Brushing & De-shedding', 'De-matting', 'Nail Clipping & Paw Hair Trimming'],
     badge: 'Great Deal',
     badgeVariant: 'deal',
   },
   {
     title: 'Essential Grooming',
     price: 1799,
-    features: ['Bathing, Drying & Conditioning', 'Nail Clipping', 'Paw Hair Cleaning', 'Sanitary Cleaning', 'Brushing & De-shedding', 'De-matting', 'Paw Massage', 'Eye Cleaning', 'Standard Haircut'],
+    features: ['Bathing, Drying & Conditioning', 'Nail Clipping', 'Paw Hair Trimming', 'Sanitary Area Hair Trimming', 'Brushing & De-shedding', 'De-matting', 'Paw Massage', 'Eye Cleaning'],
     badge: 'Best Value',
     badgeVariant: 'best-value',
   },
   {
     title: 'Complete Care',
     price: 2299,
-    features: ['Bathing, Drying & Conditioning', 'Nail Clipping & Grinding', 'Paw Care & Massage', 'Sanitary Cleaning', 'Brushing & De-shedding', 'De-matting', 'Custom Haircut', 'Face Styling', 'Eye, Ear & Nose Cleaning'],
+    features: ['Bathing, Drying & Conditioning', 'Nail Clipping & Grinding', 'Paw Care & Massage', 'Sanitary Area Hair Trimming', 'Brushing & De-shedding', 'De-matting', 'Custom Haircut', 'Face Styling', 'Eye, Ear & Nose Cleaning'],
     badge: 'Premium',
     badgeVariant: 'premium',
   },
@@ -46,8 +47,9 @@ const PACKAGES: GroomingPackage[] = [
     title: 'Pet Birthday Package',
     price: 1999,
     features: ['Custom Party Setup', 'Treats & Decorations', 'Photoshoots'],
-    badge: 'Special',
-    badgeVariant: 'special',
+    badge: 'COMMING SOON',
+    badgeVariant: 'coming-soon',
+    isBookable: false,
   },
   {
     title: 'Pet Boarding',
@@ -55,6 +57,7 @@ const PACKAGES: GroomingPackage[] = [
     features: ['Safe Stay', 'Comfortable Environment', 'Stress-Free Care'],
     badge: 'COMMING SOON',
     badgeVariant: 'coming-soon',
+    isBookable: false,
   },
 ];
 
@@ -83,7 +86,7 @@ function CheckIcon() {
 }
 
 function PackageCard({ pkg }: { pkg: GroomingPackage }) {
-  const { title, price, features, badge, badgeVariant = 'popular' } = pkg;
+  const { title, price, features, badge, badgeVariant = 'popular', isBookable = true } = pkg;
 
   return (
     <div className="w-[210px] shrink-0 self-stretch">
@@ -119,12 +122,22 @@ function PackageCard({ pkg }: { pkg: GroomingPackage }) {
           ))}
         </ul>
 
-        <Link
-          href="/forms/customer-booking#start-your-booking"
-          className="mt-4 block w-full rounded-full border border-[#e0c4a8] bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-[#7c5335] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c7773b] hover:bg-[#fffaf5] hover:text-[#c7773b] focus:outline-none"
-        >
-          Book Now
-        </Link>
+        {isBookable ? (
+          <Link
+            href="/forms/customer-booking#start-your-booking"
+            className="mt-4 block w-full rounded-full border border-[#e0c4a8] bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-[#7c5335] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c7773b] hover:bg-[#fffaf5] hover:text-[#c7773b] focus:outline-none"
+          >
+            Book Now
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="mt-4 block w-full cursor-not-allowed rounded-full border border-[#ead8c8] bg-[#fbf4ee] px-3 py-1.5 text-center text-[12px] font-semibold text-[#aa8b72]"
+          >
+            Coming Soon
+          </button>
+        )}
       </PremiumCard>
     </div>
   );
