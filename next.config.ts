@@ -50,6 +50,20 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: '/services/vet',
+        destination: '/services/vet-visits',
+        permanent: true,
+      },
+      {
+        source: '/services/teleconsult',
+        destination: '/services/vet-visits',
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {
