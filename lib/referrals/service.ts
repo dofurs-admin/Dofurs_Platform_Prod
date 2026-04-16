@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { grantCredits } from '@/lib/credits/wallet';
 import { getISTTimestamp } from '@/lib/utils/date';
+import { getActiveBusinessReferralCampaignByCode } from '@/lib/referrals/business-campaign';
 
 export const REFERRAL_REWARD_INR = 500;
 export const MONTHLY_REFERRAL_LIMIT = 5;
@@ -124,23 +125,30 @@ export async function redeemReferralCode(
     return { success: false, message: 'Referral code already used.' };
   }
 
-  // 4. Monthly cap: referrer can gain at most 5 new referrals per calendar month
-  const now = new Date();
-  const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-  const { count: monthlyCount, error: countError } = await admin
-    .from('referral_redemptions')
-    .select('id', { count: 'exact', head: true })
-    .eq('referrer_user_id', referrerUserId)
-    .gte('created_at', monthStart)
-    .neq('status', 'failed');
-  if (countError) throw countError;
+  const activeBusinessCampaign = await getActiveBusinessReferralCampaignByCode(admin, code);
 
-  if ((monthlyCount ?? 0) >= MONTHLY_REFERRAL_LIMIT) {
-    return {
-      success: false,
-      message: 'This referral code has reached its monthly limit. Please try again next month.',
-    };
+  // 4. Monthly cap applies to standard referral codes only.
+  if (!activeBusinessCampaign) {
+    const now = new Date();
+    const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+    const { count: monthlyCount, error: countError } = await admin
+      .from('referral_redemptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('referrer_user_id', referrerUserId)
+      .gte('created_at', monthStart)
+      .neq('status', 'failed');
+    if (countError) throw countError;
+
+    if ((monthlyCount ?? 0) >= MONTHLY_REFERRAL_LIMIT) {
+      return {
+        success: false,
+        message: 'This referral code has reached its monthly limit. Please try again next month.',
+      };
+    }
   }
+
+  const refereeRewardInr = activeBusinessCampaign?.referee_reward_inr ?? REFERRAL_REWARD_INR;
+  const referrerRewardInr = activeBusinessCampaign?.referrer_reward_inr ?? REFERRAL_REWARD_INR;
 
   // 5. Create redemption record — starts as `pending_first_booking`
   //    Referrer reward is deferred until the referee completes their first booking.
@@ -152,6 +160,8 @@ export async function redeemReferralCode(
       referee_user_id: refereeUserId,
       status: 'pending_first_booking',
       referee_credited_at: getISTTimestamp(),
+      referee_reward_inr: refereeRewardInr,
+      referrer_reward_inr: referrerRewardInr,
     })
     .select('id')
     .single<{ id: string }>();
@@ -160,7 +170,7 @@ export async function redeemReferralCode(
   // 6. Grant ₹500 to referee immediately as a welcome credit
   await grantCredits(
     refereeUserId,
-    REFERRAL_REWARD_INR,
+    refereeRewardInr,
     'referral_reward_referee',
     redemption.id,
     `Welcome credit from referral code ${code}`,
@@ -175,9 +185,9 @@ export async function redeemReferralCode(
       await admin.from('notifications').insert({
         user_id: refereeUserId,
         type: 'referral_welcome_credit',
-        title: '₹500 Dofurs Credits Added!',
-        body: `Welcome to Dofurs! ₹500 credits have been added to your wallet. Use them on any pet care booking.`,
-        data: { amount_inr: REFERRAL_REWARD_INR },
+        title: `₹${refereeRewardInr} Dofurs Credits Added!`,
+        body: `Welcome to Dofurs! ₹${refereeRewardInr} credits have been added to your wallet. Use them on any pet care booking.`,
+        data: { amount_inr: refereeRewardInr },
       });
     } catch (err) {
       console.error('[referrals] referee notification failed (non-fatal):', err);
@@ -218,16 +228,18 @@ export async function processReferrerRewardOnFirstBooking(
     })
     .eq('referee_user_id', refereeUserId)
     .eq('status', 'pending_first_booking')
-    .select('id, referrer_user_id, referral_code')
-    .maybeSingle<{ id: string; referrer_user_id: string; referral_code: string }>();
+    .select('id, referrer_user_id, referral_code, referrer_reward_inr')
+    .maybeSingle<{ id: string; referrer_user_id: string; referral_code: string; referrer_reward_inr: number | null }>();
 
   if (error) throw error;
   if (!redemption) return; // No pending redemption — nothing to do
 
+  const referrerRewardInr = redemption.referrer_reward_inr ?? REFERRAL_REWARD_INR;
+
   // Grant ₹500 to referrer
   await grantCredits(
     redemption.referrer_user_id,
-    REFERRAL_REWARD_INR,
+    referrerRewardInr,
     'referral_reward_referrer',
     redemption.id,
     `Referral reward — your friend completed their first Dofurs booking`,
@@ -239,9 +251,9 @@ export async function processReferrerRewardOnFirstBooking(
       await admin.from('notifications').insert({
         user_id: redemption.referrer_user_id,
         type: 'referral_reward_credited',
-        title: '₹500 Referral Reward Earned!',
-        body: `Your referral just completed their first Dofurs booking! ₹500 credits have been added to your wallet.`,
-        data: { amount_inr: REFERRAL_REWARD_INR, referral_code: redemption.referral_code },
+        title: `₹${referrerRewardInr} Referral Reward Earned!`,
+        body: `Your referral just completed their first Dofurs booking! ₹${referrerRewardInr} credits have been added to your wallet.`,
+        data: { amount_inr: referrerRewardInr, referral_code: redemption.referral_code },
       });
     } catch (err) {
       console.error('[referrals] referrer reward notification failed (non-fatal):', err);

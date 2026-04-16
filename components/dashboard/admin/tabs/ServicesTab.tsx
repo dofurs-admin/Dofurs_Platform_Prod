@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useSearchParams, usePathname, useRouter } from 'next/navigation';
 import AdminServicesView from '@/components/dashboard/admin/views/AdminServicesView';
 import Modal from '@/components/ui/Modal';
@@ -11,6 +11,7 @@ import type { ConfirmConfig } from '@/components/dashboard/admin/AdminDashboardS
 import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
 import type { AdminServiceModerationSummaryItem, PlatformDiscount, PlatformDiscountAnalyticsSummary } from '@/lib/provider-management/types';
 import type { AdminProviderModerationItem } from '@/lib/provider-management/types';
+import type { BusinessReferralCampaignSnapshot } from '@/lib/referrals/business-campaign';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,13 @@ type DiscountDraft = {
   usage_limit_per_user: string;
   first_booking_only: boolean;
   is_active: boolean;
+};
+
+type BusinessReferralCampaignDraft = {
+  referral_code: string;
+  is_active: boolean;
+  reward_inr: string;
+  notes: string;
 };
 
 const adminRawFieldClass =
@@ -99,6 +107,14 @@ export default function ServicesTab({
   const [discountAnalytics, setDiscountAnalytics] = useState<PlatformDiscountAnalyticsSummary>(initialDiscountAnalytics);
   const [showRolloutConfiguration, setShowRolloutConfiguration] = useState(false);
   const [showDiscountEditor, setShowDiscountEditor] = useState(false);
+  const [businessReferralSnapshot, setBusinessReferralSnapshot] = useState<BusinessReferralCampaignSnapshot | null>(null);
+  const [businessReferralLoading, setBusinessReferralLoading] = useState(false);
+  const [businessReferralDraft, setBusinessReferralDraft] = useState<BusinessReferralCampaignDraft>({
+    referral_code: '',
+    is_active: true,
+    reward_inr: '500',
+    notes: '',
+  });
   const [serviceCatalogPanel, setServiceCatalogPanel] = useState<ServiceCatalogPanel>(
     parseServiceCatalogPanel(searchParams.get('catalog')),
   );
@@ -167,7 +183,7 @@ export default function ServicesTab({
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   }
 
-  async function adminRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const adminRequest = useCallback(async <T,>(path: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(path, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
@@ -176,13 +192,99 @@ export default function ServicesTab({
     const payload = await response.json().catch(() => null) as { error?: string } | null;
     if (!response.ok) throw new Error(payload?.error ?? 'Request failed');
     return payload as T;
-  }
+  }, []);
 
   async function refreshDiscountModeration() {
     const response = await adminRequest<{ discounts: PlatformDiscount[]; analytics: PlatformDiscountAnalyticsSummary }>('/api/admin/discounts');
     setDiscounts(response.discounts);
     setDiscountAnalytics(response.analytics);
   }
+
+  const syncBusinessReferralDraft = useCallback((snapshot: BusinessReferralCampaignSnapshot) => {
+    setBusinessReferralDraft({
+      referral_code: snapshot.campaign.referral_code,
+      is_active: snapshot.campaign.is_active,
+      reward_inr: String(snapshot.campaign.referee_reward_inr),
+      notes: snapshot.campaign.notes ?? '',
+    });
+  }, []);
+
+  const refreshBusinessReferralCampaign = useCallback(async () => {
+    setBusinessReferralLoading(true);
+
+    try {
+      const response = await adminRequest<BusinessReferralCampaignSnapshot>('/api/admin/referrals/business');
+      setBusinessReferralSnapshot(response);
+      syncBusinessReferralDraft(response);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Unable to load business referral campaign.', 'error');
+    } finally {
+      setBusinessReferralLoading(false);
+    }
+  }, [adminRequest, showToast, syncBusinessReferralDraft]);
+
+  function setBusinessReferralDraftField(
+    field: keyof BusinessReferralCampaignDraft,
+    value: string | boolean,
+  ) {
+    setBusinessReferralDraft((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function saveBusinessReferralCampaign() {
+    const referralCode = businessReferralDraft.referral_code.trim().toUpperCase();
+    const rewardInr = Number(businessReferralDraft.reward_inr);
+
+    if (!referralCode) {
+      showToast('Referral code is required.', 'error');
+      return;
+    }
+
+    if (!Number.isInteger(rewardInr) || rewardInr <= 0) {
+      showToast('Reward must be a positive whole number.', 'error');
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const response = await adminRequest<BusinessReferralCampaignSnapshot>('/api/admin/referrals/business', {
+          method: 'POST',
+          body: JSON.stringify({
+            referral_code: referralCode,
+            is_active: businessReferralDraft.is_active,
+            reward_inr: rewardInr,
+            notes: businessReferralDraft.notes.trim() || null,
+          }),
+        });
+
+        setBusinessReferralSnapshot(response);
+        syncBusinessReferralDraft(response);
+        showToast('Business referral campaign updated.', 'success');
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : 'Unable to update business referral campaign.', 'error');
+      }
+    });
+  }
+
+  async function copyBusinessReferralLink() {
+    if (!businessReferralSnapshot?.signup_link) {
+      showToast('Business referral link is not available yet.', 'error');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(businessReferralSnapshot.signup_link);
+      showToast('Business referral link copied.', 'success');
+    } catch {
+      showToast('Unable to copy link. Please copy manually.', 'error');
+    }
+  }
+
+  useEffect(() => {
+    void refreshBusinessReferralCampaign();
+  }, [refreshBusinessReferralCampaign]);
 
   function setServiceActivation(serviceType: string, isActive: boolean) {
     startTransition(async () => {
@@ -494,6 +596,114 @@ export default function ServicesTab({
               </button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl bg-white p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-ink">Business Referral Campaign</h2>
+            <p className="mt-1 text-xs text-[#6b6b6b]">
+              This campaign does not auto-expire. Control activation and reward amounts from here.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void refreshBusinessReferralCampaign()}
+              disabled={isPending || businessReferralLoading}
+              className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-neutral-50 disabled:opacity-60"
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={copyBusinessReferralLink}
+              disabled={isPending || businessReferralLoading || !businessReferralSnapshot?.signup_link}
+              className="rounded-full border border-[#f2dfcf] bg-[#fff7f0] px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-[#ffefe0] disabled:opacity-60"
+            >
+              Copy Signup Link
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-4">
+          <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
+            <p className="text-[#6b6b6b]">Total Signups</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{businessReferralSnapshot?.stats.total_signups ?? 0}</p>
+          </div>
+          <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
+            <p className="text-[#6b6b6b]">Pending First Booking</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{businessReferralSnapshot?.stats.pending_first_booking ?? 0}</p>
+          </div>
+          <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
+            <p className="text-[#6b6b6b]">Referrer Rewards Credited</p>
+            <p className="mt-1 text-sm font-semibold text-ink">{businessReferralSnapshot?.stats.credited_referrer_rewards ?? 0}</p>
+          </div>
+          <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
+            <p className="text-[#6b6b6b]">Total Credits Issued</p>
+            <p className="mt-1 text-sm font-semibold text-ink">₹{businessReferralSnapshot?.stats.total_credits_issued_inr ?? 0}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl bg-neutral-50/60 p-3 text-xs text-[#6b6b6b]">
+          Signup link:{' '}
+          <span className="font-semibold text-ink">
+            {businessReferralSnapshot?.signup_link ?? '/auth/sign-in?mode=signup&ref=DOFMQS68G'}
+          </span>
+          {businessReferralSnapshot?.stats.last_redemption_at ? (
+            <span>
+              {' '}
+              • Last signup: {formatAdminDateTime(businessReferralSnapshot.stats.last_redemption_at)}
+            </span>
+          ) : null}
+        </div>
+
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <input
+            value={businessReferralDraft.referral_code}
+            onChange={(event) => setBusinessReferralDraftField('referral_code', event.target.value.toUpperCase())}
+            placeholder="Business referral code"
+            className={adminRawFieldClass}
+          />
+          <label className={cn(
+            adminToggleFieldClass,
+            businessReferralDraft.is_active
+              ? 'border-green-200 bg-green-50 text-green-700'
+              : 'border-red-200 bg-red-50 text-red-700',
+          )}>
+            <input
+              type="checkbox"
+              checked={businessReferralDraft.is_active}
+              onChange={(event) => setBusinessReferralDraftField('is_active', event.target.checked)}
+            />
+            {businessReferralDraft.is_active ? 'Campaign Active' : 'Campaign Inactive'}
+          </label>
+          <input
+            value={businessReferralDraft.reward_inr}
+            onChange={(event) => setBusinessReferralDraftField('reward_inr', event.target.value)}
+            placeholder="Reward amount (INR)"
+            className={adminRawFieldClass}
+          />
+        </div>
+
+        <textarea
+          value={businessReferralDraft.notes}
+          onChange={(event) => setBusinessReferralDraftField('notes', event.target.value)}
+          placeholder="Internal notes for operations"
+          rows={2}
+          className={cn('mt-2 w-full', adminRawFieldClass)}
+        />
+
+        <div className="mt-3 flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={saveBusinessReferralCampaign}
+            disabled={isPending || businessReferralLoading}
+            className="rounded-full bg-coral px-4 py-2 text-xs font-semibold text-white transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Save Business Campaign
+          </button>
         </div>
       </section>
 

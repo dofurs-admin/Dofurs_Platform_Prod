@@ -3,13 +3,32 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, MailCheck, ShieldCheck } from 'lucide-react';
+import { BellRing, Loader2, MailCheck, Scissors, ShieldPlus, Sparkles, Stethoscope } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { FlowState } from '@/lib/flows/contracts';
 import { extractIndianPhoneDigits, isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
 
 type SignUpStep = 'collect' | 'verify' | 'done';
+
+const welcomeOfferBenefits = [
+  {
+    icon: Scissors,
+    label: 'Grooming at Your Door step',
+  },
+  {
+    icon: ShieldPlus,
+    label: 'Lifetime Pet Health Passport',
+  },
+  {
+    icon: BellRing,
+    label: 'Smart Vaccination Reminders',
+  },
+  {
+    icon: Stethoscope,
+    label: 'Vet Care at Home or Clinic',
+  },
+] as const;
 
 function getRetryAfterSeconds(rawMessage: string) {
   const message = rawMessage.toLowerCase();
@@ -84,6 +103,16 @@ function getReadableAuthError(rawMessage: string) {
   return rawMessage;
 }
 
+function formatOfferTimer(totalSeconds: number | null): string {
+  if (totalSeconds === null) {
+    return '00:00';
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function SignUpAuthPanel() {
   const { showToast } = useToast();
   const router = useRouter();
@@ -100,6 +129,7 @@ export default function SignUpAuthPanel() {
   const [status, setStatus] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [offerCountdownSeconds, setOfferCountdownSeconds] = useState<number | null>(null);
   const [, setFlowState] = useState<FlowState>('collecting');
   const otpInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -125,6 +155,25 @@ export default function SignUpAuthPanel() {
       window.clearTimeout(timer);
     };
   }, [step]);
+
+  useEffect(() => {
+    const randomSecondsUnderOneHour = Math.floor(Math.random() * 3599) + 1;
+    setOfferCountdownSeconds(randomSecondsUnderOneHour);
+  }, []);
+
+  useEffect(() => {
+    if (offerCountdownSeconds === null || offerCountdownSeconds <= 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setOfferCountdownSeconds((previous) => Math.max((previous ?? 0) - 1, 0));
+    }, 1000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [offerCountdownSeconds]);
 
   useEffect(() => {
     if (resendCooldownSeconds <= 0) {
@@ -367,29 +416,52 @@ export default function SignUpAuthPanel() {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_1fr]">
-      <section className="hidden rounded-3xl border border-[#f2dfcf] bg-[linear-gradient(135deg,_#fff8f2_0%,_#fdf2e8_100%)] p-8 shadow-soft-md lg:block">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#f1decf] bg-white/80 px-3 py-1 text-xs font-semibold text-[#a05a2c]">
-          <ShieldCheck className="h-4 w-4" />
-          Premium Account Onboarding
+      <section className="relative hidden overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-8 shadow-soft-md lg:block">
+        <div className="pointer-events-none absolute -left-14 -top-16 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(253,196,146,0.55)_0%,rgba(253,196,146,0)_72%)]" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-32 bottom-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(228,145,76,0.3)_0%,rgba(228,145,76,0)_72%)]" aria-hidden="true" />
+
+        <div className="relative mx-auto w-full max-w-[430px]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#ecd1b8] bg-white/80 px-3 py-1 text-xs font-semibold text-[#8e5630] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+            <Sparkles className="h-3.5 w-3.5" />
+            Welcome Offer
+          </div>
+          <h2 className="mt-4 whitespace-nowrap text-[1.56rem] font-bold leading-tight text-ink">🎉 Add 2+ Years to Your Pet&apos;s Life 🐾</h2>
+          <p className="mt-2 inline-flex rounded-full border border-[#efc8a8] bg-[#ffe8d2] px-3 py-1 text-sm font-bold text-[#c06120]">
+            + Get ₹500 Free on Signup
+          </p>
+          <p className="mt-2.5 text-sm leading-relaxed text-[#67584a]">
+            Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
+          </p>
+          <ul className="mt-3.5 space-y-2 text-sm text-[#45372b]">
+            {welcomeOfferBenefits.map(({ icon: Icon, label }) => (
+              <li
+                key={label}
+                className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-2 shadow-[0_6px_14px_rgba(147,90,47,0.1)]"
+              >
+                <span className="inline-flex items-center gap-2.5 text-[0.92rem] font-medium">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
+                    <Icon className="h-3 w-3" />
+                  </span>
+                  {label}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-3 rounded-xl border border-[#e5c7ab] bg-[#fff6ec] px-4 py-1.5 text-center">
+            <p className="text-xs font-bold uppercase tracking-[0.13em] text-[#a46336]">
+              Offer expires in {formatOfferTimer(offerCountdownSeconds)}
+            </p>
+          </div>
         </div>
-        <h2 className="mt-5 text-3xl font-bold leading-tight text-ink">Create your Dofurs profile in one secure step.</h2>
-        <p className="mt-3 text-sm leading-relaxed text-[#6b6b6b]">
-          Enter basic details, verify with a 6-digit OTP, and your profile is created automatically.
-        </p>
-        <ul className="mt-6 grid gap-3 text-sm text-[#4b4b4b]">
-          <li className="rounded-xl border border-[#f2dfcf] bg-white p-3">✔ Verified onboarding with duplicate email/phone checks</li>
-          <li className="rounded-xl border border-[#f2dfcf] bg-white p-3">✔ Fast sign up with only name, email, and phone</li>
-          <li className="rounded-xl border border-[#f2dfcf] bg-white p-3">✔ Auto profile creation immediately after OTP verification</li>
-        </ul>
       </section>
 
-      <section className="rounded-3xl border border-[#f2dfcf] bg-white p-6 shadow-soft-md sm:p-8">
+      <section className="rounded-3xl border border-[#f2dfcf] bg-white p-4 shadow-soft-md sm:p-5">
         <h1 className="text-2xl font-bold text-ink">Create your account</h1>
 
         {step === 'collect' && (
-          <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
+          <form onSubmit={handleSendOtp} className="mt-3 space-y-2.5">
             <div>
-              <label htmlFor="name" className="mb-1 block text-sm font-medium text-ink">
+              <label htmlFor="name" className="mb-0.5 block text-sm font-medium text-ink">
                 Full Name
               </label>
               <input
@@ -399,13 +471,13 @@ export default function SignUpAuthPanel() {
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="Your full name"
-                className="w-full rounded-xl border border-[#f2dfcf] px-4 py-3 text-sm outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
+                className="w-full rounded-xl border border-[#f2dfcf] px-4 py-2 text-sm outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">
+              <label htmlFor="email" className="mb-0.5 block text-sm font-medium text-ink">
                 Email Address
               </label>
               <input
@@ -415,17 +487,17 @@ export default function SignUpAuthPanel() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-xl border border-[#f2dfcf] px-4 py-3 text-sm outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
+                className="w-full rounded-xl border border-[#f2dfcf] px-4 py-2 text-sm outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
                 required
               />
             </div>
 
             <div>
-              <label htmlFor="phone" className="mb-1 block text-sm font-medium text-ink">
+              <label htmlFor="phone" className="mb-0.5 block text-sm font-medium text-ink">
                 Phone Number
               </label>
               <div className="flex overflow-hidden rounded-xl border border-[#f2dfcf] focus-within:border-[#e89a5e] focus-within:ring-2 focus-within:ring-[#f7d8bd]">
-                <span className="inline-flex items-center bg-[#fffaf6] px-3 text-sm font-semibold text-ink">+91</span>
+                <span className="inline-flex items-center bg-[#fffaf6] px-2.5 text-sm font-semibold text-ink">+91</span>
                 <input
                   id="phone"
                   type="tel"
@@ -435,14 +507,14 @@ export default function SignUpAuthPanel() {
                   value={phoneDigits}
                   onChange={(event) => setPhoneDigits(extractIndianPhoneDigits(event.target.value))}
                   placeholder="9876543210"
-                  className="w-full px-4 py-3 text-sm outline-none"
+                  className="w-full px-3.5 py-2 text-sm outline-none"
                   required
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="referral-code" className="mb-1 block text-sm font-medium text-ink">
+              <label htmlFor="referral-code" className="mb-0.5 block text-sm font-medium text-ink">
                 Referral Code <span className="font-normal text-[#9a9a9a]">(optional)</span>
               </label>
               <input
@@ -453,20 +525,20 @@ export default function SignUpAuthPanel() {
                 onChange={(e) => setReferralCode(e.target.value.trim().toUpperCase())}
                 placeholder="e.g. DOFR4X9K2"
                 maxLength={9}
-                className="w-full rounded-xl border border-[#f2dfcf] px-4 py-3 text-sm uppercase tracking-wider outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
+                className="w-full rounded-xl border border-[#f2dfcf] px-4 py-2 text-sm uppercase tracking-wider outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
               />
-              <p className="mt-1 text-xs text-[#9a9a9a]">Have a friend&apos;s code? Enter it to earn ₹500 welcome credits.</p>
+              <p className="mt-0.5 text-[11px] text-[#9a9a9a]">Have a friend&apos;s code? Enter it to earn ₹500 welcome credits.</p>
             </div>
 
             <button
               type="submit"
               disabled={isPending || resendCooldownSeconds > 0}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(90deg,_#f4a261_0%,_#e76f51_100%)] px-5 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(90deg,_#f4a261_0%,_#e76f51_100%)] px-5 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MailCheck className="h-4 w-4" />}
               {isPending ? 'Sending OTP...' : resendCooldownSeconds > 0 ? `Retry in ${resendCooldownSeconds}s` : 'Send Email OTP'}
             </button>
-            <p className="text-xs text-[#8a7b6f]">By continuing, you verify these details are accurate and belong to you.</p>
+            <p className="text-[11px] text-[#8a7b6f]">By continuing, you verify these details are accurate and belong to you.</p>
           </form>
         )}
 
@@ -547,7 +619,7 @@ export default function SignUpAuthPanel() {
           </p>
         )}
 
-        <p className="mt-5 text-center text-sm text-[#6b6b6b]">
+        <p className="mt-4 text-center text-sm text-[#6b6b6b]">
           Already have an account?{' '}
           <Link href="/auth/sign-in?mode=signin" className="font-semibold text-coral hover:underline">
             Log in

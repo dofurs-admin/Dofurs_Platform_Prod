@@ -21,6 +21,7 @@ import PremiumCard from '@/components/PremiumCard';
 import FadeInSection from '@/components/FadeInSection';
 import Footer from '@/components/Footer';
 import Navbar from '@/components/Navbar';
+import WelcomeOfferModal from '@/components/WelcomeOfferModal';
 import SubscriptionPlanCard from '@/components/payments/SubscriptionPlanCard';
 import { links } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
@@ -331,6 +332,7 @@ export default async function HomePage({
   return (
     <>
       <Navbar />
+      <WelcomeOfferModal />
       <main className={`${plusJakarta.className} dofurs-mobile-main relative overflow-x-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffdfa_38%,#fffcf9_100%)] text-ink`}>
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(circle_at_14%_0%,rgba(228,153,90,0.14),transparent_52%),radial-gradient(circle_at_86%_8%,rgba(154,122,87,0.08),transparent_48%),linear-gradient(to_bottom,rgba(255,248,240,0.62),rgba(255,255,255,0))]"

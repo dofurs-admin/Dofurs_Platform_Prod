@@ -1159,17 +1159,6 @@ export default function PremiumUserBookingFlow() {
     };
   }, []);
 
-  useEffect(() => {
-    if (manualPincode.trim()) {
-      return;
-    }
-
-    const fallbackPincode = selectedAddress?.pincode?.trim() ?? '';
-    if (/^[1-9]\d{5}$/.test(fallbackPincode)) {
-      setManualPincode(fallbackPincode);
-    }
-  }, [manualPincode, selectedAddress]);
-
   const checkAreaCoverage = useCallback(
     async (targetPincode: string) => {
       const normalizedPincode = targetPincode.trim();

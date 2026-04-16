@@ -685,23 +685,23 @@ function UnifiedAuthPageContent() {
 
   if (!isModeReady) {
     return (
-      <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-12">
+      <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_14%_6%,rgba(228,153,90,0.15),transparent_52%),radial-gradient(circle_at_84%_12%,rgba(154,122,87,0.1),transparent_48%)]"
           aria-hidden="true"
         />
-        <div className="relative mx-auto mb-6 h-12 w-full max-w-5xl animate-pulse rounded-full border border-[#e8ccb3] bg-white/95" />
+        <div className="relative mx-auto mb-5 h-12 w-full max-w-5xl animate-pulse rounded-full border border-[#e8ccb3] bg-white/95" />
       </main>
     );
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-12">
+    <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_14%_6%,rgba(228,153,90,0.15),transparent_52%),radial-gradient(circle_at_84%_12%,rgba(154,122,87,0.1),transparent_48%)]"
         aria-hidden="true"
       />
-      <div className="relative mx-auto mb-6 flex w-full max-w-5xl items-center justify-center gap-2 rounded-full border border-[#e8ccb3] bg-white/95 p-1 shadow-premium">
+      <div className="relative mx-auto mb-5 flex w-full max-w-5xl items-center justify-center gap-2 rounded-full border border-[#e8ccb3] bg-white/95 p-1 shadow-premium">
         <Link
           href={signInHref}
           className={`inline-flex flex-1 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -731,7 +731,7 @@ function UnifiedAuthPageContent() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={<main className="min-h-screen bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-12" />}>
+    <Suspense fallback={<main className="bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8" />}>
       <UnifiedAuthPageContent />
     </Suspense>
   );
