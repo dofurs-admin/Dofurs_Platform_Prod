@@ -124,6 +124,8 @@ export default function SignUpAuthPanel() {
   const [otp, setOtp] = useState('');
   const [phoneDigits, setPhoneDigits] = useState('');
   const [referralCode, setReferralCode] = useState('');
+  const [activeCampaignReferralCode, setActiveCampaignReferralCode] = useState<string | null>(null);
+  const [isReferralAutoApplied, setIsReferralAutoApplied] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
@@ -132,13 +134,63 @@ export default function SignUpAuthPanel() {
   const [offerCountdownSeconds, setOfferCountdownSeconds] = useState<number | null>(null);
   const [, setFlowState] = useState<FlowState>('collecting');
   const otpInputRef = useRef<HTMLInputElement | null>(null);
+  const hasReferralBeenEditedRef = useRef(false);
 
   // Pre-fill referral code from URL ?ref= param
   useEffect(() => {
     const refParam = params.get('ref');
     if (refParam) {
       setReferralCode(refParam.trim().toUpperCase());
+      hasReferralBeenEditedRef.current = true;
+      setIsReferralAutoApplied(false);
     }
+  }, [params]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function hydrateActiveCampaignReferralCode() {
+      const refParam = params.get('ref');
+      if (refParam) {
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/referrals/business-signup-link', { cache: 'no-store' });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as {
+          is_active?: boolean;
+          referral_code?: string | null;
+        };
+
+        if (isCancelled || !payload.is_active || !payload.referral_code) {
+          return;
+        }
+
+        const normalizedCampaignCode = payload.referral_code.trim().toUpperCase();
+        setActiveCampaignReferralCode(normalizedCampaignCode);
+
+        setReferralCode((previous) => {
+          if (hasReferralBeenEditedRef.current || previous.trim()) {
+            return previous;
+          }
+
+          setIsReferralAutoApplied(true);
+          return normalizedCampaignCode;
+        });
+      } catch {
+        // Keep form usable even if campaign lookup is unavailable.
+      }
+    }
+
+    void hydrateActiveCampaignReferralCode();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [params]);
 
   useEffect(() => {
@@ -188,6 +240,38 @@ export default function SignUpAuthPanel() {
       window.clearTimeout(timer);
     };
   }, [resendCooldownSeconds]);
+
+  async function resolveEffectiveReferralCodeForSubmission() {
+    const directCode = referralCode.trim().toUpperCase();
+    if (directCode) {
+      return directCode;
+    }
+
+    const hydratedCampaignCode = activeCampaignReferralCode?.trim().toUpperCase();
+    if (hydratedCampaignCode) {
+      return hydratedCampaignCode;
+    }
+
+    try {
+      const response = await fetch('/api/referrals/business-signup-link', { cache: 'no-store' });
+      if (!response.ok) {
+        return '';
+      }
+
+      const payload = (await response.json()) as { is_active?: boolean; referral_code?: string | null };
+      if (!payload.is_active || !payload.referral_code) {
+        return '';
+      }
+
+      const normalizedCampaignCode = payload.referral_code.trim().toUpperCase();
+      setActiveCampaignReferralCode(normalizedCampaignCode);
+      setReferralCode((previous) => previous.trim().toUpperCase() || normalizedCampaignCode);
+      setIsReferralAutoApplied(true);
+      return normalizedCampaignCode;
+    } catch {
+      return '';
+    }
+  }
 
   async function handleSendOtp(event: FormEvent) {
     event.preventDefault();
@@ -254,13 +338,15 @@ export default function SignUpAuthPanel() {
         return;
       }
 
+      const effectiveReferralCode = await resolveEffectiveReferralCodeForSubmission();
+
       // Validate referral code before sending OTP so the user gets immediate feedback
-      if (referralCode.trim()) {
+      if (effectiveReferralCode) {
         setStatus('Validating referral code...');
         const refValidateResponse = await fetch('/api/referrals/validate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: referralCode.trim().toUpperCase() }),
+          body: JSON.stringify({ code: effectiveReferralCode }),
         });
         if (!refValidateResponse.ok) {
           const refPayload = (await refValidateResponse.json().catch(() => ({}))) as { error?: unknown };
@@ -341,6 +427,8 @@ export default function SignUpAuthPanel() {
       return;
     }
 
+    const effectiveReferralCode = referralCode.trim().toUpperCase() || activeCampaignReferralCode?.trim().toUpperCase() || null;
+
     setIsPending(true);
     setFlowState('submitting');
     setStatus('Verifying OTP...');
@@ -370,7 +458,7 @@ export default function SignUpAuthPanel() {
           name: name.trim(),
           email: normalizedEmail,
           phone: toIndianE164(phoneDigits),
-          referralCode: referralCode.trim().toUpperCase() || null,
+          referralCode: effectiveReferralCode,
         }),
       });
 
@@ -429,6 +517,11 @@ export default function SignUpAuthPanel() {
           <p className="mt-2 inline-flex rounded-full border border-[#efc8a8] bg-[#ffe8d2] px-3 py-1 text-sm font-bold text-[#c06120]">
             + Get ₹500 Free on Signup
           </p>
+          {activeCampaignReferralCode ? (
+            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9f5d2f]">
+              Use code {activeCampaignReferralCode} during signup
+            </p>
+          ) : null}
           <p className="mt-2.5 text-sm leading-relaxed text-[#67584a]">
             Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
           </p>
@@ -522,11 +615,20 @@ export default function SignUpAuthPanel() {
                 type="text"
                 autoComplete="off"
                 value={referralCode}
-                onChange={(e) => setReferralCode(e.target.value.trim().toUpperCase())}
+                onChange={(e) => {
+                  hasReferralBeenEditedRef.current = true;
+                  setIsReferralAutoApplied(false);
+                  setReferralCode(e.target.value.trim().toUpperCase());
+                }}
                 placeholder="e.g. DOFR4X9K2"
                 maxLength={9}
                 className="w-full rounded-xl border border-[#f2dfcf] px-4 py-2 text-sm uppercase tracking-wider outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
               />
+              {isReferralAutoApplied ? (
+                <p className="mt-1 inline-flex rounded-full border border-[#ead2bf] bg-[#fff8f1] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#9f5d2f]">
+                  Applied automatically
+                </p>
+              ) : null}
               <p className="mt-0.5 text-[11px] text-[#9a9a9a]">Have a friend&apos;s code? Enter it to earn ₹500 welcome credits.</p>
             </div>
 
