@@ -40,6 +40,37 @@ export default function WelcomeOfferModal({
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [offerTimerSeconds, setOfferTimerSeconds] = useState<number | null>(null);
+  const [resolvedSignupHref, setResolvedSignupHref] = useState(signupHref);
+
+  useEffect(() => {
+    setResolvedSignupHref(signupHref);
+  }, [signupHref]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function hydrateBusinessSignupLink() {
+      try {
+        const response = await fetch('/api/referrals/business-signup-link', { cache: 'no-store' });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = (await response.json()) as { signup_link?: string | null; is_active?: boolean };
+        if (!isCancelled && payload.is_active && payload.signup_link) {
+          setResolvedSignupHref(payload.signup_link);
+        }
+      } catch {
+        // Fall back to provided signupHref if the live lookup fails.
+      }
+    }
+
+    void hydrateBusinessSignupLink();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -123,7 +154,7 @@ export default function WelcomeOfferModal({
 
   function handleSignup() {
     onSignup?.();
-    window.location.assign(signupHref);
+    window.location.assign(resolvedSignupHref);
   }
 
   function formatOfferTimer(totalSeconds: number | null): string {
@@ -167,16 +198,16 @@ export default function WelcomeOfferModal({
             <X className="h-4 w-4" />
           </button>
 
-          <p className="inline-flex rounded-full border border-[#e7c7ad] bg-[#fff7ee] px-3 py-1 pr-10 text-[10px] font-bold uppercase tracking-[0.2em] text-[#7f4c2c] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+          <p className="inline-flex rounded-full border border-[#e7c7ad] bg-[#fff7ee] px-2.5 py-0.5 pr-10 text-[9px] font-bold uppercase tracking-[0.16em] text-[#7f4c2c] shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:px-3 sm:py-1 sm:text-[10px] sm:tracking-[0.2em]">
             Welcome Offer
           </p>
           <h2
             id="welcome-offer-title"
-            className="mt-3 pr-10 text-[1.55rem] font-extrabold leading-tight tracking-[-0.02em] whitespace-nowrap text-[#2a180b] sm:text-[1.85rem]"
+            className="mt-2 pr-12 text-[1.3rem] font-extrabold leading-[1.18] tracking-[-0.02em] text-[#2a180b] sm:mt-3 sm:pr-10 sm:text-[1.85rem] sm:leading-tight sm:whitespace-nowrap"
           >
             🎉 Add 2+ Years to Your Pet&apos;s Life 🐾
           </h2>
-          <p className="mt-3 inline-flex rounded-full border border-[#efc9a7] bg-[#ffe9d5] px-3 py-1 text-lg font-bold text-[#af5118] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
+          <p className="mt-2 inline-flex rounded-full border border-[#efc9a7] bg-[#ffe9d5] px-3 py-1 text-lg font-bold text-[#af5118] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:mt-3">
             + Get ₹500 Free on Signup
           </p>
           <p id="welcome-offer-description" className="mt-3 text-sm leading-relaxed text-[#5b3f2b] sm:text-[15px]">
