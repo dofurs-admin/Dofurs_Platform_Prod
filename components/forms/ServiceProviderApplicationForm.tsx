@@ -25,6 +25,8 @@ type FormState = {
   motivation: string;
 };
 
+type FormErrors = Partial<Record<keyof FormState, string>>;
+
 const SERVICE_MODES = [
   { id: 'home_visit', label: 'Home Visit' },
   { id: 'clinic_visit', label: 'Clinic/Centre' },
@@ -56,6 +58,7 @@ function sanitizePhoneNumber(value: string) {
 export default function ServiceProviderApplicationForm() {
   const { showToast } = useToast();
   const [form, setForm] = useState<FormState>(INITIAL_STATE);
+  const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
@@ -81,13 +84,142 @@ export default function ServiceProviderApplicationForm() {
 
   function updateField<K extends keyof FormState>(field: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [field]: value }));
+    setErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  }
+
+  function isFieldRequired(field: keyof FormState): boolean {
+    if (field === 'business_name') {
+      return isBusiness;
+    }
+
+    return [
+      'full_name',
+      'email',
+      'phone_number',
+      'city',
+      'state',
+      'provider_type',
+      'years_of_experience',
+      'service_modes',
+      'service_areas',
+    ].includes(field);
   }
 
   function fieldError(field: keyof FormState): string | undefined {
-    if (!hasAttemptedSubmit) return undefined;
+    if (errors[field]) {
+      return errors[field];
+    }
+
+    if (!hasAttemptedSubmit) {
+      return undefined;
+    }
+
     const val = form[field];
-    if (Array.isArray(val)) return val.length === 0 ? 'Required' : undefined;
-    return typeof val === 'string' && !val.trim() ? 'Required' : undefined;
+    if (Array.isArray(val)) {
+      return isFieldRequired(field) && val.length === 0 ? 'Required' : undefined;
+    }
+
+    if (typeof val === 'string' && !val.trim() && isFieldRequired(field)) {
+      return 'Required';
+    }
+
+    return undefined;
+  }
+
+  function validateForm(currentForm: FormState): FormErrors {
+    const nextErrors: FormErrors = {};
+    const isBusinessCategory = currentForm.partner_category === 'business';
+
+    if (!currentForm.full_name.trim()) {
+      nextErrors.full_name = 'Full name is required';
+    } else if (!/^[a-zA-Z\s.]+$/.test(currentForm.full_name.trim())) {
+      nextErrors.full_name = 'Name can only contain letters, spaces, and periods';
+    }
+
+    if (!currentForm.email.trim()) {
+      nextErrors.email = 'Email is required';
+    }
+
+    if (!currentForm.phone_number.trim()) {
+      nextErrors.phone_number = 'Phone number is required';
+    } else if (!isValidIndianE164(toIndianE164(currentForm.phone_number))) {
+      nextErrors.phone_number = 'Enter a valid Indian phone number';
+    }
+
+    if (!currentForm.city.trim()) {
+      nextErrors.city = 'City is required';
+    } else if (currentForm.city.trim().length < 2) {
+      nextErrors.city = 'City must be at least 2 characters';
+    }
+
+    if (!currentForm.state.trim()) {
+      nextErrors.state = 'State is required';
+    } else if (currentForm.state.trim().length < 2) {
+      nextErrors.state = 'State must be at least 2 characters';
+    }
+
+    if (!currentForm.provider_type.trim()) {
+      nextErrors.provider_type = 'Provider type is required';
+    } else if (currentForm.provider_type.trim().length < 2) {
+      nextErrors.provider_type = 'Provider type must be at least 2 characters';
+    }
+
+    if (!currentForm.years_of_experience.trim()) {
+      nextErrors.years_of_experience = 'Years of experience is required';
+    } else {
+      const yearsOfExperience = Number(currentForm.years_of_experience);
+      if (!Number.isFinite(yearsOfExperience) || yearsOfExperience < 0 || yearsOfExperience > 60) {
+        nextErrors.years_of_experience = 'Years of experience must be between 0 and 60';
+      }
+    }
+
+    if (isBusinessCategory) {
+      if (!currentForm.business_name.trim()) {
+        nextErrors.business_name = 'Business / clinic name is required';
+      } else if (currentForm.business_name.trim().length < 2) {
+        nextErrors.business_name = 'Business / clinic name must be at least 2 characters';
+      }
+
+      if (currentForm.team_size.trim()) {
+        const teamSize = Number(currentForm.team_size);
+        if (!Number.isFinite(teamSize) || !Number.isInteger(teamSize) || teamSize < 1 || teamSize > 500) {
+          nextErrors.team_size = 'Team size must be an integer between 1 and 500';
+        }
+      }
+    }
+
+    if (currentForm.service_modes.length === 0) {
+      nextErrors.service_modes = 'Select at least one service mode';
+    }
+
+    if (!currentForm.service_areas.trim()) {
+      nextErrors.service_areas = 'Service areas are required';
+    } else if (currentForm.service_areas.trim().length < 6) {
+      nextErrors.service_areas = 'Service areas must be at least 6 characters';
+    }
+
+    if (currentForm.portfolio_url.trim()) {
+      try {
+        // Validate optional portfolio URL client-side to match API expectations.
+        new URL(currentForm.portfolio_url.trim());
+      } catch {
+        nextErrors.portfolio_url = 'Enter a valid URL (for example, https://example.com)';
+      }
+    }
+
+    if (currentForm.motivation.trim().length > 1200) {
+      nextErrors.motivation = 'Motivation must be 1200 characters or less';
+    }
+
+    return nextErrors;
   }
 
   function toggleServiceMode(mode: (typeof SERVICE_MODES)[number]['id'], checked: boolean) {
@@ -109,30 +241,19 @@ export default function ServiceProviderApplicationForm() {
   async function submitApplication(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setHasAttemptedSubmit(true);
+    setErrors({});
 
-    if (!isFormReady) {
-      showToast('Please complete all required fields before submitting.', 'error');
+    const clientErrors = validateForm(form);
+
+    if (Object.keys(clientErrors).length > 0) {
+      setErrors(clientErrors);
+      showToast('Please fix the highlighted fields before submitting.', 'error');
       return;
     }
 
     const yearsOfExperience = Number(form.years_of_experience);
 
-    if (!/^[a-zA-Z\s.]+$/.test(form.full_name.trim())) {
-      showToast('Name can only contain letters, spaces, and periods', 'error');
-      return;
-    }
-
-    if (!Number.isFinite(yearsOfExperience) || yearsOfExperience < 0 || yearsOfExperience > 60) {
-      showToast('Years of experience must be between 0 and 60.', 'error');
-      return;
-    }
-
     const normalizedPhone = toIndianE164(form.phone_number);
-
-    if (!isValidIndianE164(normalizedPhone)) {
-      showToast('Invalid phone number', 'error');
-      return;
-    }
 
     setIsSubmitting(true);
 
@@ -161,14 +282,40 @@ export default function ServiceProviderApplicationForm() {
         }),
       });
 
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+        details?: {
+          fieldErrors?: Record<string, string[] | undefined>;
+          formErrors?: string[];
+        };
+      } | null;
 
       if (!response.ok) {
+        const fieldErrors = payload?.details?.fieldErrors;
+        if (fieldErrors && typeof fieldErrors === 'object') {
+          const mappedErrors: FormErrors = {};
+
+          for (const [key, messages] of Object.entries(fieldErrors)) {
+            if (!messages || messages.length === 0) {
+              continue;
+            }
+
+            if (key in form) {
+              mappedErrors[key as keyof FormState] = messages[0];
+            }
+          }
+
+          if (Object.keys(mappedErrors).length > 0) {
+            setErrors(mappedErrors);
+          }
+        }
+
         throw new Error(payload?.error ?? 'Unable to submit application. Please try again.');
       }
 
       setIsSubmitted(true);
       setForm(INITIAL_STATE);
+      setErrors({});
       showToast('Application submitted successfully. Our team will review it shortly.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to submit application.', 'error');
@@ -351,6 +498,7 @@ export default function ServiceProviderApplicationForm() {
                 value={form.team_size}
                 onChange={(event) => updateField('team_size', event.target.value)}
                 placeholder="Number of staff"
+                error={fieldError('team_size')}
               />
             ) : (
               <Input
@@ -358,6 +506,7 @@ export default function ServiceProviderApplicationForm() {
                 value={form.portfolio_url}
                 onChange={(event) => updateField('portfolio_url', event.target.value)}
                 placeholder="https://yourwebsite.com"
+                error={fieldError('portfolio_url')}
               />
             )}
           </div>
@@ -368,6 +517,7 @@ export default function ServiceProviderApplicationForm() {
               value={form.portfolio_url}
               onChange={(event) => updateField('portfolio_url', event.target.value)}
               placeholder="https://yourbusiness.com"
+              error={fieldError('portfolio_url')}
             />
           )}
 
@@ -392,8 +542,9 @@ export default function ServiceProviderApplicationForm() {
               ))}
             </div>
             {hasAttemptedSubmit && form.service_modes.length === 0 && (
-              <p className="text-xs text-red-600">Select at least one service mode</p>
+              <p className="text-xs text-red-600">{fieldError('service_modes') ?? 'Select at least one service mode'}</p>
             )}
+            {errors.service_modes && form.service_modes.length > 0 ? <p className="text-xs text-red-600">{errors.service_modes}</p> : null}
           </div>
 
           <Textarea
@@ -415,6 +566,7 @@ export default function ServiceProviderApplicationForm() {
               : 'Share your quality standards, customer commitment, and what makes your service special.'
             }
             rows={4}
+            error={fieldError('motivation')}
           />
 
           <input type="text" name="website" value="" readOnly tabIndex={-1} autoComplete="off" className="hidden" />
