@@ -5,7 +5,7 @@
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1504 nodes · 2296 edges · 62 communities detected
+- 1504 nodes · 2296 edges · 66 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -41,15 +41,15 @@ Nodes (90): addAddress(), addEmergencyContact(), addMedicalRecord(), addMinutesT
 
 ### Community 1 - "Community 1"
 Cohesion: 0.02
-Nodes (35): adminRequest(), appendAvailabilitySlot(), applyBillingBulkStatus(), applyBillingEscalationAction(), applyBookingAdjustment(), applyBookingStatusForIds(), applyBulkStatus(), clearSelectedSla() (+27 more)
+Nodes (21): formatDateLabel(), formatDateTime(), formatTimeLabel(), resolveAddonTotal(), resolveAddonUnitPrice(), extractBookedPetIds(), extractBookedServices(), formatBookingTime() (+13 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.02
-Nodes (18): canMoveToStep(), goToStep(), resolveBookingMode(), submitBooking(), ApiClientError, apiRequest(), buildFetchInit(), extractErrorMessage() (+10 more)
+Nodes (35): adminRequest(), appendAvailabilitySlot(), applyBillingBulkStatus(), applyBillingEscalationAction(), applyBookingAdjustment(), applyBookingStatusForIds(), applyBulkStatus(), clearSelectedSla() (+27 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.03
-Nodes (18): buildStepPayload(), canLeaveCurrentContext(), handleNextOrComplete(), handler(), isTypingTarget(), jumpToFirstError(), jumpToStepWithHighlight(), loadPetShares() (+10 more)
+Nodes (16): canMoveToStep(), goToStep(), resolveBookingMode(), submitBooking(), ApiClientError, apiRequest(), buildFetchInit(), extractErrorMessage() (+8 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.04
@@ -57,43 +57,43 @@ Nodes (66): haversineDistanceKm(), toRadians(), normalizeOptionalString(), valid
 
 ### Community 5 - "Community 5"
 Cohesion: 0.03
-Nodes (15): formatMode(), formatTransactionType(), isInferredFallbackTransaction(), modeLabel(), cancelEdit(), fetchPlans(), handleCreate(), handleDelete() (+7 more)
-
-### Community 6 - "Community 6"
-Cohesion: 0.03
-Nodes (6): isNavHidden(), MobileBottomNav(), isInvalidRefreshTokenError(), loadCurrentUser(), getNotificationHref(), getNumberFromUnknown()
-
-### Community 7 - "Community 7"
-Cohesion: 0.03
 Nodes (12): getReadableAuthError(), getRetryAfterSeconds(), isRateLimitError(), normalizeStoragePathCandidate(), parseSelectedPetId(), ProviderDashboardPage(), ProviderTodayPage(), resolveBookingId() (+4 more)
 
-### Community 8 - "Community 8"
+### Community 6 - "Community 6"
 Cohesion: 0.04
-Nodes (27): calculateCompletion(), loadProfile(), normalizePetGenderValue(), saveCurrentStep(), buildMrzLines(), buildPassportNumber(), formatDate(), toPassportCode() (+19 more)
+Nodes (8): shouldTrackRequest(), toRequestUrl(), isNavHidden(), MobileBottomNav(), isInvalidRefreshTokenError(), loadCurrentUser(), getNotificationHref(), getNumberFromUnknown()
+
+### Community 7 - "Community 7"
+Cohesion: 0.04
+Nodes (15): formatMode(), formatTransactionType(), isInferredFallbackTransaction(), modeLabel(), cancelEdit(), fetchPlans(), handleCreate(), handleDelete() (+7 more)
+
+### Community 8 - "Community 8"
+Cohesion: 0.05
+Nodes (24): calculateAgeFromDOB(), formatDateInputValue(), formatISTDateTimeParts(), getISTTimestamp(), getPetDateOfBirthBounds(), isPetDateOfBirthWithinBounds(), createServiceInvoice(), createSubscriptionInvoice() (+16 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.03
-Nodes (11): formatDateLabel(), formatDateTime(), formatTimeLabel(), resolveAddonTotal(), resolveAddonUnitPrice(), extractBookedPetIds(), extractBookedServices(), formatBookingTime() (+3 more)
+Cohesion: 0.05
+Nodes (24): computeBookingOutstandingInr(), getBookingOutstandingSummary(), getCapturedOnlineAmountForBooking(), applyDiscount(), calculateDiscountAmount(), roundCurrency(), evaluateDiscountForBooking(), normalizeServiceType() (+16 more)
 
 ### Community 10 - "Community 10"
 Cohesion: 0.04
-Nodes (33): calculateAgeFromDOB(), formatDateInputValue(), formatISTDateTimeParts(), getISTTimestamp(), getPetDateOfBirthBounds(), isPetDateOfBirthWithinBounds(), createServiceInvoice(), createSubscriptionInvoice() (+25 more)
+Nodes (13): extractIndianPhoneDigits(), toIndianE164(), isValidIndianPincode(), lookupPincode(), handleAutofillCoordinatesFromAddress(), handleClose(), handleCoordinateSelection(), handleNext() (+5 more)
 
 ### Community 11 - "Community 11"
-Cohesion: 0.04
-Nodes (13): extractIndianPhoneDigits(), toIndianE164(), isValidIndianPincode(), lookupPincode(), handleAutofillCoordinatesFromAddress(), handleClose(), handleCoordinateSelection(), handleNext() (+5 more)
+Cohesion: 0.06
+Nodes (18): openCreateServiceModal(), parseOptionalInteger(), parseOptionalNumber(), resetServiceDraft(), saveService(), openCreateCategoryModal(), resetCategoryDraft(), absolutizeStorageUrl() (+10 more)
 
 ### Community 12 - "Community 12"
 Cohesion: 0.06
 Nodes (21): forbidden(), getApiAuthContext(), getCurrentApiRole(), isRoleAllowed(), normalizeRoleName(), requireApiRole(), resolveRoleWithProviderPrecedence(), unauthorized() (+13 more)
 
 ### Community 13 - "Community 13"
-Cohesion: 0.05
-Nodes (15): computeBookingOutstandingInr(), getBookingOutstandingSummary(), getCapturedOnlineAmountForBooking(), applyDiscount(), calculateDiscountAmount(), roundCurrency(), evaluateDiscountForBooking(), normalizeServiceType() (+7 more)
+Cohesion: 0.06
+Nodes (7): formatBookingDateTime(), formatDate(), formatDateTime(), formatTime(), formatProviderBookingDateTime(), formatProviderDate(), formatProviderTime()
 
 ### Community 14 - "Community 14"
-Cohesion: 0.07
-Nodes (7): formatBookingDateTime(), formatDate(), formatDateTime(), formatTime(), formatProviderBookingDateTime(), formatProviderDate(), formatProviderTime()
+Cohesion: 0.05
+Nodes (12): buildStepPayload(), canLeaveCurrentContext(), handleNextOrComplete(), handler(), isTypingTarget(), jumpToFirstError(), jumpToStepWithHighlight(), loadPetShares() (+4 more)
 
 ### Community 15 - "Community 15"
 Cohesion: 0.05
@@ -120,67 +120,67 @@ Cohesion: 0.23
 Nodes (9): canTransition(), transitionFlow(), getReadableAuthError(), getRetryAfterSeconds(), handleSendOtp(), handleVerifyOtp(), isRateLimitError(), normalizeErrorMessage() (+1 more)
 
 ### Community 21 - "Community 21"
+Cohesion: 0.13
+Nodes (0): 
+
+### Community 22 - "Community 22"
 Cohesion: 0.19
 Nodes (9): calculateLightweightPetCompletion(), calculatePetCompletionFromSections(), derivePetCompletionSections(), hasText(), claimPendingPetShares(), hasText(), listAccessiblePetsForUser(), normalizeEmail() (+1 more)
 
-### Community 22 - "Community 22"
+### Community 23 - "Community 23"
 Cohesion: 0.22
 Nodes (7): addDays(), getDayName(), getDayOfWeek(), getIstNowParts(), resolveAvailableSlots(), resolveAvailableSlotsMultiDay(), resolveDayAvailability()
 
-### Community 23 - "Community 23"
+### Community 24 - "Community 24"
+Cohesion: 0.23
+Nodes (5): buildMrzLines(), buildPassportNumber(), formatDate(), toPassportCode(), toTitleCase()
+
+### Community 25 - "Community 25"
+Cohesion: 0.18
+Nodes (0): 
+
+### Community 26 - "Community 26"
 Cohesion: 0.22
 Nodes (0): 
 
-### Community 24 - "Community 24"
+### Community 27 - "Community 27"
+Cohesion: 0.25
+Nodes (0): 
+
+### Community 28 - "Community 28"
 Cohesion: 0.33
 Nodes (1): ErrorBoundary
 
-### Community 25 - "Community 25"
+### Community 29 - "Community 29"
 Cohesion: 0.53
 Nodes (3): checkDistributedRateLimit(), checkLocalRateLimit(), isRateLimited()
 
-### Community 26 - "Community 26"
+### Community 30 - "Community 30"
 Cohesion: 0.7
 Nodes (4): mapKnownMessageToStatus(), mapSupabaseErrorCode(), sanitizeDatabaseError(), toFriendlyApiError()
 
-### Community 27 - "Community 27"
+### Community 31 - "Community 31"
 Cohesion: 0.5
 Nodes (2): defaultAsyncState(), useAsyncState()
 
-### Community 28 - "Community 28"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 29 - "Community 29"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 30 - "Community 30"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 31 - "Community 31"
-Cohesion: 0.5
-Nodes (0): 
-
 ### Community 32 - "Community 32"
-Cohesion: 0.67
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 33 - "Community 33"
-Cohesion: 1
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 34 - "Community 34"
-Cohesion: 1
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 35 - "Community 35"
-Cohesion: 1
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 36 - "Community 36"
-Cohesion: 1
+Cohesion: 0.67
 Nodes (0): 
 
 ### Community 37 - "Community 37"
@@ -283,64 +283,80 @@ Nodes (0):
 Cohesion: 1
 Nodes (0): 
 
+### Community 62 - "Community 62"
+Cohesion: 1
+Nodes (0): 
+
+### Community 63 - "Community 63"
+Cohesion: 1
+Nodes (0): 
+
+### Community 64 - "Community 64"
+Cohesion: 1
+Nodes (0): 
+
+### Community 65 - "Community 65"
+Cohesion: 1
+Nodes (0): 
+
 ## Knowledge Gaps
-- **Thin community `Community 33`** (2 nodes): `global-error.tsx`, `GlobalError()`
+- **Thin community `Community 37`** (2 nodes): `global-error.tsx`, `GlobalError()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 34`** (2 nodes): `manifest.ts`, `manifest()`
+- **Thin community `Community 38`** (2 nodes): `manifest.ts`, `manifest()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 35`** (2 nodes): `not-found.tsx`, `NotFound()`
+- **Thin community `Community 39`** (2 nodes): `not-found.tsx`, `NotFound()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 36`** (2 nodes): `robots.ts`, `robots()`
+- **Thin community `Community 40`** (2 nodes): `robots.ts`, `robots()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 37`** (2 nodes): `QuickBookWidget.tsx`, `handleFind()`
+- **Thin community `Community 41`** (2 nodes): `QuickBookWidget.tsx`, `handleFind()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 38`** (2 nodes): `DashboardShell.tsx`, `DashboardShell()`
+- **Thin community `Community 42`** (2 nodes): `DashboardShell.tsx`, `DashboardShell()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 39`** (2 nodes): `BookingSummarySidebar.tsx`, `formatDate()`
+- **Thin community `Community 43`** (2 nodes): `BookingSummarySidebar.tsx`, `formatDate()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 40`** (2 nodes): `PageLayout.tsx`, `PageLayout()`
+- **Thin community `Community 44`** (2 nodes): `PageLayout.tsx`, `PageLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 41`** (2 nodes): `CreditBalanceWidget.tsx`, `formatServiceType()`
+- **Thin community `Community 45`** (2 nodes): `CreditBalanceWidget.tsx`, `formatServiceType()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 42`** (2 nodes): `SlotPickerGrid.tsx`, `formatTime()`
+- **Thin community `Community 46`** (2 nodes): `SlotPickerGrid.tsx`, `formatTime()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 43`** (1 nodes): `loading.tsx`
+- **Thin community `Community 47`** (1 nodes): `loading.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 44`** (1 nodes): `DashboardLayout.tsx`
+- **Thin community `Community 48`** (1 nodes): `DashboardLayout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 45`** (1 nodes): `NotificationCenter.tsx`
+- **Thin community `Community 49`** (1 nodes): `NotificationCenter.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 46`** (1 nodes): `SummaryCard.tsx`
+- **Thin community `Community 50`** (1 nodes): `SummaryCard.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 47`** (1 nodes): `MetricGrid.tsx`
+- **Thin community `Community 51`** (1 nodes): `MetricGrid.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 48`** (1 nodes): `SectionHeader.tsx`
+- **Thin community `Community 52`** (1 nodes): `SectionHeader.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 49`** (1 nodes): `index.ts`
+- **Thin community `Community 53`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 50`** (1 nodes): `ServiceSelectionStep.tsx`
+- **Thin community `Community 54`** (1 nodes): `ServiceSelectionStep.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 51`** (1 nodes): `BookingFlowLayout.tsx`
+- **Thin community `Community 55`** (1 nodes): `BookingFlowLayout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 52`** (1 nodes): `EditorLayout.tsx`
+- **Thin community `Community 56`** (1 nodes): `EditorLayout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 53`** (1 nodes): `SettingsLayout.tsx`
+- **Thin community `Community 57`** (1 nodes): `SettingsLayout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 54`** (1 nodes): `BookingStatusTimeline.tsx`
+- **Thin community `Community 58`** (1 nodes): `BookingStatusTimeline.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (1 nodes): `SubscriptionUpsellBanner.tsx`
+- **Thin community `Community 59`** (1 nodes): `SubscriptionUpsellBanner.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (1 nodes): `dashboard-queries.ts`
+- **Thin community `Community 60`** (1 nodes): `dashboard-queries.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (1 nodes): `owner-profile.database.types.ts`
+- **Thin community `Community 61`** (1 nodes): `owner-profile.database.types.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (1 nodes): `next-env.d.ts`
+- **Thin community `Community 62`** (1 nodes): `next-env.d.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (1 nodes): `next.config.ts`
+- **Thin community `Community 63`** (1 nodes): `next.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (1 nodes): `tailwind.config.ts`
+- **Thin community `Community 64`** (1 nodes): `tailwind.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (1 nodes): `vitest.config.ts`
+- **Thin community `Community 65`** (1 nodes): `vitest.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
@@ -359,4 +375,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Community 5` be split into smaller, more focused modules?**
   _Cohesion score 0.03 - nodes in this community are weakly interconnected._
 - **Should `Community 6` be split into smaller, more focused modules?**
-  _Cohesion score 0.03 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
