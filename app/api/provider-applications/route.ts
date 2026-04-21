@@ -48,7 +48,18 @@ export async function POST(request: Request) {
   const normalizedPhone = toIndianE164(formData.phone_number);
 
   if (!isValidIndianE164(normalizedPhone)) {
-    return NextResponse.json({ error: 'Phone number must be a valid Indian number (+91XXXXXXXXXX).' }, { status: 400 });
+    return NextResponse.json(
+      {
+        error: 'Phone number must be a valid Indian number (+91XXXXXXXXXX).',
+        details: {
+          fieldErrors: {
+            phone_number: ['Phone number must be a valid Indian number (+91XXXXXXXXXX).'],
+          },
+          formErrors: [],
+        },
+      },
+      { status: 400 },
+    );
   }
 
   // Honeypot field to reduce bot submissions.
