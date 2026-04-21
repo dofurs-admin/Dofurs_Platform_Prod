@@ -25,6 +25,7 @@ interface BookingCardProps {
   bookingStart: string;
   serviceName?: string;
   petName?: string;
+  petNames?: string[];
   providerName?: string;
   bookingMode?: string;
   status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
@@ -46,6 +47,7 @@ export default function BookingCard({
   bookingStart,
   serviceName,
   petName,
+  petNames,
   providerName,
   bookingMode,
   status,
@@ -113,6 +115,8 @@ export default function BookingCard({
 
   const isActive = status === 'pending' || status === 'confirmed';
   const resolvedDetailsHref = detailsHref ?? `/dashboard/user?view=operations&booking=${id}`;
+  const petNameBadges = (petNames ?? []).filter((value) => value.trim().length > 0);
+  const visiblePetBadges = petNameBadges.length > 0 ? petNameBadges : (petName ? [petName] : []);
 
   function handleViewDetails() {
     if (onViewDetails) {
@@ -149,9 +153,14 @@ export default function BookingCard({
               {serviceName && (
                 <span className="font-semibold text-neutral-950">{serviceName}</span>
               )}
-              {petName && (
-                <span className="rounded-full border border-[#e6cfba] bg-[#fff6ee] px-2 py-0.5 text-[11px] font-medium text-neutral-700">{petName}</span>
-              )}
+              {visiblePetBadges.map((name) => (
+                <span
+                  key={`${id}-${name}`}
+                  className="rounded-full border border-[#e6cfba] bg-[#fff6ee] px-2 py-0.5 text-[11px] font-medium text-neutral-700"
+                >
+                  {name}
+                </span>
+              ))}
               {providerName && (
                 <span className="text-neutral-600">by {providerName}</span>
               )}

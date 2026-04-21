@@ -11,6 +11,15 @@ import { premiumPrimaryCtaClass } from '@/lib/styles/premium-cta';
 export const metadata: Metadata = {
   title: 'Search — Dofurs',
   description: 'Search for pet services, providers, and information on Dofurs.',
+  robots: {
+    index: false,
+    follow: true,
+    googleBot: {
+      index: false,
+      follow: true,
+    },
+  },
+  alternates: { canonical: 'https://dofurs.in/search' },
 };
 
 const plusJakarta = Plus_Jakarta_Sans({

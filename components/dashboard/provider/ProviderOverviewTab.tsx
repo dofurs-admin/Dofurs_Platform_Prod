@@ -93,6 +93,7 @@ export default function ProviderOverviewTab({
                     locationAddress={upcomingBooking.location_address}
                     latitude={upcomingBooking.latitude}
                     longitude={upcomingBooking.longitude}
+                    addonItems={upcomingBooking.addon_items}
                     showAcceptedPill={upcomingBooking.booking_status === 'confirmed'}
                   />
                 </div>

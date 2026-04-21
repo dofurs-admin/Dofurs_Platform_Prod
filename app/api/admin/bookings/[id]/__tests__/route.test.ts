@@ -110,11 +110,32 @@ function makeSupabaseMock(options?: {
     }),
   };
 
+  const addonItemsQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    returns: vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'addon-1',
+          booking_id: 32,
+          name_snapshot: 'Nail Trim',
+          quantity: 1,
+          total_price_inr: 199,
+          status: 'active',
+          created_at: '2026-04-08T09:00:00.000Z',
+        },
+      ],
+      error: null,
+    }),
+  };
+
   return {
     from: vi.fn((table: string) => {
       if (table === 'bookings') return bookingsQuery;
       if (table === 'booking_status_transition_events') return transitionQuery;
       if (table === 'billing_invoices') return invoicesQuery;
+      if (table === 'booking_addon_items') return addonItemsQuery;
       throw new Error(`Unexpected table: ${table}`);
     }),
   };
@@ -150,6 +171,7 @@ describe('GET /api/admin/bookings/[id]', () => {
       changed_by: 'admin-user-id',
     });
     expect(payload.invoices).toHaveLength(1);
+    expect(payload.addonItems).toHaveLength(1);
   });
 
   it('returns booking details even when transition table is unavailable', async () => {

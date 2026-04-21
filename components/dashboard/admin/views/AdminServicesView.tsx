@@ -2,10 +2,11 @@
 
 import ServiceCategoriesManager from '@/components/dashboard/admin/ServiceCategoriesManager';
 import ServiceBuilder from '@/components/dashboard/admin/ServiceBuilder';
+import ServiceAddonsManager from '@/components/dashboard/admin/ServiceAddonsManager';
 import AdminSectionGuide from '@/components/dashboard/admin/AdminSectionGuide';
 import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
 
-type ServiceCatalogPanel = 'types' | 'services';
+type ServiceCatalogPanel = 'types' | 'services' | 'addons';
 
 type AdminServicesViewProps = {
   serviceCatalogPanel: ServiceCatalogPanel;
@@ -26,9 +27,10 @@ export default function AdminServicesView({
         title="How to Use Service Catalog"
         subtitle="Build canonical service templates, then roll them out in the Providers view"
         steps={[
-          { title: 'Switch Panels', description: 'Use "Service Types" for categories and "Services" for catalog templates.' },
+          { title: 'Switch Panels', description: 'Use "Service Types" for categories, "Services" for catalog templates, and "Add-ons" for reusable extras.' },
           { title: 'Service Types', description: 'Create and edit top-level categories such as Grooming, Vet Visit, and Training.' },
           { title: 'Catalog Services', description: 'Create service templates with default price, duration, media, and requirements.' },
+          { title: 'Add-ons', description: 'Create add-on templates, then attach them to services from the Add-ons panel.' },
           { title: 'Provider Rollout', description: 'Assign templates and serviceable pincodes from the Providers tab only.' },
         ]}
       />
@@ -62,6 +64,17 @@ export default function AdminServicesView({
             >
               Services
             </button>
+            <button
+              type="button"
+              onClick={() => onPanelChange('addons')}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                serviceCatalogPanel === 'addons'
+                  ? 'bg-white text-coral shadow-sm'
+                  : 'text-ink/80 hover:text-coral'
+              }`}
+            >
+              Add-ons
+            </button>
           </div>
         </div>
       </div>
@@ -75,6 +88,10 @@ export default function AdminServicesView({
           initialServices={initialCatalogServices}
           categories={initialServiceCategories}
         />
+      ) : null}
+
+      {serviceCatalogPanel === 'addons' ? (
+        <ServiceAddonsManager services={initialCatalogServices} />
       ) : null}
     </section>
   );

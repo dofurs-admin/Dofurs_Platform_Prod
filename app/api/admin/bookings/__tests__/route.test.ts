@@ -14,6 +14,7 @@ vi.mock('@/lib/monitoring/security-log', () => ({
 }));
 
 import { requireApiRole } from '@/lib/auth/api-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { GET } from '@/app/api/admin/bookings/route';
 
 function makeMockSupabase(rpcResult: { data: unknown; error: unknown }) {
@@ -52,6 +53,33 @@ describe('GET /api/admin/bookings', () => {
     ];
 
     const mockSupabase = makeMockSupabase({ data: mockBookings, error: null });
+    const adminSupabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'bookings') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockResolvedValue({
+              data: [{ id: 1, payment_mode: 'direct_to_provider' }],
+              error: null,
+            }),
+          };
+        }
+
+        if (table === 'booking_payment_collections') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            in: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockResolvedValue({
+              data: [{ booking_id: 1 }],
+              error: null,
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected table: ${table}`);
+      }),
+    };
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
 
     vi.mocked(requireApiRole).mockResolvedValue({
       response: null,
@@ -69,6 +97,8 @@ describe('GET /api/admin/bookings', () => {
     const json = await response.json();
     expect(Array.isArray(json.bookings)).toBe(true);
     expect(json.bookings[0].id).toBe(1);
+    expect(json.bookings[0].payment_mode).toBe('direct_to_provider');
+    expect(json.bookings[0].cash_collected).toBe(true);
     expect(mockSupabase.rpc).toHaveBeenCalledWith('admin_search_bookings', expect.objectContaining({ p_filter: 'all' }));
   });
 

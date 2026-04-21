@@ -4,9 +4,16 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import { links, whatsappLinks } from '@/lib/site-data';
 
 export const metadata: Metadata = {
-  title: 'Contact Us — Dofurs',
-  description: 'Get in touch with the Dofurs team for support, partnerships, or feedback. We are here to help with all your pet care needs.',
-  openGraph: { title: 'Contact Us — Dofurs', description: 'Get in touch with the Dofurs team.' },
+  title: 'Contact Dofurs — Pet Services Support in Bangalore',
+  description:
+    'Contact the Dofurs team for booking help, service partnerships, or feedback. WhatsApp and email support for pet parents and providers across Bangalore.',
+  alternates: { canonical: '/contact-us' },
+  openGraph: {
+    title: 'Contact Dofurs — Pet Services Support in Bangalore',
+    description: 'Reach the Dofurs team via WhatsApp or email for booking help and partnerships.',
+    url: 'https://dofurs.in/contact-us',
+    images: ['/logo/og-default.jpg'],
+  },
 };
 
 export default function ContactUsPage() {

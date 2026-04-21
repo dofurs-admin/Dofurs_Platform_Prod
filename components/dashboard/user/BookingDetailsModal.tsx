@@ -21,6 +21,7 @@ type Props = {
   isCancellingBookingId: number | null;
   onClose: () => void;
   onCancelRequest: (bookingId: number) => void;
+  onPaymentSuccess?: () => void;
 };
 
 type BookingReview = {
@@ -31,11 +32,148 @@ type BookingReview = {
   created_at: string;
 };
 
+type BookingAddonItem = {
+  id: string;
+  name_snapshot: string;
+  quantity: number;
+  unit_price_inr?: number;
+  unit_price_snapshot?: number;
+  total_price_inr?: number;
+  total_price_snapshot?: number;
+  status: string;
+};
+
+function resolveAddonTotal(item: BookingAddonItem) {
+  return Math.max(0, Number(item.total_price_inr ?? item.total_price_snapshot ?? 0));
+}
+
+function resolveAddonUnitPrice(item: BookingAddonItem) {
+  const explicit = Number(item.unit_price_inr ?? item.unit_price_snapshot ?? NaN);
+  if (Number.isFinite(explicit) && explicit >= 0) {
+    return explicit;
+  }
+
+  const quantity = Math.max(1, Number(item.quantity ?? 1));
+  return resolveAddonTotal(item) / quantity;
+}
+
+export function extractBookedServices(booking: Booking) {
+  const services = new Set<string>();
+  const primary = (booking.service_type ?? '').trim();
+
+  if (primary.length > 0) {
+    services.add(primary);
+  }
+
+  const notes = booking.provider_notes ?? '';
+  for (const line of notes.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    // Support both `1. Pet 12 | Grooming` and `1. Grooming` style bundle lines.
+    const match = trimmed.match(/^\d+\.\s*(?:Pet\s+\d+\s*\|\s*)?(.+)$/i);
+    if (match?.[1]) {
+      const label = match[1].trim();
+      if (label) {
+        services.add(label);
+      }
+    }
+  }
+
+  return Array.from(services);
+}
+
+type BookingPricingSummary = {
+  serviceLines: Array<{ name: string }>;
+  serviceLabel: string;
+  isBundledServices: boolean;
+  addOnLines: Array<{ id: string; name: string; quantity: number; unitPriceInr: number; totalPriceInr: number }>;
+  serviceSubtotalInr: number;
+  addonSubtotalInr: number;
+  grossSubtotalInr: number;
+  discountAmountInr: number;
+  walletCreditsInr: number;
+  finalPriceBeforeWalletInr: number;
+  netPayableInr: number;
+  paidOrCollectedInr: number;
+  pendingPayableInr: number;
+  discountCode: string | null;
+};
+
+export function buildBookingPricingSummary(
+  booking: Booking,
+  bookedServices: string[],
+  addonItems: BookingAddonItem[],
+): BookingPricingSummary {
+  const pendingPayableInr = Math.max(0, Number(booking.pending_payable_inr ?? 0));
+  const serviceCandidates = [
+    Number(booking.admin_price_reference ?? NaN),
+    Number(booking.price_at_booking ?? NaN),
+    Number(booking.amount ?? NaN),
+    Number(booking.final_price ?? NaN),
+  ].filter((value) => Number.isFinite(value) && value >= 0);
+
+  const serviceSubtotalInr = serviceCandidates.find((value) => value > 0) ?? serviceCandidates[0] ?? 0;
+
+  const addOnLines = addonItems.map((item) => ({
+    id: item.id,
+    name: item.name_snapshot,
+    quantity: Math.max(1, Number(item.quantity ?? 1)),
+    unitPriceInr: resolveAddonUnitPrice(item),
+    totalPriceInr: resolveAddonTotal(item),
+  }));
+
+  const addonSubtotalInr = addOnLines.reduce((sum, item) => sum + item.totalPriceInr, 0);
+  const grossSubtotalInr = Math.max(0, serviceSubtotalInr + addonSubtotalInr);
+  const discountAmountInr = Math.max(0, Number(booking.discount_amount ?? 0));
+  const walletCreditsInr = Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0));
+  const fallbackFinalBeforeWalletInr = Math.max(0, grossSubtotalInr - discountAmountInr);
+  const finalPriceBeforeWalletInr = Math.max(
+    0,
+    Number(booking.final_price ?? booking.amount ?? fallbackFinalBeforeWalletInr),
+  );
+  const netPayableInr = Math.max(0, finalPriceBeforeWalletInr - walletCreditsInr);
+  const paidOrCollectedInr = Math.max(0, netPayableInr - pendingPayableInr);
+
+  const normalizedServices =
+    bookedServices.length > 0
+      ? bookedServices
+      : booking.service_type
+        ? [booking.service_type]
+        : [];
+
+  const isBundledServices = normalizedServices.length > 1;
+  const serviceLines = normalizedServices.map((name) => ({ name }));
+  const serviceLabel = isBundledServices
+    ? `Bundled services (${normalizedServices.length})`
+    : (normalizedServices[0] ?? 'Service');
+
+  return {
+    serviceLines,
+    serviceLabel,
+    isBundledServices,
+    addOnLines,
+    serviceSubtotalInr,
+    addonSubtotalInr,
+    grossSubtotalInr,
+    discountAmountInr,
+    walletCreditsInr,
+    finalPriceBeforeWalletInr,
+    netPayableInr,
+    paidOrCollectedInr,
+    pendingPayableInr,
+    discountCode: booking.discount_code?.trim() || null,
+  };
+}
+
 export default function BookingDetailsModal({
   activeBooking,
   isCancellingBookingId,
   onClose,
   onCancelRequest,
+  onPaymentSuccess,
 }: Props) {
   const [review, setReview] = useState<BookingReview | null>(null);
   const [canReview, setCanReview] = useState(false);
@@ -44,10 +182,68 @@ export default function BookingDetailsModal({
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [isReviewLoading, setIsReviewLoading] = useState(false);
   const [isSubmittingReview, startReviewTransition] = useTransition();
+  const [isPayingPendingAmount, setIsPayingPendingAmount] = useState(false);
+  const [addonItems, setAddonItems] = useState<BookingAddonItem[]>([]);
 
   const isCompletedBooking = useMemo(() => {
     if (!activeBooking) return false;
     return resolveBookingStatus(activeBooking) === 'completed';
+  }, [activeBooking]);
+
+  const bookedServices = useMemo(() => {
+    if (!activeBooking) {
+      return [] as string[];
+    }
+
+    return extractBookedServices(activeBooking);
+  }, [activeBooking]);
+
+  const pricingSummary = useMemo(() => {
+    if (!activeBooking) {
+      return null;
+    }
+
+    return buildBookingPricingSummary(activeBooking, bookedServices, addonItems);
+  }, [activeBooking, addonItems, bookedServices]);
+
+  useEffect(() => {
+    let active = true;
+
+    setAddonItems([]);
+
+    if (!activeBooking) {
+      return () => {
+        active = false;
+      };
+    }
+
+    async function loadAddons() {
+      try {
+        const response = await fetch(`/api/bookings/${activeBooking.id}/addons`, { cache: 'no-store' });
+        const payload = (await response.json().catch(() => null)) as {
+          success?: boolean;
+          data?: { items?: BookingAddonItem[] };
+        } | null;
+
+        if (!active) return;
+        if (!response.ok || !payload?.success) {
+          setAddonItems([]);
+          return;
+        }
+
+        setAddonItems(payload.data?.items ?? []);
+      } catch {
+        if (active) {
+          setAddonItems([]);
+        }
+      }
+    }
+
+    void loadAddons();
+
+    return () => {
+      active = false;
+    };
   }, [activeBooking]);
 
   useEffect(() => {
@@ -145,6 +341,115 @@ export default function BookingDetailsModal({
     });
   }
 
+  async function ensureRazorpayCheckoutLoaded() {
+    if (typeof window === 'undefined') {
+      throw new Error('Browser is unavailable.');
+    }
+
+    if ('Razorpay' in window) {
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error('Unable to load Razorpay checkout.'));
+      document.body.appendChild(script);
+    });
+  }
+
+  async function payPendingAmountOnline() {
+    if (!activeBooking || isPayingPendingAmount) {
+      return;
+    }
+
+    const pendingPayableInr = Math.max(0, Number(activeBooking.pending_payable_inr ?? 0));
+    if (pendingPayableInr <= 0) {
+      return;
+    }
+
+    setReviewError(null);
+    setIsPayingPendingAmount(true);
+
+    try {
+      await ensureRazorpayCheckoutLoaded();
+
+      const orderResponse = await fetch(`/api/payments/bookings/${activeBooking.id}/due-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const orderPayload = await orderResponse.json().catch(() => null) as {
+        error?: string;
+        razorpay?: {
+          keyId: string;
+          amount: number;
+          currency: string;
+          orderId: string;
+          name: string;
+          description: string;
+          prefill?: { email?: string };
+          notes?: Record<string, string>;
+        };
+      } | null;
+
+      if (!orderResponse.ok || !orderPayload?.razorpay) {
+        throw new Error(orderPayload?.error ?? 'Unable to start online payment.');
+      }
+
+      const checkout = new (window as Window & {
+        Razorpay: new (options: Record<string, unknown>) => {
+          open: () => void;
+          on: (event: 'payment.failed', handler: (response: { error?: { description?: string } }) => void) => void;
+        };
+      }).Razorpay({
+        key: orderPayload.razorpay.keyId,
+        amount: orderPayload.razorpay.amount,
+        currency: orderPayload.razorpay.currency,
+        name: orderPayload.razorpay.name,
+        description: orderPayload.razorpay.description,
+        order_id: orderPayload.razorpay.orderId,
+        prefill: orderPayload.razorpay.prefill,
+        notes: orderPayload.razorpay.notes,
+        handler: async (response: {
+          razorpay_order_id: string;
+          razorpay_payment_id: string;
+          razorpay_signature: string;
+        }) => {
+          const verifyResponse = await fetch(`/api/payments/bookings/${activeBooking.id}/due-verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              providerOrderId: response.razorpay_order_id,
+              providerPaymentId: response.razorpay_payment_id,
+              providerSignature: response.razorpay_signature,
+            }),
+          });
+
+          const verifyPayload = await verifyResponse.json().catch(() => null) as { error?: string } | null;
+
+          if (!verifyResponse.ok) {
+            throw new Error(verifyPayload?.error ?? 'Unable to verify payment.');
+          }
+
+          onPaymentSuccess?.();
+        },
+      });
+
+      checkout.on('payment.failed', (response) => {
+        setReviewError(response?.error?.description ?? 'Online payment failed. Please try again.');
+      });
+
+      checkout.open();
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : 'Unable to process online payment.');
+    } finally {
+      setIsPayingPendingAmount(false);
+    }
+  }
+
   return (
     <Modal
       isOpen={activeBooking !== null}
@@ -159,7 +464,9 @@ export default function BookingDetailsModal({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Service Booking</p>
-                <h3 className="mt-1 text-lg font-bold text-neutral-950">{activeBooking.service_type ?? 'Service'}</h3>
+                <h3 className="mt-1 text-lg font-bold text-neutral-950">
+                  {bookedServices.length > 1 ? `Bundled services (${bookedServices.length})` : (activeBooking.service_type ?? 'Service')}
+                </h3>
               </div>
               <span
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${bookingStatusMeta(userDisplayStatus(resolveBookingStatus(activeBooking))).toneClass}`}
@@ -199,10 +506,6 @@ export default function BookingDetailsModal({
               </p>
             </div>
             <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Amount</p>
-              <p className="mt-1 text-sm font-semibold text-neutral-900">{formatBookingAmount(activeBooking.amount)}</p>
-            </div>
-            <div>
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Provider Reference</p>
               <p className="mt-1 text-sm font-semibold text-neutral-900">
                 {activeBooking.provider_id
@@ -225,6 +528,92 @@ export default function BookingDetailsModal({
               </p>
             </div>
           </div>
+
+          {pricingSummary && (
+            <div className="rounded-xl border border-[#ead3bf] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Pricing Summary</p>
+
+              {pricingSummary.serviceLines.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Services</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-700">{pricingSummary.serviceLabel}</span>
+                    <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.serviceSubtotalInr)}</span>
+                  </div>
+                  {pricingSummary.isBundledServices ? (
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Included packages</p>
+                      <ul className="mt-1 space-y-1">
+                        {pricingSummary.serviceLines.map((serviceLine) => (
+                          <li key={serviceLine.name} className="text-sm text-neutral-700">
+                            {serviceLine.name}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              {pricingSummary.addOnLines.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Add-ons</p>
+                  {pricingSummary.addOnLines.map((addOn) => (
+                    <div key={addOn.id} className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-700">
+                        {addOn.name} x{addOn.quantity} ({formatBookingAmount(addOn.unitPriceInr)} each)
+                      </span>
+                      <span className="font-medium text-neutral-900">{formatBookingAmount(addOn.totalPriceInr)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-4 space-y-2 border-t border-neutral-200 pt-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Service Subtotal</span>
+                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.serviceSubtotalInr)}</span>
+                </div>
+                {pricingSummary.addonSubtotalInr > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-600">Add-on Subtotal</span>
+                    <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.addonSubtotalInr)}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Gross Subtotal</span>
+                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.grossSubtotalInr)}</span>
+                </div>
+                {pricingSummary.discountAmountInr > 0 ? (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span>
+                      Discount Applied
+                      {pricingSummary.discountCode ? ` (${pricingSummary.discountCode})` : ''}
+                    </span>
+                    <span className="font-semibold">- {formatBookingAmount(pricingSummary.discountAmountInr)}</span>
+                  </div>
+                ) : null}
+                {pricingSummary.walletCreditsInr > 0 ? (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span>Wallet Credits Applied</span>
+                    <span className="font-semibold">- {formatBookingAmount(pricingSummary.walletCreditsInr)}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-neutral-200 pt-2">
+                  <span className="font-semibold text-neutral-800">Final Price</span>
+                  <span className="font-bold text-neutral-900">{formatBookingAmount(pricingSummary.netPayableInr)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Paid / Collected</span>
+                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.paidOrCollectedInr)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Pending Payable</span>
+                  <span className="font-semibold text-neutral-900">{formatBookingAmount(pricingSummary.pendingPayableInr)}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {isCompletedBooking && (
             <div className="rounded-xl border border-[#ead3bf] bg-white p-4 space-y-3">
@@ -299,6 +688,11 @@ export default function BookingDetailsModal({
           )}
 
           <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 pt-3">
+            {Math.max(0, Number(activeBooking.pending_payable_inr ?? 0)) > 0 ? (
+              <Button type="button" variant="premium" isLoading={isPayingPendingAmount} onClick={payPendingAmountOnline}>
+                Pay Pending Amount Online
+              </Button>
+            ) : null}
             <Link href="/forms/customer-booking">
               <Button type="button" variant="premium">
                 Book Another Service

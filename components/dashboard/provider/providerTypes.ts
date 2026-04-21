@@ -43,8 +43,10 @@ export type ProviderBooking = {
   provider_notes: string | null;
   payment_mode?: 'direct_to_provider' | 'platform' | 'mixed' | null;
   price_at_booking?: number | null;
+  final_price?: number | null;
   wallet_credits_applied_inr?: number | null;
   cash_collected?: boolean;
+  pending_payable_inr?: number;
   completion_task_status?: 'pending' | 'completed' | null;
   completion_due_at?: string | null;
   completion_completed_at?: string | null;
@@ -53,6 +55,13 @@ export type ProviderBooking = {
   has_customer_feedback?: boolean;
   provider_customer_rating?: number | null;
   provider_customer_notes?: string | null;
+  addon_items?: Array<{
+    id: string;
+    name_snapshot: string;
+    quantity: number;
+    total_price_inr: number;
+    status: string;
+  }>;
 };
 
 export type ProviderBlockedDate = {

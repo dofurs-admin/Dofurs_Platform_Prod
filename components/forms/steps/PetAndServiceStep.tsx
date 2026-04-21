@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import StorageBackedImage from '@/components/ui/StorageBackedImage';
 import Modal from '@/components/ui/Modal';
+import { getGroomingPackageByServiceType } from '@/lib/service-catalog/grooming-packages';
 import { MAX_PET_AGE_YEARS } from '@/lib/utils/date';
 
 type Pet = { id: number; name: string; breed?: string | null; photo_url?: string | null };
@@ -16,6 +17,11 @@ type Service = {
   source: 'provider_services' | 'services';
 };
 type PetServiceSelection = Array<{ serviceType: string; quantity: number }>;
+type ServiceAddon = {
+  id: string;
+  name: string;
+  price: number;
+};
 
 interface PetAndServiceStepProps {
   // Pet selection
@@ -31,12 +37,16 @@ interface PetAndServiceStepProps {
   bookingMode: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   isPackageBooking?: boolean;
   serviceSelectionRuleNote?: string | null;
+  addOnSelectionNote?: string | null;
   isServiceSelectionBlocked?: (petId: number, serviceType: string) => boolean;
   isPincodeValid?: boolean;
+  serviceAddOns?: ServiceAddon[];
+  selectedAddOns?: Record<string, number>;
   onBookingModeChange: (mode: 'home_visit' | 'clinic_visit') => void;
   onPetServiceChange: (petId: number, serviceType: string) => void;
   onPetQuantityChange: (petId: number, serviceType: string, quantity: number) => void;
   onApplyServiceToAll: (serviceType: string) => void;
+  onAddOnQuantityChange?: (addOnId: string, quantity: number) => void;
   // Navigation
   onNext: () => void;
   onPrev?: () => void;
@@ -57,16 +67,21 @@ export default function PetAndServiceStep({
   bookingMode,
   isPackageBooking = false,
   serviceSelectionRuleNote = null,
+  addOnSelectionNote = 'Add-ons are optional and can be added after selecting a service. Final add-on availability depends on the selected provider.',
   isServiceSelectionBlocked,
   isPincodeValid = true,
+  serviceAddOns = [],
+  selectedAddOns = {},
   onBookingModeChange,
   onPetServiceChange,
   onPetQuantityChange,
   onApplyServiceToAll,
+  onAddOnQuantityChange,
   onNext,
   onPrev,
 }: PetAndServiceStepProps) {
   const [imageLoadErrorIds, setImageLoadErrorIds] = useState<Set<number>>(new Set());
+  const [serviceInfoOpenFor, setServiceInfoOpenFor] = useState<Service | null>(null);
 
   // Add-pet modal state
   const [isAddPetOpen, setIsAddPetOpen] = useState(false);
@@ -116,6 +131,11 @@ export default function PetAndServiceStep({
 
   const firstSelectedServiceType =
     selectedPets.length > 0 ? (petServiceSelections[selectedPets[0].id] ?? [])[0]?.serviceType ?? null : null;
+
+  const selectedAddOnCount = Object.values(selectedAddOns).filter((quantity) => quantity > 0).length;
+  const selectedServicePackage = serviceInfoOpenFor
+    ? getGroomingPackageByServiceType(serviceInfoOpenFor.service_type)
+    : null;
 
   function openAddPet() {
     setPetForm(EMPTY_PET_FORM);
@@ -174,32 +194,6 @@ export default function PetAndServiceStep({
   return (
     <>
       <div className="premium-fade-up space-y-2.5 sm:space-y-7 rounded-2xl sm:rounded-3xl border border-[#e9d7c7] bg-[linear-gradient(165deg,#fffdfb_0%,#fff8f1_100%)] p-2.5 max-[380px]:p-2 sm:p-5 shadow-[0_10px_30px_rgba(79,47,25,0.08)] md:p-7">
-        {/* Top navigation */}
-        <div className="hidden sm:flex sm:flex-row sm:justify-between sm:gap-3">
-          {typeof onPrev === 'function' ? (
-            <button
-              type="button"
-              onClick={onPrev}
-              className="w-full rounded-full border border-[#e3c7ae] bg-white px-6 py-2.5 text-sm font-semibold text-[#7c5335] transition-all hover:border-[#c7773b] sm:w-auto"
-            >
-              Back
-            </button>
-          ) : (
-            <span className="hidden sm:block" />
-          )}
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={!canContinue}
-            className="premium-lift inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-7 py-2.5 text-sm font-semibold leading-6 text-white whitespace-nowrap shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-          >
-            Continue to Schedule
-          </button>
-        </div>
-        {!canContinue && continueDisabledReason ? (
-          <p className="hidden sm:block text-right text-xs font-medium text-[#8f4a1d]">{continueDisabledReason}</p>
-        ) : null}
-
         {/* Step header — hidden on mobile since BookingProgressBar shows step info */}
         <div className="hidden sm:block">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9a6a44]">Step 1 of 3</p>
@@ -344,12 +338,6 @@ export default function PetAndServiceStep({
                   <p className="text-xs font-semibold text-[#8f4a1d]">{totalSelectedServices}/{MAX_SERVICE_SELECTIONS} selected</p>
                 </div>
 
-                {serviceSelectionRuleNote ? (
-                  <p className="mb-3 rounded-xl border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2 text-xs font-medium text-[#8f4a1d]">
-                    {serviceSelectionRuleNote}
-                  </p>
-                ) : null}
-
                 {bookingMode && firstSelectedServiceType && selectedPets.length > 1 && (
                   <div className="mb-3 rounded-xl border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2">
                     <button
@@ -384,7 +372,7 @@ export default function PetAndServiceStep({
                               const blockedByCartLimit = totalSelectedServices >= MAX_SERVICE_SELECTIONS;
                               const isBlocked = !isSelected && (blockedByPackageRule || blockedByCartLimit);
                               return (
-                                <div key={`${pet.id}-${service.service_type}`}>
+                                <div key={`${pet.id}-${service.service_type}`} className="relative">
                                   <button
                                     type="button"
                                     onClick={() => onPetServiceChange(pet.id, service.service_type)}
@@ -398,7 +386,7 @@ export default function PetAndServiceStep({
                                     }`}
                                   >
                                     {isSelected && (
-                                      <div className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#c7773b]">
+                                      <div className="absolute right-10 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#c7773b]">
                                         <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                         </svg>
@@ -413,6 +401,23 @@ export default function PetAndServiceStep({
                                         {blockedByCartLimit ? 'Maximum 2 services reached' : 'Book this service separately'}
                                       </p>
                                     ) : null}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setServiceInfoOpenFor(service);
+                                    }}
+                                    className="absolute right-2 top-2 inline-flex h-6 w-6 items-center justify-center rounded-full border border-[#e6c7af] bg-[linear-gradient(135deg,#fff9f2_0%,#ffeedc_100%)] text-[#8f4a1d] shadow-[0_4px_10px_rgba(143,74,29,0.16)] transition-all hover:border-[#d99a66] hover:text-[#6f3712]"
+                                    aria-label={`View service details for ${service.service_type}`}
+                                    title="View service details"
+                                  >
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                                      <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.6" />
+                                      <path d="M10 8.2V13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                                      <circle cx="10" cy="5.9" r="0.9" fill="currentColor" />
+                                    </svg>
                                   </button>
                                   {isSelected && entry && (
                                     <div className="mt-1.5 flex items-center justify-center gap-2 rounded-xl border border-[#e3c7ae] px-2 py-1">
@@ -443,6 +448,57 @@ export default function PetAndServiceStep({
                     })}
                   </div>
                 )}
+
+                <div className="mt-3 rounded-xl border border-[#eadccf] bg-[#fffdf9] p-3 sm:mt-4 sm:p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#9a6a44]">Add-ons (Optional)</p>
+                    <p className="text-xs font-semibold text-[#8f4a1d]">{selectedAddOnCount} selected</p>
+                  </div>
+
+                  {serviceAddOns.length === 0 ? (
+                    <p className="mt-2 text-xs text-[#8a6549]">No add-ons available for the selected service.</p>
+                  ) : (
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {serviceAddOns.map((addOn) => {
+                        const quantity = Math.max(0, selectedAddOns[addOn.id] ?? 0);
+
+                        return (
+                          <div key={addOn.id} className="rounded-xl border border-[#ebdfd3] bg-white p-2.5 sm:p-3">
+                            <p className="text-sm font-semibold text-neutral-950">{addOn.name}</p>
+                            <p className="mt-1 text-[11px] text-[#6e4d35]">From Rs.{addOn.price}</p>
+                            <div className="mt-2 flex items-center justify-center gap-2 rounded-xl border border-[#e3c7ae] px-2 py-1">
+                              <button
+                                type="button"
+                                onClick={() => onAddOnQuantityChange?.(addOn.id, quantity - 1)}
+                                className="h-7 w-7 rounded-full bg-[#fff3e6] text-sm font-semibold text-[#8f4a1d]"
+                              >
+                                -
+                              </button>
+                              <span className="min-w-5 text-center text-xs font-semibold text-neutral-900">x{quantity}</span>
+                              <button
+                                type="button"
+                                onClick={() => onAddOnQuantityChange?.(addOn.id, Math.min(2, quantity + 1))}
+                                className="h-7 w-7 rounded-full bg-[#fff3e6] text-sm font-semibold text-[#8f4a1d]"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {(serviceSelectionRuleNote || addOnSelectionNote) ? (
+                  <div className="mt-3 rounded-xl border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2.5 sm:mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#9a6a44]">Important notes</p>
+                    <ul className="mt-2 list-disc space-y-1 pl-4 text-xs font-medium text-[#8f4a1d]">
+                      {serviceSelectionRuleNote ? <li>{serviceSelectionRuleNote}</li> : null}
+                      {addOnSelectionNote ? <li>{addOnSelectionNote}</li> : null}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             )}
           </>
@@ -585,6 +641,44 @@ export default function PetAndServiceStep({
             </button>
           </div>
         </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(serviceInfoOpenFor)}
+        onClose={() => setServiceInfoOpenFor(null)}
+        title={serviceInfoOpenFor?.service_type ?? 'Service details'}
+        description="Included services below match the package cards on the homepage and booking page."
+        size="md"
+      >
+        {serviceInfoOpenFor ? (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-[#ead8c7] bg-[linear-gradient(160deg,#fffdfb_0%,#fff7ef_100%)] px-4 py-3">
+              <p className="text-sm font-semibold text-neutral-900">
+                {serviceInfoOpenFor.service_duration_minutes} mins • From ₹{serviceInfoOpenFor.base_price}
+              </p>
+              <p className="mt-1 text-xs text-[#6e4d35]">Base service rate before add-ons and provider-specific final pricing.</p>
+            </div>
+
+            {selectedServicePackage ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#9a6a44]">Included services</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-neutral-800">
+                  {selectedServicePackage.features.map((feature) => (
+                    <li key={feature}>{feature}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-[#edd6bf] bg-[#fff8ef] px-3 py-2.5 text-xs font-medium text-[#8f4a1d]">
+                Included services will be confirmed based on the selected package.
+              </div>
+            )}
+
+            <div className="rounded-xl border border-[#edd6bf] bg-[#fff8ef] px-3 py-2.5 text-xs font-medium text-[#8f4a1d]">
+              Additional services can be included using add-ons.
+            </div>
+          </div>
+        ) : null}
       </Modal>
     </>
   );

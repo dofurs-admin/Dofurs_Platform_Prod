@@ -31,8 +31,17 @@ vi.mock('@/lib/supabase/admin-client', () => ({
   getSupabaseAdminClient: vi.fn(),
 }));
 
+vi.mock('@/lib/payments/bookingPayable', () => ({
+  getBookingOutstandingSummary: vi.fn(),
+}));
+
+vi.mock('@/lib/referrals/service', () => ({
+  processReferrerRewardOnFirstBooking: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 import { updateBookingStatus } from '@/lib/bookings/service';
 import { PATCH } from '@/app/api/bookings/[id]/status/route';
 
@@ -83,6 +92,13 @@ describe('PATCH /api/bookings/[id]/status', () => {
   it('blocks admin completion when direct-to-provider booking is not marked paid', async () => {
     const adminSupabase = makeAdminSupabase({ hasCashCollection: false });
     vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+    vi.mocked(getBookingOutstandingSummary).mockResolvedValue({
+      bookingId: 44,
+      finalPriceInr: 1000,
+      capturedOnlineInr: 0,
+      collectedOfflineInr: 0,
+      outstandingInr: 1000,
+    });
 
     vi.mocked(requireApiRole).mockResolvedValue({
       response: null,
@@ -102,13 +118,20 @@ describe('PATCH /api/bookings/[id]/status', () => {
     const response = await PATCH(request, { params: Promise.resolve({ id: '44' }) });
     expect(response.status).toBe(400);
     const payload = await response.json();
-    expect(payload.error).toContain('Cash payment');
+    expect(payload.error).toContain('Pending payable amount');
     expect(updateBookingStatus).not.toHaveBeenCalled();
   });
 
   it('allows admin completion when direct-to-provider collection is marked paid', async () => {
     const adminSupabase = makeAdminSupabase({ hasCashCollection: true });
     vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+    vi.mocked(getBookingOutstandingSummary).mockResolvedValue({
+      bookingId: 44,
+      finalPriceInr: 1000,
+      capturedOnlineInr: 0,
+      collectedOfflineInr: 1000,
+      outstandingInr: 0,
+    });
     vi.mocked(updateBookingStatus).mockResolvedValue({ id: 44, booking_status: 'completed' } as never);
 
     vi.mocked(requireApiRole).mockResolvedValue({

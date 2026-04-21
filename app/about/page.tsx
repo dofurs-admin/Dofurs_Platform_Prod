@@ -4,9 +4,17 @@ import { BadgeCheck, Home, ShieldCheck } from 'lucide-react';
 import { supportContact } from '@/lib/site-data';
 
 export const metadata: Metadata = {
-  title: 'About Us — Dofurs',
-  description: 'Learn about Dofurs — a premium pet services marketplace connecting pet parents with verified care professionals in Bangalore.',
-  openGraph: { title: 'About Us — Dofurs', description: 'Connecting pet parents with verified care professionals.' },
+  title: 'About Dofurs — Trusted Pet Services Platform for Bangalore Pet Parents',
+  description:
+    'Dofurs is a Bangalore-based pet services marketplace built around verified professionals, transparent pricing, and a safety-first approach. Meet the team behind 100+ trusted pet care experiences.',
+  alternates: { canonical: '/about' },
+  openGraph: {
+    title: 'About Dofurs — Trusted Pet Services Platform for Bangalore',
+    description:
+      'Verified professionals, transparent pricing, and a safety-first approach to pet care across Bangalore.',
+    url: 'https://dofurs.in/about',
+    images: ['/logo/og-default.jpg'],
+  },
 };
 
 export default function AboutPage() {

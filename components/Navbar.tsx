@@ -6,7 +6,6 @@ import { Menu, X, UserRound } from 'lucide-react';
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js';
 import { usePathname, useRouter } from 'next/navigation';
 import { apiRequest } from '@/lib/api/client';
-import { getVisibleServiceCartCount } from '@/lib/bookings/service-cart';
 import { theme } from '@/lib/theme';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 import BrandMark from './BrandMark';
@@ -38,7 +37,6 @@ export default function Navbar() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [pincode, setPincode] = useState('560100');
   const [pincodeDraft, setPincodeDraft] = useState('560100');
-  const [serviceCartCount, setServiceCartCount] = useState(0);
   const desktopProfileMenuRef = useRef<HTMLDivElement | null>(null);
   const mobileProfileMenuRef = useRef<HTMLDivElement | null>(null);
   const locationEditorRef = useRef<HTMLDivElement | null>(null);
@@ -52,16 +50,6 @@ export default function Navbar() {
 
   const pincodeStorageKey = 'dofurs.header.pincode';
   const pincodePromptedKey = 'dofurs.header.pincodePrompted';
-  const serviceCartStorageKey = 'dofurs.booking.serviceCart';
-  const serviceCartUpdatedEvent = 'dofurs:service-cart-updated';
-
-  const readServiceCartCount = useCallback(() => {
-    if (typeof window === 'undefined') {
-      return 0;
-    }
-
-    return getVisibleServiceCartCount(Boolean(authUser), window.localStorage.getItem(serviceCartStorageKey));
-  }, [authUser, serviceCartStorageKey]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -126,22 +114,7 @@ export default function Navbar() {
       })();
     }
 
-    const updateServiceCartCount = () => {
-      setServiceCartCount(readServiceCartCount());
-    };
-
-    updateServiceCartCount();
-
-    const handleStorage = () => updateServiceCartCount();
-    const handleCartUpdate = () => updateServiceCartCount();
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener(serviceCartUpdatedEvent, handleCartUpdate);
-
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener(serviceCartUpdatedEvent, handleCartUpdate);
-    };
-  }, [authUser, readServiceCartCount, serviceCartUpdatedEvent]);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -618,7 +591,6 @@ export default function Navbar() {
           onLocationToggle={() => setLocationEditorOpen((open) => !open)}
           onPincodeDraftChange={setPincodeDraft}
           onPincodeSave={handlePincodeSave}
-          serviceCartCount={serviceCartCount}
           isAuthResolved={isAuthResolved}
           authUser={authUser}
           profilePhotoUrl={profilePhotoUrl}
@@ -662,7 +634,6 @@ export default function Navbar() {
           onLocationToggle={() => setLocationEditorOpen((open) => !open)}
           onPincodeDraftChange={setPincodeDraft}
           onPincodeSave={handlePincodeSave}
-          serviceCartCount={serviceCartCount}
           secondaryMenuOpen={secondaryMenuOpen}
           onSecondaryMenuToggle={(key) => setSecondaryMenuOpen((value) => (value === key ? null : key))}
           onSecondaryMenuClose={() => setSecondaryMenuOpen(null)}

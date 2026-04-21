@@ -6,7 +6,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import AsyncState from '@/components/ui/AsyncState';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import type { PricingBreakdown } from '@/lib/bookings/types';
-import { apiRequest } from '@/lib/api/client';
+import { ApiClientError, apiRequest } from '@/lib/api/client';
 import { bookingCreateSchema } from '@/lib/flows/validation';
 import PremiumBookingConfirmation from './PremiumBookingConfirmation';
 import PetAndServiceStep from './steps/PetAndServiceStep';
@@ -99,10 +99,17 @@ type ServiceAddon = {
   id: string;
   name: string;
   price: number;
+  durationMinutes?: number | null;
 };
 type BookingCreateResponse = {
   success: boolean;
-  booking: { id: number; start_time?: string | null; end_time?: string | null };
+  booking: {
+    id: number;
+    start_time?: string | null;
+    end_time?: string | null;
+    final_price?: number | null;
+    amount?: number | null;
+  };
   creditReservation?: {
     reserved: boolean;
     linkId: string;
@@ -157,6 +164,9 @@ type BookingCreatePayload = {
   walletCreditsAppliedInr?: number;
   pincode?: string;
   boardingEndDate?: string;
+  bundleProviderServiceIds?: string[];
+  bundleEstimatedTotalInr?: number;
+  bundleSummary?: string;
 };
 
 type AreaCoverageCheckResult = {
@@ -273,11 +283,11 @@ type MultiDayAvailabilityResponse = {
   }>;
 };
 
-const SERVICE_CART_STORAGE_KEY = 'dofurs.booking.serviceCart';
-const SERVICE_CART_UPDATED_EVENT = 'dofurs:service-cart-updated';
 const BOOKING_DRAFT_STORAGE_KEY = 'dofurs.booking.draft.v1';
 const BOOKING_SUCCESS_FLAG_KEY = 'dofurs.booking.confirmation-active';
 const BOOKING_SUCCESS_EVENT = 'dofurs:booking-confirmation-visibility';
+const BOOKING_FLOW_ACTIVE_KEY = 'dofurs.booking.flow-active';
+const BOOKING_FLOW_ACTIVE_EVENT = 'dofurs:booking-flow-activity';
 const MAX_SERVICE_SELECTIONS = 2;
 
 type BookingDraftSnapshot = {
@@ -386,6 +396,7 @@ export default function PremiumUserBookingFlow() {
   const [discountCode, setDiscountCode] = useState('');
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
   const [serviceAddOns, setServiceAddOns] = useState<ServiceAddon[]>([]);
+  const [addOnCompatibleServiceIds, setAddOnCompatibleServiceIds] = useState<Record<string, string[]>>({});
   const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
   const [paymentChoice, setPaymentChoice] = useState<'online' | 'cash' | 'subscription_credit'>('cash');
   const [creditEligibility, setCreditEligibility] = useState<CreditEligibilityResponse | null>(null);
@@ -396,6 +407,7 @@ export default function PremiumUserBookingFlow() {
   // UI states
   const [isLoading, setIsLoading] = useState(true);
   const [isPending, setIsPending] = useState(false);
+  const [isRefreshingAvailability, setIsRefreshingAvailability] = useState(false);
   const [pendingVerifyParams, setPendingVerifyParams] = useState<{
     providerOrderId: string;
     providerPaymentId: string;
@@ -876,10 +888,47 @@ export default function PremiumUserBookingFlow() {
     return bookingBundleRows.reduce((sum, row) => sum + row.unitBasePrice * row.quantity, 0);
   }, [bookingBundleRows]);
 
-  /** Total duration in minutes for all bundle entries (used for multi-service time display). */
+  const selectedAddOnsTotal = useMemo(() => {
+    return serviceAddOns
+      .filter((addon) => selectedAddOns[addon.id] > 0)
+      .reduce((sum, addon) => sum + addon.price * selectedAddOns[addon.id], 0);
+  }, [selectedAddOns, serviceAddOns]);
+
+  const selectedAddOnsDurationMinutes = useMemo(() => {
+    return serviceAddOns
+      .filter((addon) => selectedAddOns[addon.id] > 0)
+      .reduce((sum, addon) => sum + Math.max(0, addon.durationMinutes ?? 0) * selectedAddOns[addon.id], 0);
+  }, [selectedAddOns, serviceAddOns]);
+
+  /** Total duration in minutes across base services plus selected add-ons. */
   const totalDurationMinutes = useMemo(() => {
-    return bookingBundleRows.reduce((sum, row) => sum + row.unitDurationMinutes * row.quantity, 0);
-  }, [bookingBundleRows]);
+    const serviceDurationMinutes = bookingBundleRows.reduce((sum, row) => sum + row.unitDurationMinutes * row.quantity, 0);
+    return serviceDurationMinutes + selectedAddOnsDurationMinutes;
+  }, [bookingBundleRows, selectedAddOnsDurationMinutes]);
+
+  const resolvedServiceBaseTotal = useMemo(() => {
+    const calculatedBase = Math.max(0, Number(priceCalculation?.base_total ?? 0));
+    return Math.max(calculatedBase, bundlePriceTotal);
+  }, [bundlePriceTotal, priceCalculation?.base_total]);
+
+  const resolvedAddOnTotal = useMemo(() => {
+    const calculatedAddOn = Math.max(0, Number(priceCalculation?.addon_total ?? 0));
+    return Math.max(calculatedAddOn, selectedAddOnsTotal);
+  }, [priceCalculation?.addon_total, selectedAddOnsTotal]);
+
+  const singleServiceUnitSubtotal = useMemo(() => {
+    return resolvedServiceBaseTotal + resolvedAddOnTotal;
+  }, [resolvedAddOnTotal, resolvedServiceBaseTotal]);
+
+  const singleServiceUnitDiscount = useMemo(
+    () => discountPreview?.discountAmount ?? priceCalculation?.discount_amount ?? 0,
+    [discountPreview?.discountAmount, priceCalculation?.discount_amount],
+  );
+
+  const singleServiceUnitTotal = useMemo(
+    () => Math.max(0, singleServiceUnitSubtotal - singleServiceUnitDiscount),
+    [singleServiceUnitDiscount, singleServiceUnitSubtotal],
+  );
 
   const selectedServiceResolution = useMemo(() => {
     const normalizeId = (value: string | null | undefined) => (value ?? '').trim();
@@ -928,6 +977,54 @@ export default function PremiumUserBookingFlow() {
   }, [availability.providers, petServiceSelections, selectedPetIds, serviceId, services]);
 
   const selectedService = selectedServiceResolution.service;
+
+  const addOnLookupServiceIds = useMemo(() => {
+    const resolvedServiceIds = new Set<string>();
+
+    if (serviceId) {
+      resolvedServiceIds.add(serviceId);
+    }
+
+    for (const selectedPetId of selectedPetIds) {
+      const selections = petServiceSelections[selectedPetId] ?? [];
+
+      for (const selection of selections) {
+        const providerSpecificMatch =
+          providerId
+            ? services.find(
+                (service) =>
+                  service.source === 'provider_services' &&
+                  service.provider_id === providerId &&
+                  service.service_type.toLowerCase() === selection.serviceType.toLowerCase(),
+              )
+            : null;
+
+        const catalogMatch = serviceOptions.find(
+          (service) => service.service_type.toLowerCase() === selection.serviceType.toLowerCase(),
+        );
+
+        const resolvedMatch = providerSpecificMatch ?? catalogMatch;
+
+        if (resolvedMatch?.id) {
+          resolvedServiceIds.add(resolvedMatch.id);
+        }
+      }
+    }
+
+    if (resolvedServiceIds.size === 0 && selectedService?.id) {
+      resolvedServiceIds.add(selectedService.id);
+    }
+
+    return Array.from(resolvedServiceIds);
+  }, [petServiceSelections, providerId, selectedPetIds, selectedService?.id, serviceId, serviceOptions, services]);
+
+  const addOnLookupServiceKey = useMemo(() => {
+    if (addOnLookupServiceIds.length === 0) {
+      return '';
+    }
+
+    return Array.from(new Set(addOnLookupServiceIds)).sort().join(',');
+  }, [addOnLookupServiceIds]);
 
   useEffect(() => {
     const source = selectedServiceResolution.source;
@@ -1318,101 +1415,106 @@ export default function PremiumUserBookingFlow() {
       targetStartTime?: string;
       keepSelection?: boolean;
     }) => {
-      if (!availabilityPincode || !serviceTypeSelection) {
-        setAvailability({
-          services: [],
-          providers: [],
-          slotOptions: [],
-          recommendedSlotStartTime: null,
-          recommendedProviderServiceId: null,
+      setIsRefreshingAvailability(true);
+      try {
+        if (!availabilityPincode || !serviceTypeSelection) {
+          setAvailability({
+            services: [],
+            providers: [],
+            slotOptions: [],
+            recommendedSlotStartTime: null,
+            recommendedProviderServiceId: null,
+          });
+          setProviderId(null);
+          setServiceId(null);
+          return null;
+        }
+
+        const params = new URLSearchParams({
+          pincode: availabilityPincode,
+          serviceType: serviceTypeSelection,
         });
-        setProviderId(null);
-        setServiceId(null);
-        return null;
-      }
 
-      const params = new URLSearchParams({
-        pincode: availabilityPincode,
-        serviceType: serviceTypeSelection,
-      });
+        if (bookingMode) {
+          params.set('bookingMode', bookingMode);
+        }
 
-      if (bookingMode) {
-        params.set('bookingMode', bookingMode);
-      }
+        if (selectedServiceTypesParam) {
+          params.set('serviceTypes', selectedServiceTypesParam);
+        }
 
-      if (selectedServiceTypesParam) {
-        params.set('serviceTypes', selectedServiceTypesParam);
-      }
+        if (totalDurationMinutes > 0) {
+          params.set('serviceDurationMinutes', String(totalDurationMinutes));
+        }
 
-      if (totalDurationMinutes > 0) {
-        params.set('serviceDurationMinutes', String(totalDurationMinutes));
-      }
+        params.set('strictCoverage', 'true');
 
-      params.set('strictCoverage', 'true');
+        if (targetDate) {
+          params.set('bookingDate', targetDate);
+        }
 
-      if (targetDate) {
-        params.set('bookingDate', targetDate);
-      }
+        if (targetStartTime) {
+          params.set('startTime', targetStartTime);
+        }
 
-      if (targetStartTime) {
-        params.set('startTime', targetStartTime);
-      }
+        const payload = await apiRequest<AvailabilityResponse>(`/api/bookings/admin-flow-availability?${params.toString()}`);
+        setAvailability(payload);
 
-      const payload = await apiRequest<AvailabilityResponse>(`/api/bookings/admin-flow-availability?${params.toString()}`);
-      setAvailability(payload);
+        const providersForSelectedSlot = payload.providers.filter((provider) => provider.availableForSelectedSlot);
 
-      const providersForSelectedSlot = payload.providers.filter((provider) => provider.availableForSelectedSlot);
+        const currentProviderId = providerIdRef.current;
+        const currentServiceId = serviceIdRef.current;
 
-      const currentProviderId = providerIdRef.current;
-      const currentServiceId = serviceIdRef.current;
+        const shouldKeepSelection = Boolean(
+          keepSelection &&
+            currentProviderId &&
+            currentServiceId &&
+            providersForSelectedSlot.some(
+              (provider) => provider.providerId === currentProviderId && provider.providerServiceId === currentServiceId,
+            ),
+        );
 
-      const shouldKeepSelection = Boolean(
-        keepSelection &&
-          currentProviderId &&
-          currentServiceId &&
-          providersForSelectedSlot.some(
-            (provider) => provider.providerId === currentProviderId && provider.providerServiceId === currentServiceId,
-          ),
-      );
+        if (shouldKeepSelection) {
+          return payload;
+        }
 
-      if (shouldKeepSelection) {
-        return payload;
-      }
-
-      if (!targetStartTime) {
-        // For boarding services, auto-select best provider even without a time slot
-        if (isBoardingServiceType(serviceTypeSelection)) {
-          const allProviders = payload.providers;
-          const recommended = allProviders.find((p) => p.recommended) ?? allProviders[0];
-          if (recommended) {
-            setProviderId(recommended.providerId);
-            setServiceId(recommended.providerServiceId);
+        if (!targetStartTime) {
+          // For boarding services, auto-select best provider even without a time slot
+          if (isBoardingServiceType(serviceTypeSelection)) {
+            const allProviders = payload.providers;
+            const recommended = allProviders.find((p) => p.recommended) ?? allProviders[0];
+            if (recommended) {
+              setProviderId(recommended.providerId);
+              setServiceId(recommended.providerServiceId);
+            } else {
+              setProviderId(null);
+              setServiceId(null);
+            }
           } else {
             setProviderId(null);
             setServiceId(null);
           }
-        } else {
+          return payload;
+        }
+
+        const recommendedProvider = providersForSelectedSlot.find((provider) => provider.recommended);
+        const fallbackProvider = providersForSelectedSlot[0] ?? null;
+        const selectedProvider = selectedAutoProvider
+          ? recommendedProvider ?? fallbackProvider
+          : providersForSelectedSlot.find((provider) => provider.providerId === currentProviderId) ?? null;
+
+        if (!selectedProvider) {
           setProviderId(null);
           setServiceId(null);
+          return payload;
         }
+
+        setProviderId(selectedProvider.providerId);
+        setServiceId(selectedProvider.providerServiceId);
         return payload;
+      } finally {
+        setIsRefreshingAvailability(false);
       }
-
-      const recommendedProvider = providersForSelectedSlot.find((provider) => provider.recommended);
-      const fallbackProvider = providersForSelectedSlot[0] ?? null;
-      const selectedProvider = selectedAutoProvider
-        ? recommendedProvider ?? fallbackProvider
-        : providersForSelectedSlot.find((provider) => provider.providerId === currentProviderId) ?? null;
-
-      if (!selectedProvider) {
-        setProviderId(null);
-        setServiceId(null);
-        return payload;
-      }
-
-      setProviderId(selectedProvider.providerId);
-      setServiceId(selectedProvider.providerServiceId);
-      return payload;
     },
     [availabilityPincode, bookingMode, selectedAutoProvider, selectedServiceTypesParam, serviceTypeSelection, totalDurationMinutes],
   );
@@ -1602,13 +1704,25 @@ export default function PremiumUserBookingFlow() {
   }, [currentStep, loadAvailableDateOptions]);
 
   useEffect(() => {
-    if (isPackageBooking || !slotStartTime) {
+    if (currentStep !== 'datetime' || isRefreshingAvailability || isPackageBooking || !slotStartTime) {
+      return;
+    }
+
+    if (availability.slotOptions.length === 0) {
       return;
     }
 
     const selectedSlot = availability.slotOptions.find((slot) => slot.startTime === slotStartTime) ?? null;
 
     if (!selectedSlot) {
+      const fallbackSlot = availability.slotOptions.find((slot) => slot.recommended) ?? availability.slotOptions[0] ?? null;
+      if (fallbackSlot) {
+        setSlotStartTime(fallbackSlot.startTime);
+        setProviderId(null);
+        setServiceId(null);
+        return;
+      }
+
       setSlotStartTime('');
       setProviderId(null);
       setServiceId(null);
@@ -1619,17 +1733,30 @@ export default function PremiumUserBookingFlow() {
     const selectedSlotDuration = getSlotDurationMinutes(selectedSlot.startTime, selectedSlot.endTime);
 
     if (selectedSlotDuration < totalDurationMinutes) {
+      const compatibleFallbackSlot =
+        availability.slotOptions.find((slot) => getSlotDurationMinutes(slot.startTime, slot.endTime) >= totalDurationMinutes) ?? null;
+
+      if (compatibleFallbackSlot) {
+        setSlotStartTime(compatibleFallbackSlot.startTime);
+        setProviderId(null);
+        setServiceId(null);
+        return;
+      }
+
       setSlotStartTime('');
       setProviderId(null);
       setServiceId(null);
       showToast('Selected services need a longer slot. Please choose a new slot.', 'error');
     }
-  }, [availability.slotOptions, isPackageBooking, showToast, slotStartTime, totalDurationMinutes]);
+  }, [availability.slotOptions, currentStep, isPackageBooking, isRefreshingAvailability, showToast, slotStartTime, totalDurationMinutes]);
 
   // Load add-ons when service changes
   useEffect(() => {
-    if (!serviceId) {
+    const lookupServiceIds = addOnLookupServiceKey.length > 0 ? addOnLookupServiceKey.split(',') : [];
+
+    if (lookupServiceIds.length === 0) {
       setServiceAddOns([]);
+      setAddOnCompatibleServiceIds({});
       setSelectedAddOns({});
       return;
     }
@@ -1638,12 +1765,75 @@ export default function PremiumUserBookingFlow() {
 
     async function loadAddOns() {
       try {
-        const payload = await apiRequest<{ success: boolean; data: ServiceAddon[] }>(`/api/services/addons/${serviceId}`);
+        const addOnPayloads = await Promise.all(
+          lookupServiceIds.map(async (lookupServiceId) => {
+            try {
+              const payload = await apiRequest<{ success: boolean; data: ServiceAddon[] }>(
+                `/api/services/addons-v2/${lookupServiceId}`,
+              );
+              return {
+                serviceId: lookupServiceId,
+                addOns: payload.data ?? [],
+              };
+            } catch (error) {
+              if (error instanceof ApiClientError && (error.status === 404 || error.status === 400)) {
+                return {
+                  serviceId: lookupServiceId,
+                  addOns: [] as ServiceAddon[],
+                };
+              }
+
+              // Do not block add-ons from other selected services because one lookup failed.
+              return {
+                serviceId: lookupServiceId,
+                addOns: [] as ServiceAddon[],
+              };
+            }
+          }),
+        );
+
         if (!isMounted) return;
-        setServiceAddOns(payload.data ?? []);
-        setSelectedAddOns({});
-      } catch (err) { console.error(err);
+
+        const compatibilityMap: Record<string, string[]> = {};
+        const mergedAddOns = addOnPayloads
+          .flatMap((payload) =>
+            payload.addOns.map((addOn) => {
+              const existing = compatibilityMap[addOn.id] ?? [];
+              compatibilityMap[addOn.id] = existing.includes(payload.serviceId)
+                ? existing
+                : [...existing, payload.serviceId];
+              return addOn;
+            }),
+          )
+          .reduce<ServiceAddon[]>((acc, addOn) => {
+            if (!acc.some((existing) => existing.id === addOn.id)) {
+              acc.push(addOn);
+            }
+            return acc;
+          }, []);
+
+        const loadedAddOns = mergedAddOns;
+        setServiceAddOns(loadedAddOns);
+        setAddOnCompatibleServiceIds(compatibilityMap);
+        setSelectedAddOns((prev) => {
+          if (Object.keys(prev).length === 0) {
+            return prev;
+          }
+
+          const validAddOnIds = new Set(loadedAddOns.map((addon) => addon.id));
+          const next = Object.fromEntries(
+            Object.entries(prev).filter(([addOnId, quantity]) => validAddOnIds.has(addOnId) && quantity > 0),
+          );
+
+          return next;
+        });
+      } catch (err) {
         if (isMounted) {
+          if (err instanceof ApiClientError && (err.status === 404 || err.status === 400)) {
+            setServiceAddOns([]);
+            return;
+          }
+
           setServiceAddOns([]);
         }
       }
@@ -1654,7 +1844,38 @@ export default function PremiumUserBookingFlow() {
     return () => {
       isMounted = false;
     };
-  }, [serviceId]);
+  }, [addOnLookupServiceKey]);
+
+  // Keep provider/service selection consistent with current availability.
+  useEffect(() => {
+    if (!providerId || !serviceId) {
+      return;
+    }
+
+    if (availability.providers.length === 0) {
+      return;
+    }
+
+    const hasExactSelection = availability.providers.some(
+      (provider) => provider.providerId === providerId && provider.providerServiceId === serviceId,
+    );
+
+    if (hasExactSelection) {
+      return;
+    }
+
+    const fallbackForProvider = availability.providers.find((provider) => provider.providerId === providerId) ?? null;
+
+    if (fallbackForProvider) {
+      setServiceId(fallbackForProvider.providerServiceId);
+      setSelectedAddOns({});
+      return;
+    }
+
+    setServiceId(null);
+    setSelectedAddOns({});
+    setPriceCalculation(null);
+  }, [availability.providers, providerId, serviceId]);
 
   // Calculate pricing
   useEffect(() => {
@@ -1666,6 +1887,17 @@ export default function PremiumUserBookingFlow() {
     if (!serviceId) {
       setPriceCalculation(null);
       return;
+    }
+
+    if (availability.providers.length > 0) {
+      const hasMatchingSelection = availability.providers.some(
+        (provider) => provider.providerId === providerId && provider.providerServiceId === serviceId,
+      );
+
+      if (!hasMatchingSelection) {
+        setPriceCalculation(null);
+        return;
+      }
     }
 
     let isMounted = true;
@@ -1691,8 +1923,13 @@ export default function PremiumUserBookingFlow() {
 
         if (!isMounted) return;
         setPriceCalculation(payload.data ?? null);
-      } catch (err) { console.error(err);
+      } catch (err) {
         if (isMounted) {
+          if (err instanceof ApiClientError && err.status === 404) {
+            setPriceCalculation(null);
+            return;
+          }
+
           setPriceCalculation(null);
         }
       }
@@ -1703,7 +1940,7 @@ export default function PremiumUserBookingFlow() {
     return () => {
       isMounted = false;
     };
-  }, [providerId, serviceId, selectedAddOns]);
+  }, [availability.providers, providerId, serviceId, selectedAddOns]);
 
   // Clear discount when service changes
   useEffect(() => {
@@ -1772,7 +2009,7 @@ export default function PremiumUserBookingFlow() {
         }
         const totalAvailableCredits = Array.from(availableCreditsByBucket.values()).reduce((sum, value) => sum + value, 0);
 
-        const singleServiceAmount = discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0;
+        const singleServiceAmount = singleServiceUnitTotal;
         const requiredCredits =
           totalSelectedServices > 1
             ? (bundlePriceTotal > 0 ? bundlePriceTotal : singleServiceAmount * totalSelectedServices)
@@ -1809,9 +2046,8 @@ export default function PremiumUserBookingFlow() {
     };
   }, [
     bundlePriceTotal,
-    discountPreview?.finalAmount,
     isPackageBooking,
-    priceCalculation?.final_total,
+    singleServiceUnitTotal,
     totalSelectedServices,
     uniqueSelectedServiceTypes,
   ]);
@@ -1840,35 +2076,6 @@ export default function PremiumUserBookingFlow() {
       document.body.removeChild(script);
     };
   }, []);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const normalizedAddOns = Object.entries(selectedAddOns)
-      .filter(([, quantity]) => quantity > 0)
-      .map(([id, quantity]) => ({ id, quantity }));
-
-    const hasCartSelection = totalSelectedServices > 0 || normalizedAddOns.length > 0;
-
-    if (!hasCartSelection) {
-      window.localStorage.removeItem(SERVICE_CART_STORAGE_KEY);
-      window.dispatchEvent(new Event(SERVICE_CART_UPDATED_EVENT));
-      return;
-    }
-
-    window.localStorage.setItem(
-      SERVICE_CART_STORAGE_KEY,
-      JSON.stringify({
-        serviceId,
-        serviceCount: totalSelectedServices,
-        addOns: normalizedAddOns,
-        updatedAt: Date.now(),
-      }),
-    );
-    window.dispatchEvent(new Event(SERVICE_CART_UPDATED_EVENT));
-  }, [selectedAddOns, serviceId, totalSelectedServices]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || isLoading || hasHydratedDraftRef.current) {
@@ -2005,7 +2212,7 @@ export default function PremiumUserBookingFlow() {
         const normalizedAddOns: Record<string, number> = {};
 
         for (const [addOnId, quantity] of Object.entries(parsedDraft.selectedAddOns)) {
-          const normalizedQuantity = Number.isFinite(Number(quantity)) ? Math.max(0, Math.min(20, Number(quantity))) : 0;
+          const normalizedQuantity = Number.isFinite(Number(quantity)) ? Math.max(0, Math.min(2, Number(quantity))) : 0;
           if (normalizedQuantity > 0) {
             normalizedAddOns[addOnId] = normalizedQuantity;
           }
@@ -2246,6 +2453,34 @@ export default function PremiumUserBookingFlow() {
     window.dispatchEvent(new Event(BOOKING_SUCCESS_EVENT));
   }, [flowState]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const hasMeaningfulProgress = totalSelectedServices > 0 || Boolean(bookingDate) || Boolean(slotStartTime);
+    const isFlowActive = flowState !== 'success' && (currentStep !== 'pet-service' || hasMeaningfulProgress);
+
+    if (isFlowActive) {
+      window.localStorage.setItem(BOOKING_FLOW_ACTIVE_KEY, '1');
+    } else {
+      window.localStorage.removeItem(BOOKING_FLOW_ACTIVE_KEY);
+    }
+
+    window.dispatchEvent(new Event(BOOKING_FLOW_ACTIVE_EVENT));
+  }, [bookingDate, currentStep, flowState, slotStartTime, totalSelectedServices]);
+
+  useEffect(() => {
+    return () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      window.localStorage.removeItem(BOOKING_FLOW_ACTIVE_KEY);
+      window.dispatchEvent(new Event(BOOKING_FLOW_ACTIVE_EVENT));
+    };
+  }, []);
+
   const handlePetToggle = useCallback((nextPetId: number) => {
     setSelectedPetIds((prev) => {
       const exists = prev.includes(nextPetId);
@@ -2390,6 +2625,21 @@ export default function PremiumUserBookingFlow() {
     },
     [isServiceSelectionBlocked, selectedPetIds, showToast],
   );
+
+  const handleAddOnQuantityChange = useCallback((addOnId: string, quantity: number) => {
+    setSelectedAddOns((prev) => {
+      const next = { ...prev };
+      const nextQuantity = Math.max(0, Math.min(2, quantity));
+
+      if (nextQuantity <= 0) {
+        delete next[addOnId];
+        return next;
+      }
+
+      next[addOnId] = nextQuantity;
+      return next;
+    });
+  }, []);
 
   const handleNextStep = () => {
     // Validate current step
@@ -2569,23 +2819,80 @@ export default function PremiumUserBookingFlow() {
   }, [currentStep]);
 
   const applyDiscount = async (code: string) => {
-    if (totalSelectedServices > 1) {
-      showToast('Discounts can be applied to single-service bookings only right now', 'error');
+    const normalizedCode = code.trim().toUpperCase();
+
+    if (!normalizedCode) {
+      showToast('Enter a discount code', 'error');
       return false;
     }
 
-    if (!serviceId) {
-      showToast('Select a service before applying discount', 'error');
-      return false;
+    const resolvedProviderId =
+      providerId ??
+      availability.providers.find((provider) => provider.recommended && provider.availableForSelectedSlot)?.providerId ??
+      availability.providers.find((provider) => provider.availableForSelectedSlot)?.providerId ??
+      availability.providers[0]?.providerId ??
+      null;
+
+    const isBundleSelection = totalSelectedServices > 1;
+
+    let requestBody:
+      | { providerServiceId: string; discountCode: string }
+      | { bundleProviderServiceIds: string[]; bundleEstimatedTotalInr: number; discountCode: string };
+
+    if (isBundleSelection) {
+      if (!resolvedProviderId) {
+        showToast('Select a provider before applying discount', 'error');
+        return false;
+      }
+
+      const selectedServiceTypes = Array.from(
+        new Set(bookingBundleRows.map((row) => row.serviceType.trim().toLowerCase()).filter((value) => value.length > 0)),
+      );
+
+      const bundleProviderServiceIds = Array.from(
+        new Set(
+          services
+            .filter(
+              (service) =>
+                service.source === 'provider_services' &&
+                service.provider_id === resolvedProviderId &&
+                selectedServiceTypes.includes(service.service_type.trim().toLowerCase()),
+            )
+            .map((service) => service.id),
+        ),
+      );
+
+      if (bundleProviderServiceIds.length === 0) {
+        showToast('Unable to resolve bundled services for discount validation', 'error');
+        return false;
+      }
+
+      const estimatedBundleTotal = Math.max(
+        1,
+        Math.round(bundlePriceTotal > 0 ? bundlePriceTotal + resolvedAddOnTotal : singleServiceUnitTotal),
+      );
+
+      requestBody = {
+        bundleProviderServiceIds,
+        bundleEstimatedTotalInr: estimatedBundleTotal,
+        discountCode: normalizedCode,
+      };
+    } else {
+      if (!serviceId) {
+        showToast('Select a service before applying discount', 'error');
+        return false;
+      }
+
+      requestBody = {
+        providerServiceId: serviceId,
+        discountCode: normalizedCode,
+      };
     }
 
     try {
       const payload = await apiRequest<{ preview?: DiscountPreview }>('/api/bookings/discount-preview', {
         method: 'POST',
-        body: JSON.stringify({
-          providerServiceId: serviceId,
-          discountCode: code.trim().toUpperCase(),
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (payload?.preview) {
@@ -2627,9 +2934,7 @@ export default function PremiumUserBookingFlow() {
       globalThis.localStorage?.setItem('booking.lastUsedAddress', payload.locationAddressValue.trim());
     }
 
-    globalThis.localStorage?.removeItem(SERVICE_CART_STORAGE_KEY);
     globalThis.localStorage?.removeItem(BOOKING_DRAFT_STORAGE_KEY);
-    globalThis.window?.dispatchEvent(new Event(SERVICE_CART_UPDATED_EVENT));
 
     const providerName = providers.find((p) => p.id === payload.providerIdValue)?.name;
     const petName = pets.find((p) => p.id === payload.petIdValue)?.name;
@@ -2651,6 +2956,36 @@ export default function PremiumUserBookingFlow() {
     base.setHours(Number.isFinite(hours) ? hours : 0, Number.isFinite(minutes) ? minutes : 0, 0, 0);
     base.setMinutes(base.getMinutes() + minutesToAdd);
     return `${String(base.getHours()).padStart(2, '0')}:${String(base.getMinutes()).padStart(2, '0')}`;
+  };
+
+  const resolveAuthoritativeBookingAmount = async (
+    bookingId: number | undefined,
+    fallbackAmount: number,
+    snapshot?: { amount?: number | null; final_price?: number | null },
+  ) => {
+    if (!bookingId || bookingId <= 0) {
+      return Math.max(0, Number(snapshot?.amount ?? snapshot?.final_price ?? fallbackAmount));
+    }
+
+    try {
+      const response = await fetch('/api/user/bookings', { cache: 'no-store' });
+      const payload = (await response.json().catch(() => null)) as
+        | { bookings?: Array<{ id: number; amount?: number | null; final_price?: number | null }> }
+        | null;
+
+      if (!response.ok) {
+        return Math.max(0, Number(snapshot?.amount ?? snapshot?.final_price ?? fallbackAmount));
+      }
+
+      const persistedBooking = payload?.bookings?.find((booking) => booking.id === bookingId);
+      if (!persistedBooking) {
+        return Math.max(0, Number(snapshot?.amount ?? snapshot?.final_price ?? fallbackAmount));
+      }
+
+      return Math.max(0, Number(persistedBooking.amount ?? persistedBooking.final_price ?? fallbackAmount));
+    } catch {
+      return Math.max(0, Number(snapshot?.amount ?? snapshot?.final_price ?? fallbackAmount));
+    }
   };
 
   const submitBooking = async () => {
@@ -2820,6 +3155,18 @@ export default function PremiumUserBookingFlow() {
       ? `[Boarding: ${bookingDate} to ${bookingEndDate}]`
       : '';
     const combinedNotes = [boardingNotes, providerNotes.trim()].filter(Boolean).join(' — ');
+    const bundleSummary =
+      scheduledBundleEntries.length > 1
+        ? [
+            `Bundled services (${scheduledBundleEntries.length})`,
+            ...scheduledBundleEntries.map(
+              (entry, index) => `${index + 1}. Pet ${entry.petId} | ${entry.serviceType}`,
+            ),
+          ].join('\n')
+        : null;
+    const mergedProviderNotes = [bundleSummary, combinedNotes]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join('\n\n');
 
     // For package bookings (birthday/boarding), use clinic_visit when no location is set
     // to avoid validation errors — packages don't require user location.
@@ -2829,10 +3176,48 @@ export default function PremiumUserBookingFlow() {
       return 'clinic_visit';
     })();
 
+    const selectedAddOnPayload = Object.entries(selectedAddOns)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([id, quantity]) => ({ id, quantity }));
+
+    const addOnDurationById = Object.fromEntries(
+      serviceAddOns.map((addOn) => [addOn.id, Math.max(0, addOn.durationMinutes ?? 0)]),
+    );
+
+    const bundleAddOnsByEntryIndex = new Map<number, Array<{ id: string; quantity: number }>>();
+    const bundleAddOnDurationByEntryIndex = new Map<number, number>();
+
+    if (scheduledBundleEntries.length > 1) {
+      selectedAddOnPayload.forEach((addOn) => {
+        const compatibleServiceIds = addOnCompatibleServiceIds[addOn.id] ?? [];
+        const targetEntryIndex = scheduledBundleEntries.findIndex((entry) =>
+          compatibleServiceIds.includes(entry.providerServiceId),
+        );
+
+        if (targetEntryIndex < 0) {
+          return;
+        }
+
+        const entryAddOns = bundleAddOnsByEntryIndex.get(targetEntryIndex) ?? [];
+        bundleAddOnsByEntryIndex.set(targetEntryIndex, [...entryAddOns, addOn]);
+
+        const currentDuration = bundleAddOnDurationByEntryIndex.get(targetEntryIndex) ?? 0;
+        const addOnDuration = (addOnDurationById[addOn.id] ?? 0) * addOn.quantity;
+        bundleAddOnDurationByEntryIndex.set(targetEntryIndex, currentDuration + addOnDuration);
+      });
+    }
+
+    const normalizedDiscountCode = discountCode.trim().toUpperCase();
+    const hasValidDiscountPreview =
+      Boolean(discountPreview) &&
+      normalizedDiscountCode.length > 0 &&
+      discountPreview?.code.trim().toUpperCase() === normalizedDiscountCode;
+
     const buildPayload = (
       entry: { petId: number; providerServiceId: string },
       startTimeValue: string,
       walletCreditsOverride?: number,
+      bundleProviderServiceIdsOverride?: string[],
     ): BookingCreatePayload => ({
       petId: entry.petId,
       providerId: effectiveProviderId,
@@ -2843,13 +3228,8 @@ export default function PremiumUserBookingFlow() {
       latitude: effectiveBookingMode === 'home_visit' && latitude ? Number(latitude) : null,
       longitude: effectiveBookingMode === 'home_visit' && longitude ? Number(longitude) : null,
       providerNotes: combinedNotes || null,
-      discountCode: discountCode.trim() ? discountCode.trim().toUpperCase() : undefined,
-      addOns:
-        bundleEntries.length === 1
-          ? Object.entries(selectedAddOns)
-              .filter(([, quantity]) => quantity > 0)
-              .map(([id, quantity]) => ({ id, quantity }))
-          : [],
+      discountCode: hasValidDiscountPreview ? normalizedDiscountCode : undefined,
+      addOns: selectedAddOnPayload,
       useSubscriptionCredit: paymentChoice === 'subscription_credit',
       walletCreditsAppliedInr:
         (walletCreditsOverride ?? walletCreditsToApply) > 0
@@ -2858,6 +3238,7 @@ export default function PremiumUserBookingFlow() {
       providerServiceId: entry.providerServiceId,
       pincode: /^[1-9]\d{5}$/.test(availabilityPincode) ? availabilityPincode : undefined,
       boardingEndDate: isBoardingBooking && bookingEndDate ? bookingEndDate : undefined,
+      bundleProviderServiceIds: bundleProviderServiceIdsOverride,
     });
 
     // For boarding, multiply per-night price by number of boarding nights
@@ -2877,7 +3258,8 @@ export default function PremiumUserBookingFlow() {
       // Pre-validate all bundle entries before creating any bookings
       for (const entry of scheduledBundleEntries) {
         const validationPayload = {
-          ...buildPayload(entry, effectiveSlotStartTime),
+          ...buildPayload(entry, effectiveSlotStartTime, 0),
+          addOns: [],
           bookingType: 'service' as const,
         };
         const validation = bookingCreateSchema.safeParse(validationPayload);
@@ -2889,40 +3271,188 @@ export default function PremiumUserBookingFlow() {
         }
       }
 
-      const createdBookingIds: number[] = [];
+      if (paymentChoice === 'online') {
+        try {
+          const bundlePaymentEntries: BookingCreatePayload[] = [];
+          let nextStartTime = effectiveSlotStartTime;
+          const bundledProviderServiceIds = Array.from(
+            new Set(scheduledBundleEntries.map((entry) => entry.providerServiceId)),
+          );
+          const bundleDiscountCode = hasValidDiscountPreview ? normalizedDiscountCode : undefined;
+          const grossBundleAmount =
+            (bundlePriceTotal > 0
+              ? bundlePriceTotal
+              : (priceCalculation?.final_total ?? 0) * scheduledBundleEntries.length) * boardingNightsMultiplier;
 
-      try {
-        let nextStartTime = effectiveSlotStartTime;
-        let createdBookingId: number | undefined;
+          for (const [entryIndex, entry] of scheduledBundleEntries.entries()) {
+            const entryAddOns = bundleAddOnsByEntryIndex.get(entryIndex) ?? [];
+            const payload = {
+              ...buildPayload(
+                entry,
+                nextStartTime,
+                entryIndex === 0 ? walletCreditsToApply : 0,
+                bundledProviderServiceIds,
+              ),
+              discountCode: entryIndex === 0 ? bundleDiscountCode : undefined,
+              addOns: entryAddOns,
+              bundleEstimatedTotalInr: entryIndex === 0 ? Math.max(0, Math.round(grossBundleAmount)) : undefined,
+            };
 
-        for (const [entryIndex, entry] of scheduledBundleEntries.entries()) {
-          const payload = buildPayload(entry, nextStartTime, entryIndex === 0 ? walletCreditsToApply : 0);
+            bundlePaymentEntries.push(payload);
 
-          const created = await apiRequest<BookingCreateResponse>('/api/bookings/create', {
+            const extraAddOnDuration = bundleAddOnDurationByEntryIndex.get(entryIndex) ?? 0;
+            nextStartTime = addMinutesToTime(nextStartTime, entry.durationMinutes + extraAddOnDuration);
+          }
+
+          const paymentOrder = await apiRequest<BookingPaymentOrderResponse>('/api/payments/bookings/order', {
             method: 'POST',
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+              entries: bundlePaymentEntries,
+            }),
           });
 
-          createdBookingId = created.booking.id;
-          createdBookingIds.push(created.booking.id);
+          const razorpayConstructor = (
+            window as Window & {
+              Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayCheckoutInstance;
+            }
+          ).Razorpay;
 
-          const backendEndTime = (created.booking.end_time ?? '').trim();
-          if (backendEndTime.length >= 5) {
-            nextStartTime = backendEndTime.slice(0, 5);
-          } else {
-            nextStartTime = addMinutesToTime(nextStartTime, entry.durationMinutes);
+          if (!razorpayConstructor) {
+            throw new Error('Razorpay checkout SDK did not load. Please refresh and try again.');
           }
+
+          const payableBundleAmount = Math.max(0, grossBundleAmount - walletCreditsToApply);
+
+          const razorpay = new razorpayConstructor({
+            key: paymentOrder.razorpay.keyId,
+            amount: paymentOrder.razorpay.amount,
+            currency: paymentOrder.razorpay.currency,
+            name: paymentOrder.razorpay.name,
+            description: paymentOrder.razorpay.description,
+            order_id: paymentOrder.razorpay.orderId,
+            prefill: paymentOrder.razorpay.prefill,
+            notes: paymentOrder.razorpay.notes,
+            modal: {
+              ondismiss: () => {
+                setIsPending(false);
+                setFlowState('collecting');
+              },
+            },
+            handler: async (response) => {
+              const verifyParams = {
+                providerOrderId: response.razorpay_order_id,
+                providerPaymentId: response.razorpay_payment_id,
+                providerSignature: response.razorpay_signature,
+              };
+              setPendingVerifyParams(verifyParams);
+
+              try {
+                const verification = await apiRequest<{ booking?: { id: number } }>('/api/payments/bookings/verify', {
+                  method: 'POST',
+                  body: JSON.stringify(verifyParams),
+                });
+
+                setPendingVerifyParams(null);
+
+                if (isRescheduleMode) {
+                  await cancelOriginalBookingAfterReschedule(verification.booking?.id);
+                }
+
+                const confirmedAmount = await resolveAuthoritativeBookingAmount(
+                  verification.booking?.id,
+                  payableBundleAmount,
+                );
+
+                persistBookingSuccess({
+                  bookingDateValue: bookingDate,
+                  slotStartTimeValue: slotStartTime,
+                  bookingModeValue: bookingMode!,
+                  providerIdValue: providerId!,
+                  petIdValue: selectedPetIds[0],
+                  serviceIdValue: scheduledBundleEntries[0]?.providerServiceId ?? null,
+                  locationAddressValue: locationAddress,
+                  totalAmountValue: confirmedAmount,
+                  amountStatus: 'paid',
+                });
+
+                setFlowState('success');
+                showToast(
+                  isRescheduleMode
+                    ? `Payment verified and reschedule completed with ${scheduledBundleEntries.length} bundled services`
+                    : `Payment verified and ${scheduledBundleEntries.length} bundled services scheduled`,
+                  'success',
+                );
+              } catch (verifyError) {
+                const message =
+                  verifyError instanceof Error
+                    ? verifyError.message
+                    : 'Payment was completed but verification failed. Please contact support with your payment reference.';
+                setFlowState('error');
+                showToast(message, 'error');
+              } finally {
+                setIsPending(false);
+              }
+            },
+          });
+
+          razorpay.on('payment.failed', (failureResponse) => {
+            const paymentError = failureResponse.error;
+            const detail = paymentError?.description ?? paymentError?.reason ?? paymentError?.code;
+            const message = detail
+              ? `Payment failed: ${detail}.`
+              : 'Payment could not be completed in Razorpay. Please try another card/method.';
+
+            setIsPending(false);
+            setFlowState('collecting');
+            showToast(message, 'error');
+          });
+
+          razorpay.open();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unable to start payment for bundled booking.';
+          setFlowState('error');
+          showToast(message, 'error');
+          setIsPending(false);
         }
 
-        if (isRescheduleMode) {
-          await cancelOriginalBookingAfterReschedule(createdBookingId);
-        }
+        return;
+      }
 
+      try {
         const grossBundleAmount =
           (bundlePriceTotal > 0
             ? bundlePriceTotal
             : (priceCalculation?.final_total ?? 0) * scheduledBundleEntries.length) * boardingNightsMultiplier;
         const payableBundleAmount = Math.max(0, grossBundleAmount - walletCreditsToApply);
+        const primaryEntry = scheduledBundleEntries[0];
+        const bundledProviderServiceIds = Array.from(
+          new Set(scheduledBundleEntries.map((entry) => entry.providerServiceId)),
+        );
+        const created = await apiRequest<BookingCreateResponse>('/api/bookings/create', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...buildPayload(
+              primaryEntry,
+              effectiveSlotStartTime,
+              walletCreditsToApply,
+              bundledProviderServiceIds,
+            ),
+            addOns: selectedAddOnPayload,
+            bundleEstimatedTotalInr: Math.max(0, Math.round(grossBundleAmount)),
+            bundleSummary: bundleSummary ?? undefined,
+            providerNotes: mergedProviderNotes || null,
+          }),
+        });
+
+        if (isRescheduleMode) {
+          await cancelOriginalBookingAfterReschedule(created.booking.id);
+        }
+
+        const confirmedAmount = await resolveAuthoritativeBookingAmount(
+          created.booking.id,
+          payableBundleAmount,
+          created.booking,
+        );
 
         persistBookingSuccess({
           bookingDateValue: bookingDate,
@@ -2932,30 +3462,20 @@ export default function PremiumUserBookingFlow() {
           petIdValue: selectedPetIds[0],
           serviceIdValue: scheduledBundleEntries[0]?.providerServiceId ?? null,
           locationAddressValue: locationAddress,
-          totalAmountValue: payableBundleAmount,
-          amountStatus: paymentChoice === 'cash' ? 'payable' : 'paid',
+          totalAmountValue: confirmedAmount,
+          amountStatus: 'payable',
         });
 
         setFlowState('success');
         showToast(
           isRescheduleMode
-            ? `Reschedule completed with ${scheduledBundleEntries.length} bundled services`
-            : `${scheduledBundleEntries.length} bundled services scheduled successfully`,
+            ? 'Reschedule completed with bundled services in a single booking'
+            : 'Bundled services scheduled successfully in a single booking',
           'success',
         );
         setIsPending(false);
         return;
       } catch (error) {
-        // Rollback: cancel any bookings already created in the bundle
-        if (createdBookingIds.length > 0) {
-          for (const bId of createdBookingIds) {
-            apiRequest(`/api/bookings/${bId}/status`, {
-              method: 'PATCH',
-              body: JSON.stringify({ status: 'cancelled', cancellationReason: 'Bundle booking failed — automatic rollback' }),
-            }).catch(() => {});
-          }
-        }
-
         const message = error instanceof Error ? error.message : 'Bundled booking failed. Please try again.';
         setFlowState('error');
         showToast(message, 'error');
@@ -2964,7 +3484,17 @@ export default function PremiumUserBookingFlow() {
       }
     }
 
-    const basePayload = buildPayload(bundleEntries[0], effectiveSlotStartTime);
+    const bundledProviderServiceIds =
+      scheduledBundleEntries.length > 1
+        ? Array.from(new Set(scheduledBundleEntries.map((entry) => entry.providerServiceId)))
+        : undefined;
+
+    const basePayload = buildPayload(
+      bundleEntries[0],
+      effectiveSlotStartTime,
+      undefined,
+      bundledProviderServiceIds,
+    );
 
     const validationPayload = {
       ...basePayload,
@@ -2982,8 +3512,10 @@ export default function PremiumUserBookingFlow() {
     }
 
     try {
-      const singlePrice = discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0;
-      const effectivePrice = bundlePriceTotal > 0 && totalSelectedServices > 1 ? bundlePriceTotal : singlePrice;
+      const effectivePrice =
+        bundlePriceTotal > 0 && totalSelectedServices > 1
+          ? bundlePriceTotal + resolvedAddOnTotal
+          : singleServiceUnitTotal;
       const grossTotalAmount = effectivePrice * boardingNightsMultiplier;
       const totalAmount = Math.max(0, grossTotalAmount - walletCreditsToApply);
 
@@ -2992,6 +3524,12 @@ export default function PremiumUserBookingFlow() {
           method: 'POST',
           body: JSON.stringify(basePayload),
         });
+
+        const confirmedAmount = await resolveAuthoritativeBookingAmount(
+          created.booking.id,
+          totalAmount,
+          created.booking,
+        );
 
         if (!created.creditReservation?.reserved) {
           throw new Error('Subscription credit was not reserved. Please try again.');
@@ -3013,7 +3551,7 @@ export default function PremiumUserBookingFlow() {
           petIdValue: bundleEntries[0].petId,
           serviceIdValue: serviceId,
           locationAddressValue: locationAddress,
-          totalAmountValue: totalAmount,
+          totalAmountValue: confirmedAmount,
           amountStatus: 'paid',
         });
 
@@ -3029,6 +3567,12 @@ export default function PremiumUserBookingFlow() {
           body: JSON.stringify(basePayload),
         });
 
+        const confirmedAmount = await resolveAuthoritativeBookingAmount(
+          created.booking.id,
+          totalAmount,
+          created.booking,
+        );
+
         if (isRescheduleMode) {
           await cancelOriginalBookingAfterReschedule(created.booking.id);
         }
@@ -3041,7 +3585,7 @@ export default function PremiumUserBookingFlow() {
           petIdValue: bundleEntries[0].petId,
           serviceIdValue: serviceId,
           locationAddressValue: locationAddress,
-          totalAmountValue: totalAmount,
+          totalAmountValue: confirmedAmount,
           amountStatus: 'payable',
         });
 
@@ -3110,6 +3654,11 @@ export default function PremiumUserBookingFlow() {
               await cancelOriginalBookingAfterReschedule(verification.booking?.id);
             }
 
+            const confirmedAmount = await resolveAuthoritativeBookingAmount(
+              verification.booking?.id,
+              totalAmount,
+            );
+
             persistBookingSuccess({
               bookingDateValue: bookingDate,
               slotStartTimeValue: slotStartTime,
@@ -3118,7 +3667,7 @@ export default function PremiumUserBookingFlow() {
               petIdValue: bundleEntries[0].petId,
               serviceIdValue: serviceId,
               locationAddressValue: locationAddress,
-              totalAmountValue: totalAmount,
+              totalAmountValue: confirmedAmount,
               amountStatus: 'paid',
             });
 
@@ -3225,8 +3774,11 @@ export default function PremiumUserBookingFlow() {
               bookingMode={bookingMode}
               isPackageBooking={isPackageBooking}
               serviceSelectionRuleNote="You can add up to 2 total services per booking in any combination. Pet Birthday Package and Pet Boarding must be booked separately and cannot be combined with any other service in the same booking."
+              addOnSelectionNote="Add-ons are optional and can be selected after choosing your service. Final add-on availability is confirmed for your selected provider."
               isServiceSelectionBlocked={isServiceSelectionBlocked}
               isPincodeValid={isPackageBooking || /^[1-9]\d{5}$/.test(availabilityPincode)}
+              serviceAddOns={serviceAddOns}
+              selectedAddOns={selectedAddOns}
               onBookingModeChange={(mode) => {
                 setBookingMode(mode);
                 setSelectedAutoProvider(true);
@@ -3238,6 +3790,7 @@ export default function PremiumUserBookingFlow() {
               onPetServiceChange={handlePetServiceChange}
               onPetQuantityChange={handlePetQuantityChange}
               onApplyServiceToAll={handleApplyServiceToAll}
+              onAddOnQuantityChange={handleAddOnQuantityChange}
               onNext={handleNextStep}
             />
           )}
@@ -3345,7 +3898,10 @@ export default function PremiumUserBookingFlow() {
               priceCalculation={priceCalculation}
               discountPreview={discountPreview}
               discountCode={discountCode}
-              onDiscountCodeChange={setDiscountCode}
+              onDiscountCodeChange={(code) => {
+                setDiscountCode(code);
+                setDiscountPreview(null);
+              }}
               onApplyDiscount={applyDiscount}
               addOns={serviceAddOns}
               selectedAddOns={selectedAddOns}
@@ -3408,7 +3964,16 @@ export default function PremiumUserBookingFlow() {
                     if (isRescheduleMode) {
                       await cancelOriginalBookingAfterReschedule(verification.booking?.id);
                     }
-                    const totalAmount = discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0;
+                    const addonSubtotal = resolvedAddOnTotal;
+                    const effectivePrice =
+                      bundlePriceTotal > 0 && totalSelectedServices > 1
+                        ? bundlePriceTotal + addonSubtotal
+                        : singleServiceUnitTotal;
+                    const totalAmount = Math.max(0, effectivePrice - walletCreditsToApply);
+                    const confirmedAmount = await resolveAuthoritativeBookingAmount(
+                      verification.booking?.id,
+                      totalAmount,
+                    );
                     persistBookingSuccess({
                       bookingDateValue: bookingDate,
                       slotStartTimeValue: slotStartTime,
@@ -3417,7 +3982,7 @@ export default function PremiumUserBookingFlow() {
                       petIdValue: selectedPetIds[0],
                       serviceIdValue: serviceId,
                       locationAddressValue: locationAddress,
-                      totalAmountValue: totalAmount,
+                      totalAmountValue: confirmedAmount,
                       amountStatus: 'paid',
                     });
                     setFlowState('success');

@@ -4,13 +4,16 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 
 export const metadata: Metadata = {
-  title: 'Pet Services in Bangalore — Grooming, Boarding, Birthday & More | Dofurs',
+  title: 'Pet Services in Bangalore — Grooming, Boarding, Vet, Sitting & More | Dofurs',
   description:
-    'Explore premium pet services in Bangalore — professional grooming, pet boarding, birthday celebrations, vet visits, pet sitting, and training from verified specialists.',
+    'Explore premium pet services in Bangalore: professional doorstep grooming from ₹899, pet boarding from ₹999/night, birthday packages from ₹1,999, vet home visits, in-home sitting, and positive-reinforcement training from verified specialists.',
+  alternates: { canonical: '/services' },
   openGraph: {
-    title: 'Pet Services in Bangalore — Dofurs',
+    title: 'Pet Services in Bangalore | Dofurs',
     description:
-      'Professional grooming, boarding, birthday packages, vet visits and more from verified pet care specialists across Bangalore.',
+      'Professional grooming, boarding, birthday packages, vet visits, sitting and training from verified pet care specialists across Bangalore.',
+    url: 'https://dofurs.in/services',
+    images: ['/logo/og-default.jpg'],
   },
   keywords: [
     'pet services Bangalore',
@@ -19,6 +22,7 @@ export const metadata: Metadata = {
     'pet birthday party Bangalore',
     'vet home visit Bangalore',
     'dog training Bangalore',
+    'pet sitting Bangalore',
   ],
 };
 
@@ -91,9 +95,44 @@ const SERVICE_CATEGORIES = [
   },
 ];
 
+const SITE_URL = 'https://dofurs.in';
+
+const servicesItemListSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ItemList',
+  '@id': `${SITE_URL}/services#list`,
+  name: 'Pet Services in Bangalore',
+  description:
+    'Premium pet services in Bangalore: grooming, birthday, boarding, sitting, vet visits and training — from verified specialists.',
+  url: `${SITE_URL}/services`,
+  itemListElement: SERVICE_CATEGORIES.map((service, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    url: `${SITE_URL}/services/${service.slug}`,
+    name: service.label,
+  })),
+};
+
+const servicesBreadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
+    { '@type': 'ListItem', position: 2, name: 'Services', item: `${SITE_URL}/services` },
+  ],
+};
+
 export default function ServicesPage() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(servicesItemListSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(servicesBreadcrumbSchema) }}
+      />
       <Navbar />
       <main className="dofurs-mobile-main min-h-screen bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_40%,#fffcf9_100%)] pt-20">
         <div className="mx-auto w-full max-w-[1200px] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">

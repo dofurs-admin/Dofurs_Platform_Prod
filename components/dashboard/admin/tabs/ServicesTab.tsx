@@ -15,10 +15,18 @@ import type { BusinessReferralCampaignSnapshot } from '@/lib/referrals/business-
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ServiceCatalogPanel = 'types' | 'services';
+type ServiceCatalogPanel = 'types' | 'services' | 'addons';
 
 function parseServiceCatalogPanel(value: string | null): ServiceCatalogPanel {
-  return value === 'services' ? 'services' : 'types';
+  if (value === 'services') {
+    return 'services';
+  }
+
+  if (value === 'addons') {
+    return 'addons';
+  }
+
+  return 'types';
 }
 
 type GlobalServiceRolloutDraft = {

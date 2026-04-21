@@ -19,6 +19,7 @@ type CheckoutMetadata = {
   checkout_context?: string;
   provider_order_id?: string;
   booking_payload?: unknown;
+  booking_bundle_payload?: unknown;
   price_breakdown?: {
     discountId?: string | null;
     discountAmount?: number;
@@ -38,12 +39,126 @@ function normalizeStoredBookingPayload(input: unknown) {
 
   const normalized = { ...input } as Record<string, unknown>;
 
-  // Legacy rows can persist optional values as null; validation expects undefined/absence.
   if (normalized.discountCode === null) {
     delete normalized.discountCode;
   }
 
   return normalized;
+}
+
+function normalizeStoredBookingBundlePayload(input: unknown) {
+  if (!Array.isArray(input)) {
+    return null;
+  }
+
+  return input.map((item) => normalizeStoredBookingPayload(item));
+}
+
+function mergeAddOns(
+  payloads: Array<{ addOns?: Array<{ id: string; quantity: number }> }>,
+) {
+  const quantityById = new Map<string, number>();
+
+  for (const payload of payloads) {
+    for (const addOn of payload.addOns ?? []) {
+      const current = quantityById.get(addOn.id) ?? 0;
+      quantityById.set(addOn.id, current + Math.max(1, Number(addOn.quantity ?? 1)));
+    }
+  }
+
+  return Array.from(quantityById.entries()).map(([id, quantity]) => ({ id, quantity }));
+}
+
+function buildBundleSummaryNote(payloads: Array<{ petId: number; providerServiceId: string; startTime: string }>) {
+  if (payloads.length <= 1) {
+    return null;
+  }
+
+  const lines = payloads.map(
+    (payload, index) => `${index + 1}. Pet ${payload.petId} | Service ${payload.providerServiceId} | Start ${payload.startTime}`,
+  );
+
+  return [`Bundled services (${payloads.length})`, ...lines].join('\n');
+}
+
+async function hasPetAccessForUser(
+  admin: ReturnType<typeof getSupabaseAdminClient>,
+  targetUserId: string,
+  userEmail: string | null,
+  petId: number,
+) {
+  const { data: petOwnership, error: petOwnershipError } = await admin
+    .from('pets')
+    .select('id')
+    .eq('id', petId)
+    .eq('user_id', targetUserId)
+    .maybeSingle<{ id: number }>();
+
+  let hasPetAccess = !petOwnershipError && Boolean(petOwnership);
+
+  if (!hasPetAccess) {
+    const { data: sharedAccess, error: sharedAccessError } = await admin
+      .from('pet_shares')
+      .select('id, role, status, accepted_at, revoked_at')
+      .eq('pet_id', petId)
+      .eq('shared_with_user_id', targetUserId)
+      .is('revoked_at', null)
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        role: string | null;
+        status: string;
+        accepted_at: string | null;
+        revoked_at: string | null;
+      }>();
+
+    if (!sharedAccessError && sharedAccess) {
+      hasPetAccess =
+        (sharedAccess.status === 'active' ||
+          sharedAccess.status === 'accepted' ||
+          Boolean(sharedAccess.accepted_at)) &&
+        sharedAccess.role === 'manager';
+    }
+  }
+
+  if (!hasPetAccess && userEmail) {
+    const { data: emailSharedAccess, error: emailSharedAccessError } = await admin
+      .from('pet_shares')
+      .select('id, role, status, accepted_at, revoked_at')
+      .eq('pet_id', petId)
+      .ilike('invited_email', userEmail)
+      .is('revoked_at', null)
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        role: string | null;
+        status: string;
+        accepted_at: string | null;
+        revoked_at: string | null;
+      }>();
+
+    if (!emailSharedAccessError && emailSharedAccess) {
+      hasPetAccess =
+        (emailSharedAccess.status === 'active' ||
+          emailSharedAccess.status === 'accepted' ||
+          Boolean(emailSharedAccess.accepted_at)) &&
+        emailSharedAccess.role === 'manager';
+
+      if (hasPetAccess) {
+        await admin
+          .from('pet_shares')
+          .update({
+            shared_with_user_id: targetUserId,
+            status: 'active',
+            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
+            revoked_at: null,
+          })
+          .eq('id', emailSharedAccess.id);
+      }
+    }
+  }
+
+  return hasPetAccess;
 }
 
 export async function POST(request: Request) {
@@ -195,100 +310,107 @@ export async function POST(request: Request) {
   }
 
   const metadata = (transaction.metadata ?? {}) as CheckoutMetadata;
-  const parsedBookingPayload = bookingCreateSchema.safeParse(
-    normalizeStoredBookingPayload(metadata.booking_payload ?? null),
-  );
+  const parsedBundlePayload = normalizeStoredBookingBundlePayload(metadata.booking_bundle_payload ?? null);
 
-  if (!parsedBookingPayload.success) {
-    return NextResponse.json({ error: 'Stored booking payload is invalid.' }, { status: 400 });
+  let bookingPayloads: Array<ReturnType<typeof bookingCreateSchema.parse>> = [];
+
+  if (parsedBundlePayload && parsedBundlePayload.length > 0) {
+    const parsedEntries = parsedBundlePayload.map((entry) => bookingCreateSchema.safeParse(entry));
+    const firstError = parsedEntries.find((parsed) => !parsed.success);
+    if (firstError && !firstError.success) {
+      return NextResponse.json({ error: 'Stored bundled booking payload is invalid.' }, { status: 400 });
+    }
+
+    bookingPayloads = parsedEntries
+      .filter((parsed): parsed is { success: true; data: ReturnType<typeof bookingCreateSchema.parse> } => parsed.success)
+      .map((parsed) => parsed.data);
+  } else {
+    const parsedBookingPayload = bookingCreateSchema.safeParse(
+      normalizeStoredBookingPayload(metadata.booking_payload ?? null),
+    );
+
+    if (!parsedBookingPayload.success) {
+      return NextResponse.json({ error: 'Stored booking payload is invalid.' }, { status: 400 });
+    }
+
+    bookingPayloads = [parsedBookingPayload.data];
   }
 
-  // Check pet ownership: owned directly OR shared with the user (active share)
-  const { data: petOwnership, error: petOwnershipError } = await admin
-    .from('pets')
-    .select('id')
-    .eq('id', parsedBookingPayload.data.petId)
-    .eq('user_id', transaction.user_id)
-    .maybeSingle<{ id: number }>();
+  const petIds = Array.from(new Set(bookingPayloads.map((payload) => payload.petId)));
+  const userEmail = transaction.user_id === user.id ? user.email ?? null : null;
 
-  let hasPetAccess = !petOwnershipError && Boolean(petOwnership);
-
-  if (!hasPetAccess) {
-    const { data: sharedAccess, error: sharedAccessError } = await admin
-      .from('pet_shares')
-      .select('id, role, status, accepted_at, revoked_at')
-      .eq('pet_id', parsedBookingPayload.data.petId)
-      .eq('shared_with_user_id', transaction.user_id)
-      .is('revoked_at', null)
-      .limit(1)
-      .maybeSingle<{ id: string; role: string | null; status: string; accepted_at: string | null; revoked_at: string | null }>();
-
-    if (!sharedAccessError && sharedAccess) {
-      hasPetAccess = (
-        (sharedAccess.status === 'active'
-        || sharedAccess.status === 'accepted'
-        || Boolean(sharedAccess.accepted_at))
-        && sharedAccess.role === 'manager'
-      );
+  for (const petId of petIds) {
+    const hasPetAccess = await hasPetAccessForUser(admin, transaction.user_id, userEmail, petId);
+    if (!hasPetAccess) {
+      return NextResponse.json({ error: 'Pet does not belong to this user.' }, { status: 403 });
     }
   }
 
-  if (!hasPetAccess && transaction.user_id === user.id && user.email) {
-    const { data: emailSharedAccess, error: emailSharedAccessError } = await admin
-      .from('pet_shares')
-      .select('id, role, status, accepted_at, revoked_at')
-      .eq('pet_id', parsedBookingPayload.data.petId)
-      .ilike('invited_email', user.email)
-      .is('revoked_at', null)
-      .limit(1)
-      .maybeSingle<{ id: string; role: string | null; status: string; accepted_at: string | null; revoked_at: string | null }>();
-
-    if (!emailSharedAccessError && emailSharedAccess) {
-      hasPetAccess = (
-        (emailSharedAccess.status === 'active'
-        || emailSharedAccess.status === 'accepted'
-        || Boolean(emailSharedAccess.accepted_at))
-        && emailSharedAccess.role === 'manager'
-      );
-
-      if (hasPetAccess) {
-        await admin
-          .from('pet_shares')
-          .update({
-            shared_with_user_id: transaction.user_id,
-            status: 'active',
-            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
-            revoked_at: null,
-          })
-          .eq('id', emailSharedAccess.id);
-      }
-    }
-  }
-
-  if (!hasPetAccess) {
-    return NextResponse.json({ error: 'Pet does not belong to this user.' }, { status: 403 });
-  }
-
-  let booking: { id: number };
+  const createdBookingIds: number[] = [];
+  let primaryBookingId: number | null = null;
+  const isBundleBooking = bookingPayloads.length > 1;
 
   try {
-    booking = await createBooking(admin, transaction.user_id, {
-      petId: parsedBookingPayload.data.petId,
-      providerId: parsedBookingPayload.data.providerId,
-      providerServiceId: parsedBookingPayload.data.providerServiceId,
-      bookingDate: parsedBookingPayload.data.bookingDate,
-      startTime: parsedBookingPayload.data.startTime,
-      bookingMode: parsedBookingPayload.data.bookingMode,
-      locationAddress: parsedBookingPayload.data.locationAddress,
-      latitude: parsedBookingPayload.data.latitude,
-      longitude: parsedBookingPayload.data.longitude,
-      providerNotes: parsedBookingPayload.data.providerNotes,
-      discountCode: parsedBookingPayload.data.discountCode,
-      addOns: parsedBookingPayload.data.addOns,
-      useSubscriptionCredit: false,
+    const primaryPayload = bookingPayloads[0];
+    const mergedAddOns = isBundleBooking ? mergeAddOns(bookingPayloads) : (primaryPayload.addOns ?? []);
+    const bundleSummaryNote = isBundleBooking ? buildBundleSummaryNote(bookingPayloads) : null;
+    const mergedProviderNotes = [bundleSummaryNote, primaryPayload.providerNotes ?? null]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join('\n\n');
+
+    const createdBooking = await createBooking(
+      admin,
+      transaction.user_id,
+      {
+        petId: primaryPayload.petId,
+        providerId: primaryPayload.providerId,
+        providerServiceId: primaryPayload.providerServiceId,
+        bookingDate: primaryPayload.bookingDate,
+        startTime: primaryPayload.startTime,
+        bookingMode: primaryPayload.bookingMode,
+        locationAddress: primaryPayload.locationAddress,
+        latitude: primaryPayload.latitude,
+        longitude: primaryPayload.longitude,
+        providerNotes: mergedProviderNotes || null,
+        discountCode: primaryPayload.discountCode,
+        addOns: mergedAddOns,
+        useSubscriptionCredit: false,
         paymentMode: 'platform',
-    }, supabase);
+      },
+      supabase,
+    );
+
+    createdBookingIds.push(createdBooking.id);
+    primaryBookingId = createdBooking.id;
+
+    const baseAmount = Math.max(0, Number(metadata.price_breakdown?.baseAmount ?? createdBooking.price_at_booking ?? transaction.amount_inr));
+    const discountAmount = Math.max(0, Number(metadata.price_breakdown?.discountAmount ?? 0));
+    const walletCreditsAppliedInr = Math.max(0, Number(metadata.price_breakdown?.walletCreditsAppliedInr ?? 0));
+    const payableAmount = Math.max(0, Number(metadata.price_breakdown?.payableAmount ?? metadata.price_breakdown?.finalAmount ?? transaction.amount_inr));
+
+    await admin
+      .from('bookings')
+      .update({
+        price_at_booking: baseAmount,
+        admin_price_reference: baseAmount,
+        discount_amount: discountAmount,
+        final_price: Math.max(0, baseAmount - discountAmount),
+        amount: payableAmount,
+        provider_notes: mergedProviderNotes || null,
+        internal_notes: bundleSummaryNote ?? null,
+        wallet_credits_applied_inr: walletCreditsAppliedInr > 0 ? walletCreditsAppliedInr : null,
+      })
+      .eq('id', createdBooking.id);
   } catch (error) {
+    if (createdBookingIds.length > 0) {
+      for (const bookingId of createdBookingIds) {
+        await admin
+          .from('bookings')
+          .update({ booking_status: 'cancelled', cancellation_reason: 'Bundled payment verification failed — automatic rollback' })
+          .eq('id', bookingId);
+      }
+    }
+
     await admin
       .from('payment_transactions')
       .update({
@@ -300,6 +422,7 @@ export async function POST(request: Request) {
           provider_order_id: providerOrderId,
           verification_failed_at: getISTTimestamp(),
           verification_error: error instanceof Error ? error.message : 'booking_create_failed',
+          partial_booking_ids: createdBookingIds,
         },
       })
       .eq('id', transaction.id)
@@ -309,6 +432,10 @@ export async function POST(request: Request) {
       { error: error instanceof Error ? error.message : 'Unable to schedule booking after payment verification.' },
       { status: 409 },
     );
+  }
+
+  if (!primaryBookingId) {
+    return NextResponse.json({ error: 'Unable to create booking after payment verification.' }, { status: 500 });
   }
 
   const updatedMetadata: CheckoutMetadata = {
@@ -323,8 +450,11 @@ export async function POST(request: Request) {
       status: 'captured',
       provider_payment_id: providerPaymentId,
       provider_signature: providerSignature,
-      booking_id: booking.id,
-      metadata: updatedMetadata,
+      booking_id: primaryBookingId,
+      metadata: {
+        ...updatedMetadata,
+        booking_ids: createdBookingIds,
+      },
     })
     .eq('id', transaction.id)
     .is('booking_id', null)
@@ -332,7 +462,6 @@ export async function POST(request: Request) {
     .single();
 
   if (updateError || !updatedTx) {
-    // Race: another concurrent verify or the webhook may have already set booking_id.
     const { data: raceCheck } = await admin
       .from('payment_transactions')
       .select('booking_id')
@@ -340,12 +469,15 @@ export async function POST(request: Request) {
       .maybeSingle<{ booking_id: number | null }>();
 
     if (raceCheck?.booking_id) {
-      // Cancel the orphan booking we just created since the other path won the race
-      if (raceCheck.booking_id !== booking.id) {
+      for (const bookingId of createdBookingIds) {
+        if (bookingId === raceCheck.booking_id) {
+          continue;
+        }
+
         await admin
           .from('bookings')
           .update({ booking_status: 'cancelled', cancellation_reason: 'Duplicate booking from verify race — auto-cancelled' })
-          .eq('id', booking.id);
+          .eq('id', bookingId);
       }
 
       return NextResponse.json({
@@ -368,25 +500,38 @@ export async function POST(request: Request) {
       providerOrderId,
       providerPaymentId,
       verifiedAt: getISTTimestamp(),
-      bookingId: booking.id,
+      bookingId: primaryBookingId,
+      bookingIds: createdBookingIds,
     },
   });
 
-  const requestedWalletCredits = Math.max(0, Math.round(Number(parsedBookingPayload.data.walletCreditsAppliedInr ?? 0)));
+  const requestedWalletCredits = Math.max(
+    0,
+    Math.round(
+      Number(
+        bookingPayloads[0]?.walletCreditsAppliedInr ??
+          metadata.price_breakdown?.walletCreditsAppliedInr ??
+          0,
+      ),
+    ),
+  );
+
   if (requestedWalletCredits > 0) {
     try {
-      await deductCredits(transaction.user_id, requestedWalletCredits, booking.id);
+      await deductCredits(transaction.user_id, requestedWalletCredits, primaryBookingId);
       await admin
         .from('bookings')
         .update({ wallet_credits_applied_inr: requestedWalletCredits })
-        .eq('id', booking.id);
+        .eq('id', primaryBookingId);
     } catch (creditError) {
       console.error('[booking-verify] wallet credit deduction failed:', creditError);
 
-      await admin
-        .from('bookings')
-        .update({ booking_status: 'cancelled', cancellation_reason: 'Wallet credit deduction failed after payment verification' })
-        .eq('id', booking.id);
+      for (const bookingId of createdBookingIds) {
+        await admin
+          .from('bookings')
+          .update({ booking_status: 'cancelled', cancellation_reason: 'Wallet credit deduction failed after payment verification' })
+          .eq('id', bookingId);
+      }
 
       await admin
         .from('payment_transactions')
@@ -406,20 +551,21 @@ export async function POST(request: Request) {
     }
   }
 
-  // Create service invoice for this online payment — required for tax compliance.
+  const primaryPayload = bookingPayloads[0];
+
   try {
-    const serviceType = parsedBookingPayload.data.bookingMode.replace(/_/g, ' ');
+    const serviceType = primaryPayload.bookingMode.replace(/_/g, ' ');
     const priceBreakdown = metadata.price_breakdown;
     const discountInr = Math.max(0, Number(priceBreakdown?.discountAmount ?? 0));
     const walletCreditsInr = Math.max(0, Number(priceBreakdown?.walletCreditsAppliedInr ?? requestedWalletCredits));
     const subtotalInr = Math.max(
       0,
-      Number(priceBreakdown?.baseAmount ?? (Number(transaction.amount_inr) + walletCreditsInr + discountInr)),
+      Number(priceBreakdown?.baseAmount ?? Number(transaction.amount_inr) + walletCreditsInr + discountInr),
     );
 
     await createServiceInvoice(admin, {
       userId: transaction.user_id,
-      bookingId: booking.id,
+      bookingId: primaryBookingId,
       paymentTransactionId: updatedTx.id,
       description: `${serviceType} service booking — Razorpay`,
       amountInr: subtotalInr,
@@ -428,41 +574,47 @@ export async function POST(request: Request) {
       status: 'paid',
     });
   } catch (invoiceError) {
-    // Log but do not block the booking — invoice can be retried via admin reconciliation.
-    // At scale this is tracked in billing_invoices table; admin dashboard flags missing invoices.
     console.error('[booking-verify] Invoice creation failed (non-blocking, requires admin reconciliation):', invoiceError);
-    // Flag the booking so admin can find missing invoices easily
-    await admin.from('bookings').update({ admin_notes: `INVOICE_MISSING: Invoice creation failed at ${getISTTimestamp()}` }).eq('id', booking.id);
+    await admin
+      .from('bookings')
+      .update({ admin_notes: `INVOICE_MISSING: Invoice creation failed at ${getISTTimestamp()}` })
+      .eq('id', primaryBookingId);
   }
 
-  // Record discount redemption so usage limits are enforced correctly.
-  // This MUST succeed to prevent unlimited discount reuse — treat failures as blocking.
   const priceBreakdown = metadata.price_breakdown;
   if (priceBreakdown?.discountId && (priceBreakdown.discountAmount ?? 0) > 0) {
     try {
       await createDiscountRedemption(admin, {
         discountId: priceBreakdown.discountId,
-        bookingId: booking.id,
+        bookingId: primaryBookingId,
         userId: transaction.user_id,
-        discountAmount: priceBreakdown.discountAmount!,
+        discountAmount: priceBreakdown.discountAmount,
       });
     } catch (redemptionError) {
-      // Discount redemption failed — log prominently for monitoring.
-      // The booking was still created at the discounted price. The admin must reconcile.
-      console.error('[booking-verify] CRITICAL: Discount redemption creation failed — usage limit may be bypassed. BookingId:', booking.id, 'DiscountId:', priceBreakdown.discountId, redemptionError);
+      console.error(
+        '[booking-verify] CRITICAL: Discount redemption creation failed — usage limit may be bypassed. BookingId:',
+        primaryBookingId,
+        'DiscountId:',
+        priceBreakdown.discountId,
+        redemptionError,
+      );
     }
   }
 
   console.info('[booking-verify] Payment verified and booking created:', {
     userId: transaction.user_id,
-    bookingId: booking.id,
+    bookingId: primaryBookingId,
+    bookingIds: createdBookingIds,
     txId: updatedTx.id,
     amountInr: transaction.amount_inr,
   });
 
   return NextResponse.json({
     success: true,
-    booking: { id: booking.id },
-    message: 'Payment verified and booking scheduled.',
+    booking: { id: primaryBookingId },
+    bookingIds: createdBookingIds,
+    message: isBundleBooking
+      ? 'Payment verified and bundled services were scheduled in a single booking.'
+      : 'Payment verified and booking scheduled.',
   });
 }

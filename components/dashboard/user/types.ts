@@ -229,6 +229,13 @@ export type Booking = {
   pet_id?: number;
   providers?: { name: string }[] | { name: string } | null;
   amount: number;
+  admin_price_reference?: number | null;
+  discount_amount?: number | null;
+  discount_code?: string | null;
+  final_price?: number | null;
+  price_at_booking?: number | null;
+  provider_notes?: string | null;
   payment_mode: string | null;
   wallet_credits_applied_inr?: number | null;
+  pending_payable_inr?: number;
 };

@@ -9,6 +9,31 @@ npm install
 npm run dev
 ```
 
+## Graphify
+
+`graphifyy` is installed as a dev dependency and provides the `graphify` CLI.
+
+For Codex parallel extraction, enable multi-agent mode in `~/.codex/config.toml`:
+
+```toml
+[features]
+multi_agent = true
+```
+
+Factory Droid uses the Task tool for parallel subagent dispatch.
+
+Add a root `.graphifyignore` file to exclude folders you do not want included in graph extraction.
+
+Graph output is written to `graphify-out/`.
+
+Project commands:
+
+```bash
+npm run graphify:rebuild
+npm run graphify:watch
+npm run graphify:query -- "your question"
+```
+
 ## Backend Integration (Supabase)
 
 1. Copy `.env.example` to `.env.local` and set:

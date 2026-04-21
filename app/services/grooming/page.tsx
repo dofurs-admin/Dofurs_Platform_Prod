@@ -4,6 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { links, whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'Professional Pet Grooming in Bangalore — Doorstep & Salon | Dofurs',
@@ -143,11 +144,35 @@ const FAQS = [
   },
 ];
 
+const groomingServiceSchema = buildServiceSchema({
+  name: 'Professional Pet Grooming in Bangalore',
+  description:
+    'Doorstep and salon pet grooming by verified specialists across Bangalore — bath, haircut, nail trimming, de-shedding, and full spa packages.',
+  url: 'https://dofurs.in/services/grooming',
+  serviceType: 'Pet Grooming',
+  category: 'Pet Care',
+  offers: [
+    { name: 'Doorstep Pet Grooming', priceFrom: 899, description: 'Nail trim, paw hair, knot removal, eye and ear cleaning.' },
+    { name: 'Summer Bonanza Bath', priceFrom: 1199, description: 'Bath, dry, shampoo, conditioner, brushing, de-matting and nail clipping.' },
+    { name: 'Essential Grooming', priceFrom: 1799, description: 'Comprehensive grooming: bath, nail clipping, paw trim, sanitary trim, brushing, paw massage, eye cleaning.' },
+    { name: 'Complete Care', priceFrom: 2499, description: 'Full spa grooming with custom haircut and face styling.' },
+  ],
+});
+
+const groomingBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Grooming', url: '/services/grooming' },
+]);
+
 export default function GroomingPage() {
   const primaryCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
   const secondaryCtaClass = premiumSecondaryCtaClass('h-11 px-6 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(groomingServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(groomingBreadcrumbSchema)} />
     <ContentPageLayout
       title="Professional Pet Grooming"
       description="Doorstep grooming by verified specialists — gentle handling, pet-safe products, and transparent pricing across Bangalore."
@@ -282,31 +307,7 @@ export default function GroomingPage() {
         ))}
       </div>
 
-      {/* Schema */}
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Pet Grooming',
-            provider: {
-              '@type': 'LocalBusiness',
-              name: 'Dofurs',
-              url: 'https://dofurs.in',
-              areaServed: 'Bangalore',
-            },
-            description: 'Professional doorstep and in-salon pet grooming in Bangalore. Verified groomers, pet-safe products, transparent pricing.',
-            offers: [
-              { '@type': 'Offer', name: 'Doorstep Pet Grooming', price: '899', priceCurrency: 'INR' },
-              { '@type': 'Offer', name: 'Essential Grooming', price: '1799', priceCurrency: 'INR' },
-              { '@type': 'Offer', name: 'Complete Care', price: '2299', priceCurrency: 'INR' },
-            ],
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import ProviderOnboardingModal from '@/components/dashboard/admin/ProviderOnboardingModal';
 import AdminSectionGuide from '@/components/dashboard/admin/AdminSectionGuide';
@@ -459,6 +459,8 @@ export default function AdminProvidersView({
     total_revenue_inr: number;
   };
   const [providerMetrics, setProviderMetrics] = useState<Map<number, ProviderMetrics>>(new Map());
+  const serviceRolloutEditorRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [recentlyEditedServiceByProvider, setRecentlyEditedServiceByProvider] = useState<Record<number, string>>({});
   const [deleteServiceDialog, setDeleteServiceDialog] = useState<{
     providerId: number;
     providerName: string;
@@ -480,6 +482,27 @@ export default function AdminProvidersView({
       })
       .catch(() => undefined);
   }, []);
+
+  const handleEditServiceRollout = (providerId: number, service: AdminProviderService) => {
+    copyServiceIntoDraft(providerId, service.id);
+    setRecentlyEditedServiceByProvider((previous) => ({
+      ...previous,
+      [providerId]: service.service_type,
+    }));
+
+    window.requestAnimationFrame(() => {
+      const rolloutEditor = serviceRolloutEditorRefs.current[providerId];
+      if (!rolloutEditor) {
+        return;
+      }
+
+      rolloutEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const firstInteractiveField = rolloutEditor.querySelector<HTMLInputElement>(
+        'input[type="checkbox"], input[type="text"]',
+      );
+      firstInteractiveField?.focus();
+    });
+  };
 
   return (
     <>
@@ -1963,7 +1986,7 @@ export default function AdminProvidersView({
                                 </span>
                                 <Button
                                   type="button"
-                                  onClick={() => copyServiceIntoDraft(provider.id, service.id)}
+                                  onClick={() => handleEditServiceRollout(provider.id, service)}
                                   variant="secondary"
                                   size="sm"
                                 >
@@ -2011,8 +2034,18 @@ export default function AdminProvidersView({
                       </ul>
                     )}
 
-                    <div className="mt-4 rounded-lg bg-neutral-100/70 p-3">
+                    <div
+                      ref={(node) => {
+                        serviceRolloutEditorRefs.current[provider.id] = node;
+                      }}
+                      className="mt-4 rounded-lg bg-neutral-100/70 p-3"
+                    >
                       <p className="text-xs font-semibold text-neutral-900">Add / Update Service Rollout</p>
+                      {recentlyEditedServiceByProvider[provider.id] ? (
+                        <p className="mt-1 text-[11px] font-medium text-green-700" role="status" aria-live="polite">
+                          Editing {recentlyEditedServiceByProvider[provider.id]} rollout below.
+                        </p>
+                      ) : null}
                       <div className="mt-3 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs text-neutral-600">Tick services to rollout for this provider.</p>

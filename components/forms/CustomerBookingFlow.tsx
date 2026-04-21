@@ -63,7 +63,7 @@ type ServiceAddon = {
 
 type BookingCreateResponse = {
   success: boolean;
-  booking: { id: number };
+  booking: { id: number; final_price?: number | null };
   creditReservation?: {
     reserved: boolean;
     linkId: string;
@@ -118,8 +118,6 @@ type CreditEligibilityResponse = {
   totalCredits: number;
 };
 
-const SERVICE_CART_STORAGE_KEY = 'dofurs.booking.serviceCart';
-const SERVICE_CART_UPDATED_EVENT = 'dofurs:service-cart-updated';
 const BOOKING_SUCCESS_FLAG_KEY = 'dofurs.booking.confirmation-active';
 const BOOKING_SUCCESS_EVENT = 'dofurs:booking-confirmation-visibility';
 
@@ -548,7 +546,7 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
 
     async function loadAddOns() {
       try {
-        const payload = await apiRequest<{ success: boolean; data: ServiceAddon[] }>(`/api/services/addons/${serviceId}`);
+        const payload = await apiRequest<{ success: boolean; data: ServiceAddon[] }>(`/api/services/addons-v2/${serviceId}`);
 
         if (!isMounted) {
           return;
@@ -569,34 +567,6 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
       isMounted = false;
     };
   }, [serviceId]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const normalizedAddOns = Object.entries(selectedAddOns)
-      .filter(([, quantity]) => quantity > 0)
-      .map(([id, quantity]) => ({ id, quantity }));
-
-    const hasCartSelection = Boolean(serviceId) || normalizedAddOns.length > 0;
-
-    if (!hasCartSelection) {
-      window.localStorage.removeItem(SERVICE_CART_STORAGE_KEY);
-      window.dispatchEvent(new Event(SERVICE_CART_UPDATED_EVENT));
-      return;
-    }
-
-    window.localStorage.setItem(
-      SERVICE_CART_STORAGE_KEY,
-      JSON.stringify({
-        serviceId,
-        addOns: normalizedAddOns,
-        updatedAt: Date.now(),
-      }),
-    );
-    window.dispatchEvent(new Event(SERVICE_CART_UPDATED_EVENT));
-  }, [selectedAddOns, serviceId]);
 
   const discountSuggestions = useMemo(() => {
     const selectedService = services.find((service) => service.id === serviceId);
@@ -934,9 +904,6 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
           globalThis.localStorage?.setItem('booking.lastUsedAddress', locationAddress.trim());
         }
 
-        globalThis.localStorage?.removeItem(SERVICE_CART_STORAGE_KEY);
-        globalThis.window?.dispatchEvent(new Event(SERVICE_CART_UPDATED_EVENT));
-
         const providerName = providers.find((provider) => provider.id === providerId)?.name;
         const petName = pets.find((pet) => pet.id === petId)?.name;
 
@@ -946,7 +913,7 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
           bookingMode,
           providerName,
           petName,
-          totalAmount: discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0,
+          totalAmount: created.booking.final_price ?? discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0,
           amountStatus: paymentChoice === 'direct' ? 'payable' : 'paid',
         });
 

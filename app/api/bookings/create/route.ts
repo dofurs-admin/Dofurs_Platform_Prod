@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createBooking, updateBookingStatus } from '@/lib/bookings/service';
+import { recalculateBookingAddonTotals } from '@/lib/addons/service';
 import { forbidden, requireApiRole } from '@/lib/auth/api-auth';
 import { bookingCreateSchema } from '@/lib/flows/validation';
 import { toFriendlyApiError } from '@/lib/api/errors';
@@ -240,6 +241,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    const isBundledBooking = Array.isArray(parsed.data.bundleProviderServiceIds)
+      && parsed.data.bundleProviderServiceIds.length > 0;
     const requestedDiscountCode = parsed.data.discountCode?.trim().toUpperCase() ?? null;
     let resolvedDiscountPreview: {
       discountId: string;
@@ -248,23 +251,67 @@ export async function POST(request: Request) {
     } | null = null;
 
     if (requestedDiscountCode) {
-      const { data: providerServiceForDiscount, error: providerServiceForDiscountError } = await admin
-        .from('provider_services')
-        .select('service_type, base_price')
-        .eq('id', parsed.data.providerServiceId)
-        .eq('provider_id', parsed.data.providerId)
-        .maybeSingle<{ service_type: string; base_price: number }>();
+      let discountEvaluation: Awaited<ReturnType<typeof evaluateDiscountForBooking>>;
 
-      if (providerServiceForDiscountError || !providerServiceForDiscount) {
-        return NextResponse.json({ error: 'Unable to validate discount for the selected service.' }, { status: 400 });
+      if (isBundledBooking) {
+        const bundleProviderServiceIds = Array.from(
+          new Set([
+            parsed.data.providerServiceId,
+            ...(parsed.data.bundleProviderServiceIds ?? []),
+          ]),
+        );
+
+        const { data: providerServicesForDiscount, error: providerServicesForDiscountError } = await admin
+          .from('provider_services')
+          .select('id, service_type, base_price')
+          .eq('provider_id', parsed.data.providerId)
+          .in('id', bundleProviderServiceIds)
+          .returns<Array<{ id: string; service_type: string; base_price: number }>>();
+
+        if (providerServicesForDiscountError || !providerServicesForDiscount || providerServicesForDiscount.length === 0) {
+          return NextResponse.json({ error: 'Unable to validate discount for the selected services.' }, { status: 400 });
+        }
+
+        if (providerServicesForDiscount.length !== bundleProviderServiceIds.length) {
+          return NextResponse.json({ error: 'One or more bundled services are unavailable for discount validation.' }, { status: 400 });
+        }
+
+        const baseFromServices = providerServicesForDiscount.reduce(
+          (sum, service) => sum + Math.max(0, Number(service.base_price ?? 0)),
+          0,
+        );
+        const providedBundleTotal = Math.max(0, Number(parsed.data.bundleEstimatedTotalInr ?? 0));
+        const bundleBaseAmount = Math.max(baseFromServices, providedBundleTotal);
+
+        if (!Number.isFinite(bundleBaseAmount) || bundleBaseAmount <= 0) {
+          return NextResponse.json({ error: 'Unable to determine bundled amount for discount validation.' }, { status: 400 });
+        }
+
+        discountEvaluation = await evaluateDiscountForBooking(admin, {
+          discountCode: requestedDiscountCode,
+          userId: targetUserId,
+          serviceTypes: providerServicesForDiscount.map((service) => service.service_type),
+          baseAmount: bundleBaseAmount,
+        });
+      } else {
+        const { data: providerServiceForDiscount, error: providerServiceForDiscountError } = await admin
+          .from('provider_services')
+          .select('service_type, base_price')
+          .eq('id', parsed.data.providerServiceId)
+          .eq('provider_id', parsed.data.providerId)
+          .maybeSingle<{ service_type: string; base_price: number }>();
+
+        if (providerServiceForDiscountError || !providerServiceForDiscount) {
+          return NextResponse.json({ error: 'Unable to validate discount for the selected service.' }, { status: 400 });
+        }
+
+        discountEvaluation = await evaluateDiscountForBooking(admin, {
+          discountCode: requestedDiscountCode,
+          userId: targetUserId,
+          serviceType: providerServiceForDiscount.service_type,
+          baseAmount: Number(providerServiceForDiscount.base_price ?? 0),
+        });
       }
-
-      const discountEvaluation = await evaluateDiscountForBooking(admin, {
-        discountCode: requestedDiscountCode,
-        userId: targetUserId,
-        serviceType: providerServiceForDiscount.service_type,
-        baseAmount: Number(providerServiceForDiscount.base_price ?? 0),
-      });
 
       if (!discountEvaluation.preview) {
         return NextResponse.json(
@@ -295,9 +342,10 @@ export async function POST(request: Request) {
       longitude: parsed.data.longitude,
       providerNotes: parsed.data.providerNotes,
       bookingType: 'service' as const,
-      discountCode: requestedDiscountCode ?? undefined,
+      discountCode: isBundledBooking ? undefined : (requestedDiscountCode ?? undefined),
       // Client pricing removed - calculated server-side only
       addOns: parsed.data.addOns,
+      bundleProviderServiceIds: parsed.data.bundleProviderServiceIds,
       useSubscriptionCredit: parsed.data.useSubscriptionCredit,
       paymentMode: parsed.data.paymentMode,
       allowPastBooking: parsed.data.allowPastBooking,
@@ -315,6 +363,7 @@ export async function POST(request: Request) {
           discount_code: requestedDiscountCode,
           discount_amount: resolvedDiscountPreview.discountAmount,
           final_price: resolvedDiscountPreview.finalAmount,
+          amount: isBundledBooking ? resolvedDiscountPreview.finalAmount : undefined,
         })
         .eq('id', booking.id);
 
@@ -487,16 +536,80 @@ export async function POST(request: Request) {
       }
     }
 
+    let responseBooking = booking;
+
+    if (parsed.data.bundleSummary || parsed.data.bundleEstimatedTotalInr) {
+      const bundleSummary = parsed.data.bundleSummary?.trim() ?? '';
+      const mergedNotes = [bundleSummary, booking.provider_notes ?? null]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .join('\n\n');
+
+      const estimatedTotalInr = Math.max(0, Number(parsed.data.bundleEstimatedTotalInr ?? 0));
+      const walletAppliedForBundle = Math.max(0, Number(parsed.data.walletCreditsAppliedInr ?? 0));
+      const discountAmountForBundle = Math.max(0, Number(booking.discount_amount ?? 0));
+      const finalPriceForBundle =
+        estimatedTotalInr > 0
+          ? Math.max(0, estimatedTotalInr - discountAmountForBundle - walletAppliedForBundle)
+          : Number(booking.final_price ?? booking.amount ?? 0);
+
+      const bundlePatch: Record<string, unknown> = {
+        provider_notes: mergedNotes || null,
+      };
+
+      if (estimatedTotalInr > 0) {
+        bundlePatch.price_at_booking = estimatedTotalInr;
+        bundlePatch.admin_price_reference = estimatedTotalInr;
+        bundlePatch.amount = finalPriceForBundle;
+        bundlePatch.final_price = finalPriceForBundle;
+      }
+
+      const { data: patchedBooking, error: bundlePatchError } = await admin
+        .from('bookings')
+        .update(bundlePatch)
+        .eq('id', booking.id)
+        .select('*')
+        .single();
+
+      if (bundlePatchError) {
+        console.error('[bookings/create] non-fatal bundle patch failure', bundlePatchError);
+      } else if (patchedBooking) {
+        responseBooking = patchedBooking as typeof booking;
+      }
+    }
+
+    try {
+      await recalculateBookingAddonTotals(admin, String(booking.id));
+
+      const { data: refreshedBooking } = await admin
+        .from('bookings')
+        .select('*')
+        .eq('id', booking.id)
+        .maybeSingle();
+
+      if (refreshedBooking) {
+        responseBooking = refreshedBooking as typeof booking;
+      }
+    } catch (recalcError) {
+      const code =
+        recalcError && typeof recalcError === 'object' && 'code' in recalcError
+          ? String((recalcError as { code?: string }).code ?? '')
+          : '';
+
+      if (code !== '42P01' && code !== '42703' && code !== 'PGRST204') {
+        throw recalcError;
+      }
+    }
+
     // Fire-and-forget notification — do not block the response
     notifyBookingCreated(admin, {
-      id: booking.id,
+      id: responseBooking.id,
       user_id: targetUserId,
       provider_id: parsed.data.providerId,
-      service_type: booking.service_type ?? parsed.data.providerServiceId?.toString() ?? null,
-      booking_date: booking.booking_date ?? parsed.data.bookingDate,
+      service_type: responseBooking.service_type ?? parsed.data.providerServiceId?.toString() ?? null,
+      booking_date: responseBooking.booking_date ?? parsed.data.bookingDate,
     }).catch((err) => console.error('Notification hook failed (booking_created)', err));
 
-    return NextResponse.json({ success: true, booking, creditReservation });
+    return NextResponse.json({ success: true, booking: responseBooking, creditReservation });
   } catch (error) {
     const mapped = toFriendlyApiError(error, 'Booking failed');
 

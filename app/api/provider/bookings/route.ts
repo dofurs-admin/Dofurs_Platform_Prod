@@ -27,6 +27,16 @@ type CustomerFeedbackRow = {
   created_at: string;
 };
 
+type BookingAddonSummaryRow = {
+  booking_id: number;
+  id: string;
+  name_snapshot: string;
+  quantity: number;
+  total_price_inr?: number | null;
+  total_price_snapshot?: number | null;
+  status: string;
+};
+
 function normalizeStoragePathCandidate(
   value: string | null | undefined,
   bucket: 'user-photos' | 'pet-photos',
@@ -252,34 +262,78 @@ export async function GET(request: Request) {
         })() ?? null,
     }));
 
-    // Enrich with cash collection status for direct_to_provider bookings
+    // Enrich with payable collection status for direct_to_provider and mixed bookings
     const cashBookingIds = enrichedBookings
-      .filter((b) => b.payment_mode === 'direct_to_provider')
+      .filter((b) => b.payment_mode === 'direct_to_provider' || b.payment_mode === 'mixed')
       .map((b) => b.id);
 
-    const cashCollectedSet = new Set<number>();
+    const payableCollectionMap = new Map<number, { status: string; amount_inr: number }>();
 
     if (cashBookingIds.length > 0) {
       const { data: collections } = await adminSupabase
         .from('booking_payment_collections')
-        .select('booking_id')
+        .select('booking_id, status, amount_inr')
         .in('booking_id', cashBookingIds)
-        .eq('status', 'paid');
+        .returns<Array<{ booking_id: number; status: string; amount_inr: number | null }>>();
 
       for (const row of collections ?? []) {
-        cashCollectedSet.add(row.booking_id as number);
+        payableCollectionMap.set(row.booking_id, {
+          status: row.status,
+          amount_inr: Math.max(0, Number(row.amount_inr ?? 0)),
+        });
       }
     }
 
     const finalBookings = enrichedBookings.map((booking) => ({
       ...booking,
-      cash_collected:
-        booking.payment_mode === 'direct_to_provider'
-          ? cashCollectedSet.has(booking.id)
-          : undefined,
+      cash_collected: (() => {
+        if (booking.payment_mode !== 'direct_to_provider' && booking.payment_mode !== 'mixed') {
+          return undefined;
+        }
+
+        const row = payableCollectionMap.get(booking.id);
+        if (!row) {
+          return false;
+        }
+
+        return row.status === 'paid' || row.amount_inr <= 0;
+      })(),
+      pending_payable_inr: (() => {
+        if (booking.payment_mode !== 'direct_to_provider' && booking.payment_mode !== 'mixed') {
+          return 0;
+        }
+
+        const row = payableCollectionMap.get(booking.id);
+        if (!row) {
+          return 0;
+        }
+
+        return row.status === 'paid' ? 0 : row.amount_inr;
+      })(),
     }));
 
     const bookingIds = finalBookings.map((booking) => booking.id);
+    const addonItemsByBookingId = new Map<number, BookingAddonSummaryRow[]>();
+
+    if (bookingIds.length > 0) {
+      const { data: addonRows } = await adminSupabase
+        .from('booking_addon_items')
+        .select('booking_id, id, name_snapshot, quantity, total_price_inr, total_price_snapshot, status')
+        .in('booking_id', bookingIds)
+        .order('created_at', { ascending: true })
+        .returns<BookingAddonSummaryRow[]>();
+
+      for (const row of addonRows ?? []) {
+        const normalizedRow = {
+          ...row,
+          total_price_inr: Math.max(0, Number(row.total_price_inr ?? row.total_price_snapshot ?? 0)),
+        };
+        const current = addonItemsByBookingId.get(row.booking_id) ?? [];
+        current.push(normalizedRow);
+        addonItemsByBookingId.set(row.booking_id, current);
+      }
+    }
+
     const feedbackByBookingId = new Map<number, CustomerFeedbackRow[]>();
 
     if (bookingIds.length > 0) {
@@ -307,6 +361,7 @@ export async function GET(request: Request) {
 
       return {
         ...booking,
+        addon_items: addonItemsByBookingId.get(booking.id) ?? [],
         has_customer_feedback: entries.length > 0,
         provider_customer_rating: providerEntry?.rating ?? null,
         provider_customer_notes: providerEntry?.notes ?? null,

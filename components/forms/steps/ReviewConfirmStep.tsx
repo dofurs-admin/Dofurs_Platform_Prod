@@ -16,6 +16,7 @@ type Pet = { id: number; name: string; breed?: string | null };
 type Provider = { id: number; name: string; provider_type?: string | null; type?: string | null };
 type PricingBreakdown = {
   base_total: number;
+  addon_total: number;
   discount_amount: number;
   final_total: number;
 };
@@ -142,6 +143,7 @@ export default function ReviewConfirmStep({
   const [isApplyingDiscount, setIsApplyingDiscount] = useState(false);
   const [availableWalletCredits, setAvailableWalletCredits] = useState(0);
   const [applyCredits, setApplyCredits] = useState(false);
+  const [showDiscountEditor, setShowDiscountEditor] = useState(false);
 
   useEffect(() => {
     fetch('/api/user/credit-wallet')
@@ -156,12 +158,17 @@ export default function ReviewConfirmStep({
     setApplyCredits(walletCreditsToApply > 0);
   }, [walletCreditsToApply]);
 
+  useEffect(() => {
+    if (discountPreview || discountCode.trim()) {
+      setShowDiscountEditor(true);
+    }
+  }, [discountCode, discountPreview]);
+
   function handleToggleCredits() {
     const next = !applyCredits;
     setApplyCredits(next);
     if (next) {
-      const baseAmount = discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0;
-      onWalletCreditsToApplyChange(Math.min(availableWalletCredits, baseAmount));
+      onWalletCreditsToApplyChange(Math.min(availableWalletCredits, amountAfterDiscount));
     } else {
       onWalletCreditsToApplyChange(0);
     }
@@ -170,6 +177,24 @@ export default function ReviewConfirmStep({
   const formatDate = (dateStr: string) => {
     const date = new Date(`${dateStr}T00:00:00`);
     return date.toLocaleDateString('en-IN', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const formatTimeLabel = (value: string) => {
+    const parts = value.split(':');
+    if (parts.length < 2) {
+      return value;
+    }
+
+    const hours = Number.parseInt(parts[0], 10);
+    const minutes = Number.parseInt(parts[1], 10);
+
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      return value;
+    }
+
+    const normalized = new Date();
+    normalized.setHours(hours, minutes, 0, 0);
+    return normalized.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
   };
 
   const handleApplyDiscount = async () => {
@@ -195,12 +220,8 @@ export default function ReviewConfirmStep({
         )
       : 1;
 
-  // Use bundle aggregate price when multiple services selected, otherwise single-service price
-  const singleServicePrice = discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0;
   const isMultiService = bookingBundleRows.length > 1 || totalSelectedServices > 1;
-  const perUnitAmount = isMultiService && bundlePriceTotal > 0 ? bundlePriceTotal : singleServicePrice;
-  const baseTotal = perUnitAmount * boardingNights;
-  const totalAmount = Math.max(0, baseTotal - walletCreditsToApply);
+
   const selectedAddOnRows = addOns
     .filter((addon) => selectedAddOns[addon.id] > 0)
     .map((addon) => ({
@@ -209,6 +230,24 @@ export default function ReviewConfirmStep({
       quantity: selectedAddOns[addon.id],
       amount: addon.price * selectedAddOns[addon.id],
     }));
+  const selectedAddOnsTotal = selectedAddOnRows.reduce((sum, row) => sum + row.amount, 0);
+
+  const servicesUnitTotal = isMultiService
+    ? bundlePriceTotal
+    : (priceCalculation?.base_total ?? selectedService?.base_price ?? bundlePriceTotal ?? 0);
+
+  const addOnsUnitTotal = priceCalculation?.addon_total ?? selectedAddOnsTotal;
+
+  const subtotalBeforeDiscount = (servicesUnitTotal + addOnsUnitTotal) * boardingNights;
+  const discountAmount = discountPreview?.discountAmount ?? priceCalculation?.discount_amount ?? 0;
+  const amountAfterDiscount = Math.max(0, subtotalBeforeDiscount - discountAmount);
+  const totalAmount = Math.max(0, amountAfterDiscount - walletCreditsToApply);
+  const hasPriceData =
+    subtotalBeforeDiscount > 0 ||
+    Boolean(priceCalculation) ||
+    Boolean(discountPreview) ||
+    bookingBundleRows.length > 0 ||
+    selectedAddOnRows.length > 0;
 
   const paymentDescription =
     walletCreditsToApply > 0 && totalAmount === 0
@@ -227,30 +266,17 @@ export default function ReviewConfirmStep({
   const servicePriceLabel =
     typeof selectedService?.base_price === 'number' ? `₹${selectedService.base_price}` : 'Price unavailable';
   const serviceSummaryRows = bookingBundleRows
-    .map((row) => `${row.petName}: ${row.serviceType}${row.quantity > 1 ? ` x${row.quantity}` : ''}`)
+    .map((row) => ({
+      id: `${row.petId}-${row.serviceType}`,
+      label: `${row.petName}: ${row.serviceType}${row.quantity > 1 ? ` x${row.quantity}` : ''}`,
+      amount: Math.max(0, (row.unitBasePrice ?? 0) * row.quantity),
+    }))
     .slice(0, 4);
   const petSummaryRows = (selectedPets.length > 0 ? selectedPets : selectedPet ? [selectedPet] : []).slice(0, 4);
   const totalSelectedPets = selectedPets.length > 0 ? selectedPets.length : selectedPet ? 1 : 0;
 
   return (
     <div className="premium-fade-up space-y-2 sm:space-y-7 rounded-2xl sm:rounded-3xl border border-[#e9d7c7] bg-[linear-gradient(165deg,#fffdfb_0%,#fff8f1_100%)] p-2.5 max-[380px]:p-2 sm:p-5 shadow-[0_10px_30px_rgba(79,47,25,0.08)] md:p-7">
-      {/* Top navigation — hidden on mobile to save space, bottom nav handles it */}
-      <div className="hidden sm:flex sm:flex-row sm:justify-between sm:gap-3">
-        <button
-          onClick={onPrev}
-          className="rounded-full border-2 border-neutral-200 px-6 py-2.5 text-sm font-semibold text-neutral-950 transition-all hover:border-coral hover:text-coral sm:w-auto"
-        >
-          Back
-        </button>
-        <button
-          onClick={onConfirm}
-          disabled={isPending}
-          className="rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-8 py-2.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-        >
-          {isPending ? 'Processing...' : paymentChoice === 'online' ? 'Proceed To Payment & Schedule' : 'Confirm & Schedule Booking'}
-        </button>
-      </div>
-
       {/* Step indicator — hidden on mobile since BookingProgressBar already shows step info */}
       <div className="hidden sm:block">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9a6a44]">Step 3 of 3</p>
@@ -269,10 +295,11 @@ export default function ReviewConfirmStep({
                 {totalSelectedServices} services selected
               </p>
               <div className="mt-1.5 space-y-0.5">
-                {serviceSummaryRows.map((rowLabel, index) => (
-                  <p key={`${rowLabel}-${index}`} className="text-[10px] sm:text-xs text-neutral-600 break-words">
-                    {rowLabel}
-                  </p>
+                {serviceSummaryRows.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between gap-2 text-[10px] sm:text-xs text-neutral-600">
+                    <span className="break-words">{row.label}</span>
+                    <span className="shrink-0 font-medium text-neutral-700">₹{row.amount}</span>
+                  </div>
                 ))}
                 {bookingBundleRows.length > serviceSummaryRows.length ? (
                   <p className="text-[10px] sm:text-xs text-neutral-500">
@@ -289,6 +316,24 @@ export default function ReviewConfirmStep({
               </p>
             </>
           )}
+          {selectedAddOnRows.length > 0 ? (
+            <div className="mt-1.5 rounded-lg border border-[#efcfb4] bg-[linear-gradient(165deg,#fffaf6_0%,#fff4ea_100%)] p-1.5 shadow-[0_6px_16px_rgba(154,90,47,0.08)]">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8c4a22]">Included add-ons</p>
+                <span className="rounded-full border border-[#e9c3a3] bg-white/90 px-1.5 py-0.5 text-[8px] sm:text-[9px] font-semibold text-[#7a3c1a]">
+                  +₹{selectedAddOnsTotal}
+                </span>
+              </div>
+              <div className="mt-1 space-y-0.5">
+                {selectedAddOnRows.map((row) => (
+                  <div key={row.id} className="flex items-center justify-between gap-2 text-[9px] sm:text-[10px] text-[#6c4328]">
+                    <span className="truncate">{row.name} × {row.quantity}</span>
+                    <span className="shrink-0 font-semibold text-[#7a3c1a]">₹{row.amount}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={onChangeSelectedService}
@@ -363,13 +408,13 @@ export default function ReviewConfirmStep({
           ) : null}
           {!isPackageBooking && slotStartTime ? (
             <p className="mt-0.5 text-[10px] sm:text-xs text-neutral-600">
-              {slotStartTime}
+              {formatTimeLabel(slotStartTime)}
               {totalDurationMinutes > 0 ? ` • ${totalDurationMinutes}m` : ''}
             </p>
           ) : null}
           {isMultiService && !isPackageBooking && (
             <p className="mt-0.5 text-[10px] text-neutral-500">
-              Back-to-back from {slotStartTime}
+              Back-to-back from {formatTimeLabel(slotStartTime)}
             </p>
           )}
           <button
@@ -379,66 +424,6 @@ export default function ReviewConfirmStep({
           >
             Change date & time
           </button>
-        </div>
-      </div>
-
-      <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2.5 sm:p-4">
-        <p className="text-xs font-semibold text-neutral-600 uppercase">Booking Cart</p>
-        <div className="mt-2 sm:mt-3 space-y-2">
-          <p className="text-xs font-semibold text-[#8f4a1d]">{totalSelectedServices} services selected</p>
-          {bookingBundleRows.map((row) => (
-            <div key={`${row.petId}-${row.serviceType}`} className="flex flex-col items-start gap-2 rounded-lg border border-[#f0e4d6] bg-[#fffbf7] px-2.5 py-2 sm:flex-row sm:items-center sm:justify-between sm:px-3 sm:py-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium leading-snug text-neutral-800 break-words">{row.petName}: {row.serviceType}</p>
-                {typeof row.unitBasePrice === 'number' && row.unitBasePrice > 0 ? (
-                  <p className="mt-0.5 text-[11px] text-neutral-600">
-                    ₹{row.unitBasePrice} x {row.quantity} = ₹{row.unitBasePrice * row.quantity}
-                  </p>
-                ) : null}
-              </div>
-              <div className="flex w-full items-center justify-end gap-1.5 shrink-0 sm:w-auto">
-                {onBundleRowQuantityChange && (
-                  <button
-                    type="button"
-                    onClick={() => row.quantity <= 1 ? onBundleRowRemove?.(row.petId, row.serviceType) : onBundleRowQuantityChange(row.petId, row.serviceType, row.quantity - 1)}
-                    className="h-7 w-7 rounded-full bg-[#fff3e6] text-sm font-semibold text-[#8f4a1d]"
-                  >
-                    -
-                  </button>
-                )}
-                <span className="min-w-5 text-center text-xs font-semibold text-neutral-900">x{row.quantity}</span>
-                {onBundleRowQuantityChange && (
-                  <button
-                    type="button"
-                    onClick={() => onBundleRowQuantityChange(row.petId, row.serviceType, row.quantity + 1)}
-                    disabled={row.quantity >= 5}
-                    className="h-7 w-7 rounded-full bg-[#fff3e6] text-sm font-semibold text-[#8f4a1d] disabled:opacity-40"
-                  >
-                    +
-                  </button>
-                )}
-                {onBundleRowRemove && (
-                  <button
-                    type="button"
-                    onClick={() => onBundleRowRemove(row.petId, row.serviceType)}
-                    className="ml-1 h-7 w-7 rounded-full bg-red-50 text-xs font-semibold text-red-500 hover:bg-red-100"
-                    title="Remove service"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-          {selectedAddOnRows.map((row) => (
-            <div key={row.id} className="flex items-center justify-between text-sm">
-              <span className="text-neutral-700">{row.name} x{row.quantity}</span>
-              <span className="font-semibold text-neutral-950">₹{row.amount}</span>
-            </div>
-          ))}
-          {bookingBundleRows.length === 0 && selectedAddOnRows.length === 0 ? (
-            <p className="text-xs text-neutral-500">No services selected. Go back to add services.</p>
-          ) : null}
         </div>
       </div>
 
@@ -475,28 +460,42 @@ export default function ReviewConfirmStep({
 
       {/* Discount section */}
       <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2.5 max-[380px]:p-2 sm:p-4">
-        <p className="mb-2 sm:mb-3 text-xs sm:text-sm font-semibold text-neutral-950">Discount Code</p>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <input
-            type="text"
-            value={discountCode}
-            onChange={(e) => onDiscountCodeChange(e.target.value.toUpperCase())}
-            placeholder="Enter discount code"
-            className="flex-1 rounded-lg border-2 border-neutral-200 px-3 py-2 text-sm focus:border-coral focus:outline-none"
-          />
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs sm:text-sm font-semibold text-neutral-950">Discount Code</p>
           <button
-            onClick={handleApplyDiscount}
-            disabled={isApplyingDiscount || !discountCode.trim()}
-            className="w-full rounded-lg bg-[linear-gradient(115deg,#de9158,#c7773b)] px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            type="button"
+            onClick={() => setShowDiscountEditor((prev) => !prev)}
+            className="rounded-full border border-[#e7c4a7] bg-[#fffaf6] px-3 py-1 text-[11px] font-semibold text-[#8f4a1d]"
           >
-            Apply
+            {showDiscountEditor ? 'Hide' : 'Add code'}
           </button>
         </div>
-        {discountPreview && (
-          <p className="mt-2 text-xs font-medium text-green-700">
-            ✓ Discount applied: {discountPreview.discountType === 'percentage' ? `${discountPreview.discountValue}%` : `₹${discountPreview.discountValue}`} off
-          </p>
-        )}
+
+        {showDiscountEditor ? (
+          <div className="mt-2.5">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                type="text"
+                value={discountCode}
+                onChange={(e) => onDiscountCodeChange(e.target.value.toUpperCase())}
+                placeholder="Enter discount code"
+                className="flex-1 rounded-lg border-2 border-neutral-200 px-3 py-2 text-sm focus:border-coral focus:outline-none"
+              />
+              <button
+                onClick={handleApplyDiscount}
+                disabled={isApplyingDiscount || !discountCode.trim()}
+                className="w-full rounded-lg bg-[linear-gradient(115deg,#de9158,#c7773b)] px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                Apply
+              </button>
+            </div>
+            {discountPreview && (
+              <p className="mt-2 text-xs font-medium text-green-700">
+                ✓ Discount applied: {discountPreview.discountType === 'percentage' ? `${discountPreview.discountValue}%` : `₹${discountPreview.discountValue}`} off
+              </p>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Dofurs Credit Wallet */}
@@ -541,9 +540,6 @@ export default function ReviewConfirmStep({
 
       <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2.5 sm:p-4">
         <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Payment Option</p>
-        <p className="mt-2 rounded-lg border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2 text-xs font-medium text-[#8f4a1d]">
-          Subscription credits can be used for regular services. Birthday and boarding bookings are excluded.
-        </p>
         <label className="mt-2 flex items-start gap-2 text-sm sm:text-xs text-neutral-700">
           <input
             type="radio"
@@ -552,7 +548,9 @@ export default function ReviewConfirmStep({
             onChange={() => onPaymentChoiceChange('online')}
             className="mt-0.5"
           />
-          <span>Pay online now (Razorpay)</span>
+          <span>
+            Pay online now (Razorpay)
+          </span>
         </label>
         <label className="mt-2 flex items-start gap-2 text-sm sm:text-xs text-neutral-700">
           <input
@@ -584,12 +582,15 @@ export default function ReviewConfirmStep({
           />
           <span>Pay in cash after service</span>
         </label>
-        <p className="mt-2 text-xs text-neutral-500">{paymentDescription}</p>
+        <p className="mt-2 text-[9px] leading-tight text-neutral-500/90 sm:text-[10px]">{paymentDescription}</p>
+        <p className="mt-1 text-[9px] leading-tight text-neutral-500/90 sm:text-[10px]">
+          Subscription credits can be used for regular services. Birthday and boarding bookings are excluded.
+        </p>
       </div>
 
       {/* Price breakdown */}
       <div className="rounded-lg sm:rounded-xl border border-[#d6b79a] bg-[linear-gradient(165deg,#fff8ef_0%,#fff0e3_100%)] p-2.5 max-[380px]:p-2 sm:p-4">
-        {!priceCalculation && !discountPreview ? (
+        {!hasPriceData ? (
           <div className="animate-pulse space-y-2">
             <div className="h-4 w-1/2 rounded bg-[#e8d5c0]" />
             <div className="h-6 w-1/3 rounded bg-[#e8d5c0]" />
@@ -597,19 +598,29 @@ export default function ReviewConfirmStep({
         ) : (
         <div className="space-y-2">
           <div className="flex justify-between text-sm">
-            <span className="text-neutral-600">{boardingNights > 1 ? 'Price per night:' : isMultiService ? 'Services total:' : 'Base amount:'}</span>
-            <span className="font-medium text-neutral-950">₹{isMultiService && bundlePriceTotal > 0 ? bundlePriceTotal : (discountPreview?.baseAmount ?? priceCalculation?.base_total ?? 0)}</span>
+            <span className="text-neutral-600">{boardingNights > 1 ? 'Services per night:' : isMultiService ? 'Services subtotal:' : 'Base service amount:'}</span>
+            <span className="font-medium text-neutral-950">₹{servicesUnitTotal}</span>
+          </div>
+          {addOnsUnitTotal > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-neutral-600">Add-ons subtotal:</span>
+              <span className="font-medium text-neutral-950">₹{addOnsUnitTotal}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-sm">
+            <span className="text-neutral-600">Subtotal before discount:</span>
+            <span className="font-medium text-neutral-950">₹{subtotalBeforeDiscount}</span>
           </div>
           {boardingNights > 1 && (
             <div className="flex justify-between text-sm">
               <span className="text-neutral-600">× {boardingNights} nights:</span>
-              <span className="font-medium text-neutral-950">₹{(isMultiService && bundlePriceTotal > 0 ? bundlePriceTotal : (discountPreview?.baseAmount ?? priceCalculation?.base_total ?? 0)) * boardingNights}</span>
+              <span className="font-medium text-neutral-950">Included above</span>
             </div>
           )}
-          {(discountPreview?.discountAmount || priceCalculation?.discount_amount) ? (
+          {discountAmount > 0 ? (
             <div className="flex justify-between text-sm">
               <span className="text-neutral-600">Discount:</span>
-              <span className="font-medium text-green-700">-₹{discountPreview?.discountAmount ?? priceCalculation?.discount_amount ?? 0}</span>
+              <span className="font-medium text-green-700">-₹{discountAmount}</span>
             </div>
           ) : null}
           {walletCreditsToApply > 0 && (
@@ -642,7 +653,7 @@ export default function ReviewConfirmStep({
           disabled={isPending}
           className="w-full rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-8 py-2 sm:py-2.5 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
-          {isPending ? 'Processing...' : paymentChoice === 'online' ? 'Proceed To Payment & Schedule' : 'Confirm & Schedule Booking'}
+          {isPending ? 'Processing...' : paymentChoice === 'online' ? 'Proceed to Payment' : 'Confirm Booking'}
         </button>
       </div>
     </div>

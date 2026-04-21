@@ -4,8 +4,6 @@ import FadeInSection from '@/components/FadeInSection';
 import PremiumUserBookingFlow from '@/components/forms/PremiumUserBookingFlow';
 import AdminBookingFlow from '@/components/forms/AdminBookingFlow';
 import BookingAnchorScroller from '@/components/forms/BookingAnchorScroller';
-import GroomingServiceGrid from '@/components/forms/GroomingServiceGrid';
-import SubscriptionCheckoutPanel from '@/components/payments/SubscriptionCheckoutPanel';
 import { getCurrentUserRole, requireAuthenticatedUser } from '@/lib/auth/session';
 
 type CustomerBookingFormPageProps = {
@@ -45,14 +43,6 @@ export default async function CustomerBookingFormPage({ searchParams }: Customer
       heroImageAlt="Book pet care with Dofurs"
       heroImageFirstOnMobile
       hideHero
-      belowContent={
-        !isStaffBooking && !isRescheduleMode ? (
-          <div className="mt-6 grid gap-6">
-            <GroomingServiceGrid />
-            <SubscriptionCheckoutPanel />
-          </div>
-        ) : undefined
-      }
     >
       <BookingAnchorScroller />
       {isRescheduleMode ? (

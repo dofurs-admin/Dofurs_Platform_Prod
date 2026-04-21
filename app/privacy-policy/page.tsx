@@ -2,8 +2,17 @@ import type { Metadata } from 'next';
 import ContentPageLayout from '@/components/ContentPageLayout';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy — Dofurs',
-  description: 'Read the Dofurs privacy policy to understand how we collect, use, and protect your personal data.',
+  title: 'Privacy Policy',
+  description:
+    'Read the Dofurs privacy policy — how we collect, use, share, and safeguard your personal and pet information across our Bangalore pet care platform.',
+  alternates: { canonical: 'https://dofurs.in/privacy-policy' },
+  openGraph: {
+    title: 'Privacy Policy | Dofurs',
+    description: 'How Dofurs collects, uses, shares, and safeguards your personal information.',
+    url: 'https://dofurs.in/privacy-policy',
+    type: 'website',
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function PrivacyPolicyPage() {

@@ -18,6 +18,7 @@ type Props = {
   locationAddress: string | null | undefined;
   latitude?: number | null;
   longitude?: number | null;
+  addonItems?: Array<{ id: string; name_snapshot: string; quantity: number; total_price_inr: number }>;
   showAcceptedPill?: boolean;
 };
 
@@ -44,6 +45,7 @@ export default function BookingDetailsBlock({
   locationAddress,
   latitude,
   longitude,
+  addonItems = [],
   showAcceptedPill = false,
 }: Props) {
   const directionsUrl =
@@ -76,6 +78,19 @@ export default function BookingDetailsBlock({
           <span className={BOOKING_LABEL_CLASS}>Address:</span> {locationAddress ?? 'Not available'}
         </p>
       </div>
+
+      {addonItems.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-[#ecd8c7] bg-[#fffaf4] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">Add-ons</p>
+          <div className="mt-1 space-y-1">
+            {addonItems.map((item) => (
+              <p key={item.id} className="text-[11px] text-[#6f4b32] sm:text-xs">
+                {item.name_snapshot} x{item.quantity} (Rs.{Math.max(0, Number(item.total_price_inr ?? 0))})
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {directionsUrl && (
         <div className="mt-3">

@@ -18,6 +18,17 @@ type BookingTransitionEvent = {
   metadata: Record<string, unknown> | null;
 };
 
+type BookingAddonItem = {
+  id: string;
+  booking_id: number;
+  name_snapshot: string;
+  quantity: number;
+  total_price_inr?: number | null;
+  total_price_snapshot?: number | null;
+  status: string;
+  created_at: string;
+};
+
 async function loadBookingTransitionEvents(
   supabase: ApiSupabaseClient,
   bookingId: number,
@@ -176,11 +187,24 @@ export async function GET(_request: Request, context: RouteContext) {
     .order('created_at', { ascending: false })
     .limit(5);
 
+  const { data: addonItems } = await supabase
+    .from('booking_addon_items')
+    .select('id, booking_id, name_snapshot, quantity, total_price_inr, total_price_snapshot, status, created_at')
+    .eq('booking_id', bookingId)
+    .order('created_at', { ascending: true })
+    .returns<BookingAddonItem[]>();
+
+  const normalizedAddonItems = (addonItems ?? []).map((item) => ({
+    ...item,
+    total_price_inr: Math.max(0, Number(item.total_price_inr ?? item.total_price_snapshot ?? 0)),
+  }));
+
   return NextResponse.json({
     booking: {
       ...normalizeBookingForAdminModal(booking as Record<string, unknown>),
       booking_status_transition_events: transitionEvents,
     },
     invoices: invoices ?? [],
+    addonItems: normalizedAddonItems,
   });
 }

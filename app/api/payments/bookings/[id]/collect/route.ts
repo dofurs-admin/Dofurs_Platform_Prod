@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { markBookingPaymentCollected } from '@/lib/payments/payAfterService';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
@@ -20,7 +21,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   }
 
   const payload = await request.json().catch(() => null);
-  const requestedAmountInr = payload?.amountInr;
   const collectionMode = payload?.collectionMode as 'cash' | 'upi' | 'other';
   const notes = typeof payload?.notes === 'string' ? payload.notes : null;
 
@@ -49,9 +49,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Booking not found.' }, { status: 404 });
   }
 
-  if (booking.payment_mode !== 'direct_to_provider') {
+  if (booking.payment_mode !== 'direct_to_provider' && booking.payment_mode !== 'mixed') {
     return NextResponse.json(
-      { error: 'This booking was paid online. Manual collection is not applicable.' },
+      { error: 'This booking has no cash-payable component to collect manually.' },
       { status: 400 },
     );
   }
@@ -63,14 +63,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     );
   }
 
-  const walletCreditsAppliedInr = Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0));
-  const subtotalInr = Math.max(0, Number(booking.price_at_booking ?? booking.final_price ?? 0));
-  const discountInr = Math.max(0, Number(booking.discount_amount ?? 0));
-  const computedAmountInr = Math.max(0, subtotalInr - discountInr - walletCreditsAppliedInr);
-  const amountInr = requestedAmountInr == null ? computedAmountInr : Number(requestedAmountInr);
+  const outstanding = await getBookingOutstandingSummary(admin, bookingId);
+  const amountInr = outstanding.outstandingInr;
 
   if (!Number.isFinite(amountInr) || amountInr <= 0) {
-    return NextResponse.json({ error: 'Booking has no payable amount recorded.' }, { status: 400 });
+    return NextResponse.json({ error: 'Booking has no pending cash amount to collect.' }, { status: 400 });
   }
 
   const { data: existingCollection } = await admin
@@ -99,9 +96,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     bookingId,
     paymentTransactionId: transaction.id,
     description: `${booking.service_type ?? 'Service'} booking payment (${collectionMode})`,
-    amountInr: subtotalInr,
-    discountInr,
-    walletCreditsAppliedInr,
+    amountInr,
+    discountInr: 0,
+    walletCreditsAppliedInr: 0,
     status: 'paid',
   });
 

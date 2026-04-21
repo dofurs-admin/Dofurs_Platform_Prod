@@ -168,6 +168,12 @@ export default function UserDashboardClient({
     }
   }, []);
 
+  // Always hydrate bookings from the enriched API payload on first dashboard load.
+  // Initial SSR bookings are intentionally lightweight and can miss derived fields.
+  useEffect(() => {
+    void refreshBookings();
+  }, [refreshBookings]);
+
   useBookingRealtime(userId, refreshBookings);
 
   useEffect(() => {
@@ -416,7 +422,6 @@ export default function UserDashboardClient({
           pets={pets}
           petPhotoUrls={petPhotoUrls}
           petCompletionById={petCompletionById}
-          bookingCounts={bookingCounts}
           activityItems={activityItems}
           reminders={reminders}
           reminderPreferences={reminderPreferences}
@@ -435,6 +440,7 @@ export default function UserDashboardClient({
       {/* ===== BOOKINGS VIEW ===== */}
       {view === 'bookings' && (
         <BookingsTab
+          bookings={bookings}
           filteredBookings={filteredBookings}
           pets={pets}
           bookingFilter={bookingFilter}
@@ -484,6 +490,10 @@ export default function UserDashboardClient({
         isCancellingBookingId={isCancellingBookingId}
         onClose={() => setActiveBookingId(null)}
         onCancelRequest={requestBookingCancellation}
+        onPaymentSuccess={() => {
+          void refreshBookings();
+          showToast('Payment completed successfully.', 'success');
+        }}
       />
 
       <PetManagerModal

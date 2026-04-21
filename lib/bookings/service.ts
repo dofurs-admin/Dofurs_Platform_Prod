@@ -11,6 +11,7 @@ import {
 import { assertBookingStateTransition } from './state-transition-guard';
 import { reserveCreditForBooking, consumeOrRestoreCreditForBookingTransition } from '@/lib/subscriptions/creditTracking';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
+import { getAddonEffectivePrice, recalculateBookingAddonTotals } from '@/lib/addons/service';
 import type {
   BookingRecord,
   BookingStatus,
@@ -84,6 +85,10 @@ function isMissingRelationError(error: unknown) {
 
   const message = getErrorMessage(error).toLowerCase();
   return message.includes('relation') && message.includes('does not exist');
+}
+
+function isSchemaMissingError(error: unknown) {
+  return isMissingColumnError(error) || isMissingRelationError(error);
 }
 
 function isLegacyServicesBridgeSkippableError(error: unknown) {
@@ -174,7 +179,7 @@ async function createBookingViaCompatInsert(
   legacyService: { id: number },
   paymentMode: string,
 ) {
-  const compatBooking = await createBookingCompatWithLegacyServiceId(
+  return createBookingCompatWithLegacyServiceId(
     supabase,
     userId,
     input,
@@ -182,26 +187,6 @@ async function createBookingViaCompatInsert(
     legacyService.id,
     paymentMode,
   );
-
-  if (input.useSubscriptionCredit) {
-    if (!compatBooking.service_type) {
-      throw new Error('Booking service type is required for subscription credit usage.');
-    }
-
-    const creditAmount = Number(compatBooking.price_at_booking ?? 0);
-    if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
-      throw new Error('Booking price is required for subscription credit usage.');
-    }
-
-    try {
-      await reserveCreditForBooking(supabase, compatBooking.id, userId, compatBooking.service_type, creditAmount);
-    } catch (creditError) {
-      await supabase.from('bookings').delete().eq('id', compatBooking.id);
-      throw creditError;
-    }
-  }
-
-  return compatBooking;
 }
 
 function timeToMinutes(timeValue: string) {
@@ -223,6 +208,399 @@ function addMinutesToTimeString(timeValue: string, minutesToAdd: number) {
   const hours = Math.floor(normalized / 60);
   const minutes = normalized % 60;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+type BookingAddonSelection = {
+  requestedId: string;
+  quantity: number;
+};
+
+type ResolvedBookingAddonSnapshot = {
+  addonTemplateId: string | null;
+  providerServiceAddonMappingId: string | null;
+  nameSnapshot: string;
+  unitPriceSnapshot: number;
+  quantity: number;
+  totalPriceSnapshot: number;
+};
+
+type ResolvedBookingAddons = {
+  rpcAddOns: Array<{ id: string; quantity: number }>;
+  snapshots: ResolvedBookingAddonSnapshot[];
+};
+
+function normalizeBookingAddonSelections(input: CreateBookingInput['addOns']) {
+  if (!input || input.length === 0) {
+    return [] as BookingAddonSelection[];
+  }
+
+  return input
+    .map((item) => ({
+      requestedId: item.id,
+      quantity: Math.max(1, Number(item.quantity || 1)),
+    }))
+    .filter((item) => Boolean(item.requestedId));
+}
+
+async function resolveBookingAddonsForCreate(
+  supabase: SupabaseClient,
+  providerServiceId: string,
+  providerId: number,
+  inputAddOns: CreateBookingInput['addOns'],
+  bundleProviderServiceIds?: CreateBookingInput['bundleProviderServiceIds'],
+): Promise<ResolvedBookingAddons> {
+  const normalizedSelections = normalizeBookingAddonSelections(inputAddOns);
+
+  if (normalizedSelections.length === 0) {
+    return { rpcAddOns: [], snapshots: [] };
+  }
+
+  const requestedIds = Array.from(new Set(normalizedSelections.map((item) => item.requestedId)));
+  const snapshots: ResolvedBookingAddonSnapshot[] = [];
+  const rpcAddOns: Array<{ id: string; quantity: number }> = [];
+
+  const mappingResult = await supabase
+    .from('provider_service_addon_mappings')
+    .select(
+      'id, provider_service_id, addon_template_id, price_override, min_quantity, max_quantity, is_active, moderation_status, addon_templates(id, name, default_price, is_active, moderation_status)',
+    )
+    .in('id', requestedIds)
+    .returns<
+      Array<{
+        id: string;
+        provider_service_id: string;
+        addon_template_id: string;
+        price_override: number | null;
+        min_quantity: number;
+        max_quantity: number;
+        is_active: boolean;
+        moderation_status: string;
+        addon_templates:
+          | { id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }
+          | Array<{ id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }>;
+      }>
+    >();
+
+  if (mappingResult.error && !isSchemaMissingError(mappingResult.error)) {
+    throw mappingResult.error;
+  }
+
+  const useMappings = !mappingResult.error || isSchemaMissingError(mappingResult.error);
+  const mappingById = new Map((mappingResult.data ?? []).map((row) => [row.id, row]));
+
+  const requestedCompatibleServiceIds = Array.from(
+    new Set(
+      [providerServiceId, ...(bundleProviderServiceIds ?? [])]
+        .map((value) => String(value ?? '').trim())
+        .filter((value) => value.length > 0),
+    ),
+  );
+
+  let compatibleServiceTypes = new Map<string, string>();
+  const compatibleServiceIds = new Set<string>();
+  if ((mappingResult.data ?? []).length > 0) {
+    const mappingServiceIds = Array.from(new Set((mappingResult.data ?? []).map((row) => row.provider_service_id)));
+    const { data: serviceTypeRows, error: serviceTypeError } = await supabase
+      .from('provider_services')
+      .select('id, provider_id, service_type')
+      .in('id', Array.from(new Set([...requestedCompatibleServiceIds, ...mappingServiceIds])))
+      .returns<Array<{ id: string; provider_id: number; service_type: string | null }>>();
+
+    if (serviceTypeError) {
+      throw serviceTypeError;
+    }
+
+    for (const row of serviceTypeRows ?? []) {
+      // Allow catalog services (provider_id = null) as well as the booked provider's own services.
+      // Addons are defined on catalog templates and must not be excluded just because provider_id is null.
+      if (row.provider_id !== null && row.provider_id !== providerId) {
+        continue;
+      }
+
+      compatibleServiceIds.add(row.id);
+      compatibleServiceTypes.set(row.id, (row.service_type ?? '').trim().toLowerCase());
+    }
+  }
+
+  if (compatibleServiceIds.size === 0) {
+    compatibleServiceIds.add(providerServiceId);
+  }
+
+  const allowedServiceTypes = new Set(
+    Array.from(compatibleServiceTypes.entries())
+      .filter(([serviceId]) => compatibleServiceIds.has(serviceId))
+      .map(([, serviceType]) => serviceType)
+      .filter((serviceType) => serviceType.length > 0),
+  );
+
+  const isCompatibleMapping = (mappingRow: {
+    provider_service_id: string;
+  }) => {
+    const mappingServiceType = compatibleServiceTypes.get(mappingRow.provider_service_id) ?? '';
+    return (
+      compatibleServiceIds.has(mappingRow.provider_service_id) ||
+      (mappingServiceType.length > 0 && allowedServiceTypes.has(mappingServiceType))
+    );
+  };
+
+  const incompatibleTemplateIds = new Set<string>();
+  for (const selection of normalizedSelections) {
+    const mapping = mappingById.get(selection.requestedId);
+    if (!mapping || isCompatibleMapping(mapping) || !mapping.addon_template_id) {
+      continue;
+    }
+
+    incompatibleTemplateIds.add(mapping.addon_template_id);
+  }
+
+  const fallbackMappingByTemplateId = new Map<
+    string,
+    {
+      id: string;
+      provider_service_id: string;
+      addon_template_id: string;
+      price_override: number | null;
+      min_quantity: number;
+      max_quantity: number;
+      is_active: boolean;
+      moderation_status: string;
+      addon_templates:
+        | { id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }
+        | Array<{ id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }>;
+    }
+  >();
+
+  if (incompatibleTemplateIds.size > 0 && compatibleServiceIds.size > 0) {
+    const fallbackMappingResult = await supabase
+      .from('provider_service_addon_mappings')
+      .select(
+        'id, provider_service_id, addon_template_id, price_override, min_quantity, max_quantity, is_active, moderation_status, addon_templates(id, name, default_price, is_active, moderation_status)',
+      )
+      .in('addon_template_id', Array.from(incompatibleTemplateIds))
+      .in('provider_service_id', Array.from(compatibleServiceIds))
+      .eq('is_active', true)
+      .eq('moderation_status', 'approved')
+      .returns<
+        Array<{
+          id: string;
+          provider_service_id: string;
+          addon_template_id: string;
+          price_override: number | null;
+          min_quantity: number;
+          max_quantity: number;
+          is_active: boolean;
+          moderation_status: string;
+          addon_templates:
+            | { id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }
+            | Array<{ id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }>;
+        }>
+      >();
+
+    if (fallbackMappingResult.error && !isSchemaMissingError(fallbackMappingResult.error)) {
+      throw fallbackMappingResult.error;
+    }
+
+    for (const row of fallbackMappingResult.data ?? []) {
+      if (!isCompatibleMapping(row) || fallbackMappingByTemplateId.has(row.addon_template_id)) {
+        continue;
+      }
+
+      fallbackMappingByTemplateId.set(row.addon_template_id, row);
+    }
+  }
+
+  const unresolvedLegacyIds = new Set<string>();
+
+  for (const selection of normalizedSelections) {
+    const requestedMapping = mappingById.get(selection.requestedId);
+    if (!requestedMapping) {
+      unresolvedLegacyIds.add(selection.requestedId);
+      continue;
+    }
+
+    const mapping =
+      !isCompatibleMapping(requestedMapping) && requestedMapping.addon_template_id
+        ? (fallbackMappingByTemplateId.get(requestedMapping.addon_template_id) ?? requestedMapping)
+        : requestedMapping;
+
+    const template = Array.isArray(mapping.addon_templates) ? mapping.addon_templates[0] : mapping.addon_templates;
+    const isCompatibleService = isCompatibleMapping(mapping);
+
+    if (!isCompatibleService || !mapping.is_active || mapping.moderation_status !== 'approved') {
+      throw new Error('Selected add-on is not compatible with this booking service.');
+    }
+
+    if (!template || !template.is_active || template.moderation_status !== 'approved') {
+      throw new Error('Selected add-on is not active.');
+    }
+
+    if (selection.quantity < mapping.min_quantity || selection.quantity > mapping.max_quantity) {
+      throw new Error(`Add-on quantity must be between ${mapping.min_quantity} and ${mapping.max_quantity}.`);
+    }
+
+    const unitPrice = getAddonEffectivePrice(mapping.price_override, Number(template.default_price ?? 0));
+    snapshots.push({
+      addonTemplateId: mapping.addon_template_id,
+      providerServiceAddonMappingId: mapping.id,
+      nameSnapshot: template.name,
+      unitPriceSnapshot: unitPrice,
+      quantity: selection.quantity,
+      totalPriceSnapshot: unitPrice * selection.quantity,
+    });
+    rpcAddOns.push({ id: mapping.id, quantity: selection.quantity });
+  }
+
+  if (useMappings && unresolvedLegacyIds.size === 0) {
+    return { rpcAddOns, snapshots };
+  }
+
+  const legacyIds = Array.from(unresolvedLegacyIds);
+  if (legacyIds.length === 0) {
+    return { rpcAddOns, snapshots };
+  }
+
+  const { data: legacyRows, error: legacyError } = await supabase
+    .from('service_addons')
+    .select('id, provider_service_id, name, price, is_active')
+    .in('id', legacyIds)
+    .returns<Array<{ id: string; provider_service_id: string; name: string; price: number | null; is_active: boolean }>>();
+
+  if (legacyError) {
+    throw legacyError;
+  }
+
+  const legacyById = new Map((legacyRows ?? []).map((row) => [row.id, row]));
+
+  for (const selection of normalizedSelections) {
+    if (!legacyIds.includes(selection.requestedId)) {
+      continue;
+    }
+
+    const legacy = legacyById.get(selection.requestedId);
+    if (!legacy || !legacy.is_active || legacy.provider_service_id !== providerServiceId) {
+      throw new Error('Add-on not found');
+    }
+
+    const unitPrice = Number(legacy.price ?? 0);
+    snapshots.push({
+      addonTemplateId: null,
+      providerServiceAddonMappingId: null,
+      nameSnapshot: legacy.name,
+      unitPriceSnapshot: unitPrice,
+      quantity: selection.quantity,
+      totalPriceSnapshot: unitPrice * selection.quantity,
+    });
+
+    rpcAddOns.push({ id: legacy.id, quantity: selection.quantity });
+  }
+
+  return { rpcAddOns, snapshots };
+}
+
+async function persistBookingAddonSnapshots(
+  supabase: SupabaseClient,
+  bookingId: number,
+  userId: string,
+  snapshots: ResolvedBookingAddonSnapshot[],
+) {
+  if (snapshots.length === 0) {
+    return;
+  }
+
+  const { data: insertedItems, error: insertError } = await supabase
+    .from('booking_addon_items')
+    .insert(
+      snapshots.map((snapshot) => ({
+        booking_id: bookingId,
+        addon_template_id: snapshot.addonTemplateId,
+        provider_service_addon_mapping_id: snapshot.providerServiceAddonMappingId,
+        name_snapshot: snapshot.nameSnapshot,
+        unit_price_snapshot: snapshot.unitPriceSnapshot,
+        quantity: snapshot.quantity,
+        total_price_snapshot: snapshot.totalPriceSnapshot,
+        status: 'selected',
+        added_by_user_id: userId,
+        added_by_role: 'user',
+        source: 'booking_flow',
+      })),
+    )
+    .select('id, quantity, status, unit_price_snapshot, total_price_snapshot')
+    .returns<Array<{ id: string; quantity: number; status: string; unit_price_snapshot: number; total_price_snapshot: number }>>();
+
+  if (insertError) {
+    if (isMissingRelationError(insertError)) {
+      return;
+    }
+
+    throw insertError;
+  }
+
+  if ((insertedItems ?? []).length > 0) {
+    const { error: eventsError } = await supabase.from('booking_addon_events').insert(
+      (insertedItems ?? []).map((item) => ({
+        booking_addon_item_id: item.id,
+        booking_id: bookingId,
+        event_type: 'added',
+        actor_user_id: userId,
+        actor_role: 'user',
+        previous_payload: null,
+        next_payload: {
+          quantity: item.quantity,
+          status: item.status,
+          unit_price_snapshot: item.unit_price_snapshot,
+          total_price_snapshot: item.total_price_snapshot,
+        },
+      })),
+    );
+
+    if (eventsError && !isMissingRelationError(eventsError)) {
+      throw eventsError;
+    }
+  }
+
+  try {
+    await recalculateBookingAddonTotals(supabase, String(bookingId));
+  } catch (error) {
+    if (!isMissingRelationError(error)) {
+      throw error;
+    }
+  }
+}
+
+async function finalizeCreatedBooking(
+  supabase: SupabaseClient,
+  userId: string,
+  booking: BookingRecord,
+  input: CreateBookingInput,
+  resolvedAddons: ResolvedBookingAddons,
+) {
+  try {
+    await persistBookingAddonSnapshots(supabase, booking.id, userId, resolvedAddons.snapshots);
+
+    const freshBooking = await fetchBookingByIdWithFallbacks(supabase, booking.id);
+
+    if (input.useSubscriptionCredit) {
+      if (!freshBooking.service_type) {
+        throw new Error('Booking service type is required for subscription credit usage.');
+      }
+
+      const creditAmount = Number(
+        freshBooking.final_price ?? freshBooking.price_at_booking ?? freshBooking.admin_price_reference ?? 0,
+      );
+
+      if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
+        throw new Error('Booking price is required for subscription credit usage.');
+      }
+
+      await reserveCreditForBooking(supabase, freshBooking.id, userId, freshBooking.service_type, creditAmount);
+    }
+
+    return freshBooking;
+  } catch (error) {
+    // Keep booking + payment states consistent by rolling back booking creation when finalization fails.
+    await supabase.from('bookings').delete().eq('id', booking.id);
+    throw error;
+  }
 }
 
 async function fetchBookingByIdWithFallbacks(supabase: SupabaseClient, bookingId: number) {
@@ -866,10 +1244,21 @@ async function createBookingWithLegacyServiceFallback(
   // Use the atomic RPC for booking creation — provides advisory locking and slot
   // verification to prevent double-bookings (P0 fix).
   const paymentMode = input.paymentMode ?? (input.useSubscriptionCredit ? 'platform' : 'direct_to_provider');
-  const addOnsJsonb = input.addOns && input.addOns.length > 0 ? JSON.stringify(input.addOns) : null;
+  const resolvedAddons = await resolveBookingAddonsForCreate(
+    supabase,
+    providerService.id,
+    input.providerId,
+    input.addOns,
+    input.bundleProviderServiceIds,
+  );
+  // Pass the array directly — Supabase JS client serializes JavaScript arrays to valid jsonb.
+  // JSON.stringify() produces a string, which PostgREST sends as jsonb string type (not array),
+  // causing jsonb_typeof(p_add_ons) = 'string' instead of 'array' → addon total always 0.
+  const addOnsForRpc = resolvedAddons.rpcAddOns.length > 0 ? resolvedAddons.rpcAddOns : null;
 
   if (input.allowPastBooking && legacyService) {
-    return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+    const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+    return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
   }
 
   // Use the user's authenticated client for the RPC call when available.
@@ -893,23 +1282,26 @@ async function createBookingWithLegacyServiceFallback(
     p_provider_notes: input.providerNotes ?? null,
     p_payment_mode: paymentMode,
     p_discount_code: input.discountCode ?? null,
-    p_add_ons: addOnsJsonb,
+    p_add_ons: addOnsForRpc,
   });
 
   if (rpcError) {
     if (legacyService && isServiceIdNotNullConstraintError(rpcError)) {
-      return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
     }
 
     if (legacyService && isPetOwnershipError(rpcError)) {
       const sharedPetAccess = await hasSharedPetAccessForUser(supabase, userId, input.petId);
       if (sharedPetAccess) {
-        return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+        const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+        return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
       }
     }
 
     if (legacyService && isSlotUnavailableError(rpcError)) {
-      return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
     }
 
     // Clean up orphaned legacy service record if we auto-created it during this call
@@ -922,18 +1314,21 @@ async function createBookingWithLegacyServiceFallback(
   const rpcRow = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
   if (!rpcRow?.success) {
     if (legacyService && isServiceIdNotNullConstraintError({ message: rpcRow?.error_message ?? '' })) {
-      return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
     }
 
     if (legacyService && isPetOwnershipError({ message: rpcRow?.error_message ?? '' })) {
       const sharedPetAccess = await hasSharedPetAccessForUser(supabase, userId, input.petId);
       if (sharedPetAccess) {
-        return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+        const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+        return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
       }
     }
 
     if (legacyService && isSlotUnavailableError({ message: rpcRow?.error_message ?? '' })) {
-      return createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      const compatBooking = await createBookingViaCompatInsert(supabase, userId, input, providerService, legacyService, paymentMode);
+      return finalizeCreatedBooking(supabase, userId, compatBooking, input, resolvedAddons);
     }
 
     if (createdLegacyService && legacyService) {
@@ -944,25 +1339,7 @@ async function createBookingWithLegacyServiceFallback(
 
   const booking = await fetchBookingByIdWithFallbacks(supabase, rpcRow.booking_id);
 
-  if (input.useSubscriptionCredit) {
-    if (!booking.service_type) {
-      throw new Error('Booking service type is required for subscription credit usage.');
-    }
-
-    const creditAmount = Number(booking.price_at_booking ?? 0);
-    if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
-      throw new Error('Booking price is required for subscription credit usage.');
-    }
-
-    try {
-      await reserveCreditForBooking(supabase, booking.id, userId, booking.service_type, creditAmount);
-    } catch (creditError) {
-      await supabase.from('bookings').delete().eq('id', booking.id);
-      throw creditError;
-    }
-  }
-
-  return booking;
+  return finalizeCreatedBooking(supabase, userId, booking, input, resolvedAddons);
 }
 
 async function resolveProviderServiceIdForLegacyCreate(supabase: SupabaseClient, input: CreateBookingInput) {

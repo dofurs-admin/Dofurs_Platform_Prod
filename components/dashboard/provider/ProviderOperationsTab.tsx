@@ -113,12 +113,13 @@ export default function ProviderOperationsTab({
             ) : (
               <>
                 {providerBookings.slice(0, 20).map((booking) => {
-                  const isCashBooking = booking.payment_mode === 'direct_to_provider';
+                  const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
                   const cashPending = isCashBooking && !booking.cash_collected;
                   const cashReceived = isCashBooking && booking.cash_collected === true;
                   const walletCreditsAppliedInr = Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0));
-                  const grossAmountInr = Math.max(0, Number(booking.price_at_booking ?? 0));
-                  const collectibleAmountInr = Math.max(0, grossAmountInr - walletCreditsAppliedInr);
+                  const grossAmountInr = Math.max(0, Number(booking.final_price ?? booking.price_at_booking ?? 0));
+                  const pendingPayableInr = Math.max(0, Number(booking.pending_payable_inr ?? 0));
+                  const collectibleAmountInr = pendingPayableInr > 0 ? pendingPayableInr : Math.max(0, grossAmountInr - walletCreditsAppliedInr);
                   const bookingDateTimeLabel = formatProviderBookingDateTime(booking);
 
                   return (
@@ -149,6 +150,7 @@ export default function ProviderOperationsTab({
                             locationAddress={booking.location_address}
                             latitude={booking.latitude}
                             longitude={booking.longitude}
+                            addonItems={booking.addon_items}
                           />
                         </div>
 
@@ -163,6 +165,11 @@ export default function ProviderOperationsTab({
                           {booking.payment_mode === 'platform' && (
                             <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                               Paid Online
+                            </span>
+                          )}
+                          {booking.payment_mode === 'mixed' && (
+                            <span className="inline-flex items-center rounded-full border border-blue-300 bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                              Mixed Payment
                             </span>
                           )}
                           {cashReceived && (
@@ -187,7 +194,7 @@ export default function ProviderOperationsTab({
                       {grossAmountInr > 0 && (
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <span className="rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 font-semibold text-neutral-700">
-                            Collectible: {formatProviderAmount(collectibleAmountInr)}
+                            Pending Payable: {formatProviderAmount(collectibleAmountInr)}
                           </span>
                           {walletCreditsAppliedInr > 0 && (
                             <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">

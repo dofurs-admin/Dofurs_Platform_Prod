@@ -18,6 +18,7 @@ import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { notifyBookingStatusChanged } from '@/lib/notifications/service';
 import { restoreCredits } from '@/lib/credits/wallet';
 import { processReferrerRewardOnFirstBooking } from '@/lib/referrals/service';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -126,20 +127,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       }
 
       if (parsed.data.status === 'completed') {
-        if (booking.payment_mode === 'direct_to_provider') {
-          const { data: cashCollection } = await getSupabaseAdminClient()
-            .from('booking_payment_collections')
-            .select('id')
-            .eq('booking_id', bookingId)
-            .eq('status', 'paid')
-            .maybeSingle();
+        const payableSummary = await getBookingOutstandingSummary(getSupabaseAdminClient(), bookingId);
 
-          if (!cashCollection) {
-            return NextResponse.json(
-              { error: 'Cash payment must be marked as received before completing this booking.' },
-              { status: 400 },
-            );
-          }
+        if (payableSummary.outstandingInr > 0) {
+          return NextResponse.json(
+            { error: 'Pending payable amount must be collected or paid online before completing this booking.' },
+            { status: 400 },
+          );
         }
 
         const data = await completeBooking(supabase, user.id, bookingId, parsed.data.providerNotes);
@@ -179,17 +173,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     if (role === 'admin' || role === 'staff') {
-      if (parsed.data.status === 'completed' && booking.payment_mode === 'direct_to_provider') {
-        const { data: cashCollection } = await writeSupabase
-          .from('booking_payment_collections')
-          .select('id')
-          .eq('booking_id', bookingId)
-          .eq('status', 'paid')
-          .maybeSingle();
+      if (parsed.data.status === 'completed') {
+        const payableSummary = await getBookingOutstandingSummary(writeSupabase, bookingId);
 
-        if (!cashCollection) {
+        if (payableSummary.outstandingInr > 0) {
           return NextResponse.json(
-            { error: 'Cash payment must be marked as received before completing this booking.' },
+            { error: 'Pending payable amount must be collected or paid online before completing this booking.' },
             { status: 400 },
           );
         }

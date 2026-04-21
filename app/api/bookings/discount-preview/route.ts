@@ -4,6 +4,7 @@ import { forbidden, getApiAuthContext, unauthorized } from '@/lib/auth/api-auth'
 import { evaluateDiscountForBooking } from '@/lib/bookings/discounts';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -11,13 +12,22 @@ const RATE_LIMIT = {
 };
 
 const previewSchema = z.object({
-  providerServiceId: z.string().uuid(),
+  providerServiceId: z.string().uuid().optional(),
+  bundleProviderServiceIds: z.array(z.string().uuid()).min(1).max(20).optional(),
+  bundleEstimatedTotalInr: z.number().finite().positive().max(500_000).optional(),
   discountCode: z.string().trim().min(1).max(40),
   bookingUserId: z.string().uuid().optional(),
-});
+}).refine(
+  (value) => Boolean(value.providerServiceId) || Boolean(value.bundleProviderServiceIds?.length),
+  {
+    message: 'Either providerServiceId or bundleProviderServiceIds is required',
+    path: ['providerServiceId'],
+  },
+);
 
 export async function POST(request: Request) {
   const { supabase, user, role } = await getApiAuthContext();
+  const admin = getSupabaseAdminClient();
 
   if (!user) {
     return unauthorized();
@@ -41,37 +51,57 @@ export async function POST(request: Request) {
     return forbidden();
   }
 
-  let service: { id: string; service_type: string; base_price: number; is_active: boolean } | null;
+  const providerServiceIds = Array.from(
+    new Set([
+      ...(parsed.data.providerServiceId ? [parsed.data.providerServiceId] : []),
+      ...(parsed.data.bundleProviderServiceIds ?? []),
+    ]),
+  );
+
+  let services: Array<{ id: string; service_type: string; base_price: number; is_active: boolean }> = [];
 
   try {
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('provider_services')
       .select('id, service_type, base_price, is_active')
-      .eq('id', parsed.data.providerServiceId)
+      .in('id', providerServiceIds)
       .eq('is_active', true)
-      .maybeSingle<{ id: string; service_type: string; base_price: number; is_active: boolean }>();
+      .returns<Array<{ id: string; service_type: string; base_price: number; is_active: boolean }>>();
 
     if (error) {
       const mapped = toFriendlyApiError(error, 'Failed to load service details');
       return NextResponse.json({ error: mapped.message }, { status: mapped.status });
     }
 
-    service = data;
+    services = data ?? [];
   } catch (error) {
     const mapped = toFriendlyApiError(error, 'Failed to load service details');
     return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
 
-  if (!service) {
+  if (services.length === 0 || services.length !== providerServiceIds.length) {
     return NextResponse.json({ error: 'Selected service is unavailable for discount preview.' }, { status: 404 });
   }
 
+  const serviceTypes = Array.from(new Set(services.map((service) => service.service_type)));
+  const defaultBaseAmount = services.reduce((sum, service) => sum + Number(service.base_price ?? 0), 0);
+  const baseAmount = Math.max(
+    defaultBaseAmount,
+    Number.isFinite(parsed.data.bundleEstimatedTotalInr)
+      ? Number(parsed.data.bundleEstimatedTotalInr)
+      : 0,
+  );
+
+  if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
+    return NextResponse.json({ error: 'Booking amount is invalid for discount preview.' }, { status: 400 });
+  }
+
   try {
-    const evaluation = await evaluateDiscountForBooking(supabase, {
+    const evaluation = await evaluateDiscountForBooking(admin, {
       discountCode: parsed.data.discountCode,
       userId: bookingUserId,
-      serviceType: service.service_type,
-      baseAmount: service.base_price,
+      serviceTypes,
+      baseAmount,
     });
 
     if (!evaluation.preview) {

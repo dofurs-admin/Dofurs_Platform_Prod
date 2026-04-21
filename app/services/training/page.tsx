@@ -4,6 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'Dog Training in Bangalore — Positive Reinforcement | Dofurs',
@@ -79,10 +80,28 @@ const APPROACH = [
   },
 ];
 
+const trainingServiceSchema = buildServiceSchema({
+  name: 'Dog Training in Bangalore',
+  description:
+    'Certified positive-reinforcement dog training in Bangalore — puppy foundation, basic obedience, behaviour correction, and agility. Home and group sessions available.',
+  url: 'https://dofurs.in/services/training',
+  serviceType: 'Dog Training',
+  category: 'Pet Training',
+});
+
+const trainingBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Training', url: '/services/training' },
+]);
+
 export default function TrainingPage() {
   const notifyCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(trainingServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(trainingBreadcrumbSchema)} />
     <ContentPageLayout
       title="Professional Dog Training"
       description="Positive reinforcement training to build better behaviour, confidence, and a stronger bond between you and your dog — from certified trainers across Bangalore."
@@ -198,20 +217,7 @@ export default function TrainingPage() {
         ))}
       </div>
 
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Dog Training',
-            provider: { '@type': 'LocalBusiness', name: 'Dofurs', url: 'https://dofurs.in', areaServed: 'Bangalore' },
-            description: 'Certified positive reinforcement dog training in Bangalore — puppy, obedience, behaviour correction, and agility.',
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

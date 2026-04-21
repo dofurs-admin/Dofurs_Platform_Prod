@@ -33,11 +33,23 @@ export async function evaluateDiscountForBooking(
   input: {
     discountCode: string;
     userId: string;
-    serviceType: string;
+    serviceType?: string;
+    serviceTypes?: string[];
     baseAmount: number;
   },
 ): Promise<BookingDiscountEvaluation> {
   const normalizedCode = input.discountCode.trim().toUpperCase();
+  const normalizedServiceTypes = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(input.serviceTypes) ? input.serviceTypes : []),
+        ...(input.serviceType ? [input.serviceType] : []),
+      ]
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+        .map((value) => normalizeServiceType(value)),
+    ),
+  );
 
   if (!normalizedCode) {
     return { preview: null, reason: 'Discount code is required.' };
@@ -106,7 +118,8 @@ export async function evaluateDiscountForBooking(
 
   if (
     discount.applies_to_service_type &&
-    normalizeServiceType(discount.applies_to_service_type) !== normalizeServiceType(input.serviceType)
+    normalizedServiceTypes.length > 0 &&
+    !normalizedServiceTypes.includes(normalizeServiceType(discount.applies_to_service_type))
   ) {
     return { preview: null, reason: 'Discount is not applicable to the selected service.' };
   }

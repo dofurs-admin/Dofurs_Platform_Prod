@@ -78,6 +78,7 @@ export type CreateBookingInput = {
   providerNotes?: string | null;
   discountCode?: string;
   addOns?: Array<{ id: string; quantity: number }>;
+  bundleProviderServiceIds?: string[];
   useSubscriptionCredit?: boolean;
   paymentMode?: 'direct_to_provider' | 'platform' | 'mixed' | string;
   allowPastBooking?: boolean;

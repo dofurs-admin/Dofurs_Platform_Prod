@@ -23,6 +23,14 @@ type BookingInvoice = {
   paid_at: string | null;
 };
 
+type BookingAddonItem = {
+  id: string;
+  name_snapshot: string;
+  quantity: number;
+  total_price_inr: number;
+  status: string;
+};
+
 type StatusEvent = {
   old_status: string | null;
   new_status: string;
@@ -90,6 +98,7 @@ type Props = {
 export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props) {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [invoices, setInvoices] = useState<BookingInvoice[]>([]);
+  const [addonItems, setAddonItems] = useState<BookingAddonItem[]>([]);
   const [notes, setNotes] = useState<BookingNote[]>([]);
   const [customerFeedback, setCustomerFeedback] = useState<CustomerFeedbackEntry[]>([]);
   const [noteInput, setNoteInput] = useState('');
@@ -107,6 +116,7 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
     setNotes([]);
     setCustomerFeedback([]);
     setInvoices([]);
+    setAddonItems([]);
     setLoadError(null);
     setCustomerFeedbackError(null);
     setCustomerFeedbackInput('');
@@ -133,6 +143,7 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
         const detail = await detailRes.json();
         setBooking(detail.booking ?? null);
         setInvoices(detail.invoices ?? []);
+        setAddonItems(detail.addonItems ?? []);
 
         if (notesRes.ok) {
           const notesData = await notesRes.json();
@@ -300,6 +311,20 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
               </div>
             </div>
           </div>
+
+          {addonItems.length > 0 ? (
+            <div className="rounded-xl border border-neutral-200 p-4">
+              <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Add-ons</p>
+              <div className="space-y-1 text-sm">
+                {addonItems.map((item) => (
+                  <div key={item.id} className="flex justify-between">
+                    <span className="text-neutral-600">{item.name_snapshot} x{item.quantity}</span>
+                    <span>{fmt(item.total_price_inr)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {/* Payment information */}
           <div className="rounded-xl border border-neutral-200 p-4">
