@@ -82,21 +82,40 @@ export async function createServiceInvoice(
     discountInr?: number;
     walletCreditsAppliedInr?: number;
     status: 'issued' | 'paid';
+    metadata?: Record<string, unknown>;
   },
 ) {
-  const { data: existingInvoice, error: existingInvoiceError } = await supabase
-    .from('billing_invoices')
-    .select('id, invoice_number')
-    .eq('invoice_type', 'service')
-    .eq('booking_id', input.bookingId)
-    .maybeSingle();
+  if (input.paymentTransactionId) {
+    const { data: existingByTransaction, error: existingByTransactionError } = await supabase
+      .from('billing_invoices')
+      .select('id, invoice_number')
+      .eq('invoice_type', 'service')
+      .eq('payment_transaction_id', input.paymentTransactionId)
+      .maybeSingle();
 
-  if (existingInvoiceError) {
-    throw existingInvoiceError;
-  }
+    if (existingByTransactionError) {
+      throw existingByTransactionError;
+    }
 
-  if (existingInvoice) {
-    return existingInvoice;
+    if (existingByTransaction) {
+      return existingByTransaction;
+    }
+  } else {
+    const { data: existingInvoice, error: existingInvoiceError } = await supabase
+      .from('billing_invoices')
+      .select('id, invoice_number')
+      .eq('invoice_type', 'service')
+      .eq('booking_id', input.bookingId)
+      .is('payment_transaction_id', null)
+      .maybeSingle();
+
+    if (existingInvoiceError) {
+      throw existingInvoiceError;
+    }
+
+    if (existingInvoice) {
+      return existingInvoice;
+    }
   }
 
   const subtotalInr = Math.max(0, input.amountInr);
@@ -122,7 +141,10 @@ export async function createServiceInvoice(
       total_inr: totalInr,
       issued_at: now,
       paid_at: input.status === 'paid' ? now : null,
-      metadata: { source: 'service_booking' },
+      metadata: {
+        source: input.paymentTransactionId ? 'service_payment_collection' : 'service_booking',
+        ...(input.metadata ?? {}),
+      },
     })
     .select('id, invoice_number')
     .single();

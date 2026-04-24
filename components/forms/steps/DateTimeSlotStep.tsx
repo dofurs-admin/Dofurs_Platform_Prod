@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { apiRequest } from '@/lib/api/client';
 import { isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
+import { formatSavedAddress } from '@/lib/utils/address';
 
 const LocationPinMap = dynamic(() => import('../LocationPinMap'), { ssr: false });
 import AvailabilityCalendar from '@/components/ui/AvailabilityCalendar';
@@ -129,7 +130,6 @@ export default function DateTimeSlotStep({
   savedAddresses,
   selectedSavedAddressId,
   providerNotes,
-  selectedPets = [],
   isPackageBooking = false,
   isBoardingBooking = false,
   bookingEndDate = '',
@@ -232,9 +232,6 @@ export default function DateTimeSlotStep({
 
   const mustSelectServiceableAddress = bookingMode === 'home_visit' && !isPackageBooking;
   const canSelectDate = mustSelectServiceableAddress ? isSelectedAddressServiceable : true;
-  const addressNeedsAttention =
-    mustSelectServiceableAddress &&
-    (!selectedSavedAddressId || !locationAddress.trim() || !isSelectedAddressServiceable || !selectedAddressPincode);
 
   const continueDisabledReason = (() => {
     if (canProceed) {
@@ -562,17 +559,12 @@ export default function DateTimeSlotStep({
         }
 
         onLocationChange(formatSavedAddress(payload.address ?? {
-          id: editingAddressId,
-          label: 'Other',
           address_line_1: addressLine1,
           address_line_2: addressLine2 || null,
           city,
           state,
           pincode,
           country,
-          latitude: parsedLatitude,
-          longitude: parsedLongitude,
-          is_default: false,
         }));
         onLatitudeChange(String(parsedLatitude));
         onLongitudeChange(String(parsedLongitude));
@@ -624,19 +616,6 @@ export default function DateTimeSlotStep({
     } finally {
       setIsSavingAddress(false);
     }
-  }
-
-  function formatSavedAddress(address: SavedAddress) {
-    return [
-      address.address_line_1,
-      address.address_line_2,
-      address.city,
-      address.state,
-      address.pincode,
-      address.country,
-    ]
-      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      .join(', ');
   }
 
   function handleSelectSavedAddress(address: SavedAddress) {

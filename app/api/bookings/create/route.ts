@@ -14,6 +14,7 @@ import { haversineDistanceKm } from '@/lib/utils/geo-distance';
 import { reserveCreditForBooking } from '@/lib/subscriptions/creditTracking';
 import { createDiscountRedemption, evaluateDiscountForBooking } from '@/lib/bookings/discounts';
 import { getISTTimestamp } from '@/lib/utils/date';
+import { sanitizeAddressText } from '@/lib/utils/address';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -40,6 +41,8 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid booking payload', details: parsed.error.flatten() }, { status: 400 });
   }
+
+  const normalizedLocationAddress = sanitizeAddressText(parsed.data.locationAddress);
 
   const targetUserId = parsed.data.bookingUserId ?? user.id;
 
@@ -189,8 +192,8 @@ export async function POST(request: Request) {
       // Resolve the user's pincode: explicit field > extract from locationAddress
       let userPincode = parsed.data.pincode?.trim() ?? '';
 
-      if (!/^[1-9]\d{5}$/.test(userPincode) && parsed.data.locationAddress) {
-        const match = parsed.data.locationAddress.match(/\b([1-9]\d{5})\b/);
+      if (!/^[1-9]\d{5}$/.test(userPincode) && normalizedLocationAddress) {
+        const match = normalizedLocationAddress.match(/\b([1-9]\d{5})\b/);
         userPincode = match?.[1] ?? '';
       }
 
@@ -337,7 +340,7 @@ export async function POST(request: Request) {
       startTime: parsed.data.startTime,
       endTime: parsed.data.endTime,
       bookingMode: parsed.data.bookingMode,
-      locationAddress: parsed.data.locationAddress,
+      locationAddress: normalizedLocationAddress,
       latitude: parsed.data.latitude,
       longitude: parsed.data.longitude,
       providerNotes: parsed.data.providerNotes,
@@ -543,17 +546,27 @@ export async function POST(request: Request) {
       const mergedNotes = [bundleSummary, booking.provider_notes ?? null]
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
         .join('\n\n');
+      const mergedInternalNotes = [bundleSummary, booking.internal_notes ?? null]
+        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+        .join('\n\n');
 
       const estimatedTotalInr = Math.max(0, Number(parsed.data.bundleEstimatedTotalInr ?? 0));
       const walletAppliedForBundle = Math.max(0, Number(parsed.data.walletCreditsAppliedInr ?? 0));
-      const discountAmountForBundle = Math.max(0, Number(booking.discount_amount ?? 0));
+      const discountAmountForBundle = Math.max(0, Number(resolvedDiscountPreview?.discountAmount ?? 0));
+      const bookingFinalAmount = Number(
+        (booking as { final_price?: number | null; amount?: number | null }).final_price ??
+          (booking as { amount?: number | null }).amount ??
+          booking.price_at_booking ??
+          0,
+      );
       const finalPriceForBundle =
         estimatedTotalInr > 0
           ? Math.max(0, estimatedTotalInr - discountAmountForBundle - walletAppliedForBundle)
-          : Number(booking.final_price ?? booking.amount ?? 0);
+          : bookingFinalAmount;
 
       const bundlePatch: Record<string, unknown> = {
         provider_notes: mergedNotes || null,
+        internal_notes: mergedInternalNotes || null,
       };
 
       if (estimatedTotalInr > 0) {

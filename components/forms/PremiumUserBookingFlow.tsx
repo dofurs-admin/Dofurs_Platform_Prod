@@ -8,6 +8,7 @@ import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import type { PricingBreakdown } from '@/lib/bookings/types';
 import { ApiClientError, apiRequest } from '@/lib/api/client';
 import { bookingCreateSchema } from '@/lib/flows/validation';
+import { formatSavedAddress } from '@/lib/utils/address';
 import PremiumBookingConfirmation from './PremiumBookingConfirmation';
 import PetAndServiceStep from './steps/PetAndServiceStep';
 import DateTimeSlotStep from './steps/DateTimeSlotStep';
@@ -490,16 +491,7 @@ export default function PremiumUserBookingFlow() {
 
         const defaultAddress = (payload.addresses ?? []).find((item) => item.is_default) ?? (payload.addresses ?? [])[0];
         if (defaultAddress) {
-          const formattedAddress = [
-            defaultAddress.address_line_1,
-            defaultAddress.address_line_2,
-            defaultAddress.city,
-            defaultAddress.state,
-            defaultAddress.pincode,
-            defaultAddress.country,
-          ]
-            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-            .join(', ');
+          const formattedAddress = formatSavedAddress(defaultAddress);
           setLocationAddress(formattedAddress);
           setSelectedSavedAddressId(defaultAddress.id);
           if (defaultAddress.latitude !== null && defaultAddress.longitude !== null) {

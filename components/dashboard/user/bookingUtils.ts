@@ -1,4 +1,7 @@
 import type { Booking, Pet } from './types';
+import { extractBundledPetIdsFromNotes } from '@/lib/bookings/included-services';
+import { resolveIncludedServicesForBooking } from '@/lib/bookings/included-services';
+import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
 
 export function resolveBookingStatus(booking: Booking): Booking['status'] {
   return booking.booking_status ?? booking.status;
@@ -43,62 +46,19 @@ export function resolveProviderName(providers: Booking['providers']): string | u
 }
 
 export function extractBookedServices(booking: Booking): string[] {
-  const services = new Set<string>();
-  const primary = (booking.service_type ?? '').trim();
-
-  if (primary.length > 0) {
-    services.add(primary);
-  }
-
-  const notes = booking.provider_notes ?? '';
-  for (const line of notes.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    // Support both `1. Pet 12 | Grooming` and `1. Grooming` bundle lines.
-    const match = trimmed.match(/^\d+\.\s*(?:Pet\s+\d+\s*\|\s*)?(.+)$/i);
-    if (match?.[1]) {
-      const label = match[1].trim();
-      if (label) {
-        services.add(label);
-      }
-    }
-  }
-
-  return Array.from(services);
+  return resolveIncludedServicesForBooking(booking);
 }
 
 export function resolveBookingServiceLabel(booking: Booking): string {
   const bookedServices = extractBookedServices(booking);
-  if (bookedServices.length > 1) {
-    return `Bundled services (${bookedServices.length})`;
-  }
-
-  return booking.service_type ?? 'Service';
+  return buildIncludedServicesLabel(bookedServices, booking.service_type);
 }
 
 export function extractBookedPetIds(booking: Booking): number[] {
-  const petIds = new Set<number>();
-  const notes = booking.provider_notes ?? '';
-
-  for (const line of notes.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    const match = trimmed.match(/^\d+\.\s*Pet\s+(\d+)\s*\|/i);
-    if (!match?.[1]) {
-      continue;
-    }
-
-    const parsed = Number.parseInt(match[1], 10);
-    if (Number.isFinite(parsed) && parsed > 0) {
-      petIds.add(parsed);
-    }
-  }
+  const petIds = new Set<number>([
+    ...extractBundledPetIdsFromNotes(booking.provider_notes),
+    ...extractBundledPetIdsFromNotes(booking.internal_notes),
+  ]);
 
   if (petIds.size === 0 && booking.pet_id) {
     petIds.add(booking.pet_id);

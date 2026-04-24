@@ -23,8 +23,24 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     return NextResponse.json({ error: 'Booking not found.' }, { status: 404 });
   }
 
-  if ((role === 'user' || role === 'provider') && summary.booking.user_id !== user.id) {
+  if (role === 'user' && summary.booking.user_id !== user.id) {
     return forbidden();
+  }
+
+  if (role === 'provider') {
+    const { data: providerBooking } = await admin
+      .from('bookings')
+      .select('id, providers!inner(user_id)')
+      .eq('id', bookingId)
+      .maybeSingle<{ id: number; providers: { user_id: string } | Array<{ user_id: string }> }>();
+
+    const providerUserId = (Array.isArray(providerBooking?.providers)
+      ? providerBooking?.providers[0]
+      : providerBooking?.providers)?.user_id;
+
+    if (!providerUserId || providerUserId !== user.id) {
+      return forbidden();
+    }
   }
 
   if (!['pending', 'confirmed', 'in_progress'].includes(summary.booking.booking_status)) {

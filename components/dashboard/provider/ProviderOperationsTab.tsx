@@ -25,6 +25,9 @@ import type {
   ResponseHistoryEntry,
 } from './providerTypes';
 import SendMessageModal from '@/components/dashboard/SendMessageModal';
+import { ACTIVE_BOOKING_ADDON_STATUSES } from '@/lib/bookings/addon-items';
+import { resolveIncludedServicesForBooking } from '@/lib/bookings/included-services';
+import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
 
 type Props = {
   dashboard: ProviderDashboard;
@@ -35,6 +38,7 @@ type Props = {
     bookingId: number,
     status: 'confirmed' | 'completed' | 'no_show' | 'cancelled',
   ) => void;
+  onManageAddons: (bookingId: number) => void;
   onMarkCashCollected: (bookingId: number, collectionMode?: 'cash' | 'upi' | 'other') => void;
   onOpenCompletionEditor: (bookingId: number) => void;
   onOpenCustomerFeedbackEditor: (bookingId: number) => void;
@@ -59,6 +63,7 @@ export default function ProviderOperationsTab({
   bookingFilter,
   onBookingFilterChange,
   onBookingStatusChange,
+  onManageAddons,
   onMarkCashCollected,
   onOpenCompletionEditor,
   onOpenCustomerFeedbackEditor,
@@ -81,6 +86,15 @@ export default function ProviderOperationsTab({
     recipientName: string;
     bookingId?: number;
   } | null>(null);
+  const [expandedSummaryBookingIds, setExpandedSummaryBookingIds] = useState<number[]>([]);
+
+  function toggleBookingSummary(bookingId: number) {
+    setExpandedSummaryBookingIds((current) =>
+      current.includes(bookingId)
+        ? current.filter((id) => id !== bookingId)
+        : [...current, bookingId],
+    );
+  }
 
   return (
     <>
@@ -116,11 +130,61 @@ export default function ProviderOperationsTab({
                   const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
                   const cashPending = isCashBooking && !booking.cash_collected;
                   const cashReceived = isCashBooking && booking.cash_collected === true;
+                  const receivedBadgeLabel = booking.payment_mode === 'mixed' ? 'Payable Settled' : 'Cash Received';
+                  const pendingBadgeLabel = booking.payment_mode === 'mixed' ? 'Pending Payable' : 'Awaiting Cash';
                   const walletCreditsAppliedInr = Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0));
-                  const grossAmountInr = Math.max(0, Number(booking.final_price ?? booking.price_at_booking ?? 0));
                   const pendingPayableInr = Math.max(0, Number(booking.pending_payable_inr ?? 0));
-                  const collectibleAmountInr = pendingPayableInr > 0 ? pendingPayableInr : Math.max(0, grossAmountInr - walletCreditsAppliedInr);
                   const bookingDateTimeLabel = formatProviderBookingDateTime(booking);
+                  const normalizedPetNames = (booking.pet_names ?? [])
+                    .map((name) => name.trim())
+                    .filter((name) => name.length > 0);
+                  const petPrimaryName = normalizedPetNames[0] ?? booking.pet_name ?? null;
+                  const petNameLabel = normalizedPetNames.length > 0
+                    ? normalizedPetNames.join(', ')
+                    : booking.pet_name ?? null;
+                  const allAddonItems = booking.addon_items ?? [];
+                  const addonItems = allAddonItems.filter((item) => ACTIVE_BOOKING_ADDON_STATUSES.has(item.status));
+                  const addonSubtotalInr = addonItems.reduce(
+                    (sum, item) => sum + Math.max(0, Number(item.total_price_inr ?? 0)),
+                    0,
+                  );
+                  const referenceServiceSubtotalInr = Math.max(
+                    0,
+                    Number(booking.admin_price_reference ?? booking.price_at_booking ?? 0),
+                  );
+                  const discountInr = Math.max(0, Number(booking.discount_amount ?? 0));
+                  const finalAmountFromBookingInr = Math.max(0, Number(booking.final_price ?? 0));
+                  const fallbackFinalAmountInr = Math.max(
+                    0,
+                    referenceServiceSubtotalInr + addonSubtotalInr - discountInr - walletCreditsAppliedInr,
+                  );
+                  const finalAmountInr = finalAmountFromBookingInr > 0
+                    ? finalAmountFromBookingInr
+                    : fallbackFinalAmountInr;
+                  const impliedGrossSubtotalInr = Math.max(0, finalAmountInr + discountInr + walletCreditsAppliedInr);
+                  const hasReferenceServiceSubtotal = referenceServiceSubtotalInr > 0;
+                  const serviceSubtotalInr = hasReferenceServiceSubtotal
+                    ? referenceServiceSubtotalInr
+                    : Math.max(0, impliedGrossSubtotalInr - addonSubtotalInr);
+                  const reconciliationAdjustmentInr = hasReferenceServiceSubtotal
+                    ? Math.round(impliedGrossSubtotalInr - (referenceServiceSubtotalInr + addonSubtotalInr))
+                    : 0;
+                  const grossSubtotalInr = Math.max(
+                    0,
+                    serviceSubtotalInr + addonSubtotalInr + reconciliationAdjustmentInr,
+                  );
+                  const collectibleAmountInr = pendingPayableInr > 0
+                    ? pendingPayableInr
+                    : Math.max(0, finalAmountInr - walletCreditsAppliedInr);
+                  const includedServices =
+                    booking.included_services && booking.included_services.length > 0
+                      ? booking.included_services
+                      : resolveIncludedServicesForBooking(booking);
+                  const serviceLabel = buildIncludedServicesLabel(
+                    includedServices,
+                    booking.service_type,
+                  );
+                  const isSummaryExpanded = expandedSummaryBookingIds.includes(booking.id);
 
                   return (
                     <div
@@ -133,7 +197,7 @@ export default function ProviderOperationsTab({
                             bookingId={booking.id}
                             dateTimeLabel={bookingDateTimeLabel.full}
                             mobileDateTimeLabel={bookingDateTimeLabel.compact}
-                            petName={booking.pet_name}
+                            petName={petPrimaryName}
                             ownerName={booking.owner_full_name}
                             petPhotoUrl={booking.pet_photo_url}
                             ownerPhotoUrl={booking.owner_photo_url}
@@ -142,15 +206,14 @@ export default function ProviderOperationsTab({
                           />
 
                           <BookingDetailsBlock
-                            serviceType={booking.service_type}
+                            serviceType={serviceLabel}
                             bookingMode={booking.booking_mode}
                             customerName={booking.owner_full_name}
-                            petName={booking.pet_name}
+                            petName={petNameLabel}
                             ownerPhone={booking.owner_phone}
                             locationAddress={booking.location_address}
                             latitude={booking.latitude}
                             longitude={booking.longitude}
-                            addonItems={booking.addon_items}
                           />
                         </div>
 
@@ -174,14 +237,14 @@ export default function ProviderOperationsTab({
                           )}
                           {cashReceived && (
                             <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                              Cash Received
+                              {receivedBadgeLabel}
                             </span>
                           )}
                           {cashPending && (
                             booking.booking_status === 'confirmed' || booking.booking_status === 'pending'
                           ) && (
                             <span className="inline-flex items-center rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
-                              Awaiting Cash
+                              {pendingBadgeLabel}
                             </span>
                           )}
                         </div>
@@ -191,7 +254,7 @@ export default function ProviderOperationsTab({
                         {bookingTimelineLabel(booking.booking_status)}
                       </p>
 
-                      {grossAmountInr > 0 && (
+                      {finalAmountInr > 0 && (
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                           <span className="rounded-full border border-neutral-300 bg-neutral-100 px-2 py-0.5 font-semibold text-neutral-700">
                             Pending Payable: {formatProviderAmount(collectibleAmountInr)}
@@ -222,7 +285,7 @@ export default function ProviderOperationsTab({
                                 variant="secondary"
                                 onClick={() => onMarkCashCollected(booking.id, 'cash')}
                               >
-                                Mark Cash Received
+                                {booking.payment_mode === 'mixed' ? 'Collect Pending Payable' : 'Mark Cash Received'}
                               </Button>
                             )}
 
@@ -258,6 +321,15 @@ export default function ProviderOperationsTab({
                             </Button>
                           </>
                         )}
+                        {(booking.booking_status === 'pending' || booking.booking_status === 'confirmed') && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => onManageAddons(booking.id)}
+                          >
+                            Manage Add-ons
+                          </Button>
+                        )}
                         {(booking.booking_status === 'pending' ||
                           booking.booking_status === 'confirmed') && (
                           <Button
@@ -282,6 +354,15 @@ export default function ProviderOperationsTab({
                         <Button
                           size="sm"
                           variant="ghost"
+                          aria-expanded={isSummaryExpanded}
+                          aria-controls={`provider-booking-summary-${booking.id}`}
+                          onClick={() => toggleBookingSummary(booking.id)}
+                        >
+                          {isSummaryExpanded ? 'Hide Summary' : 'View Summary'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => setMessageTarget({
                             recipientId: booking.user_id,
                             recipientName: booking.owner_full_name || 'Pet Parent',
@@ -291,6 +372,133 @@ export default function ProviderOperationsTab({
                           Message
                         </Button>
                       </div>
+
+                      {isSummaryExpanded ? (
+                        <div
+                          id={`provider-booking-summary-${booking.id}`}
+                          className="mt-3 space-y-3 rounded-lg border border-[#ecd8c7] bg-[#fffaf4] px-3 py-3"
+                        >
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">
+                              Price Breakup
+                            </p>
+                            <div className="mt-1 space-y-1 text-[11px] text-[#6f4b32] sm:text-xs">
+                              {serviceSubtotalInr > 0 ? (
+                                <div className="flex items-center justify-between">
+                                  <span>Service Subtotal</span>
+                                  <span>{formatProviderAmount(serviceSubtotalInr)}</span>
+                                </div>
+                              ) : null}
+                              {addonSubtotalInr > 0 ? (
+                                <div className="flex items-center justify-between">
+                                  <span>Add-on Subtotal</span>
+                                  <span>{formatProviderAmount(addonSubtotalInr)}</span>
+                                </div>
+                              ) : null}
+                              {reconciliationAdjustmentInr !== 0 ? (
+                                <div className="flex items-center justify-between">
+                                  <span>Price Adjustment</span>
+                                  <span>
+                                    {reconciliationAdjustmentInr > 0 ? '+ ' : '- '}
+                                    {formatProviderAmount(Math.abs(reconciliationAdjustmentInr))}
+                                  </span>
+                                </div>
+                              ) : null}
+                              {grossSubtotalInr > 0 ? (
+                                <div className="flex items-center justify-between">
+                                  <span>Gross Subtotal</span>
+                                  <span>{formatProviderAmount(grossSubtotalInr)}</span>
+                                </div>
+                              ) : null}
+                              {discountInr > 0 ? (
+                                <div className="flex items-center justify-between">
+                                  <span>Discount Applied</span>
+                                  <span>- {formatProviderAmount(discountInr)}</span>
+                                </div>
+                              ) : null}
+                              {walletCreditsAppliedInr > 0 ? (
+                                <div className="flex items-center justify-between">
+                                  <span>Dofurs Credits Applied</span>
+                                  <span>- {formatProviderAmount(walletCreditsAppliedInr)}</span>
+                                </div>
+                              ) : null}
+                              <div className="flex items-center justify-between border-t border-[#e7c4a7]/70 pt-1 font-semibold text-[#5d3e2b]">
+                                <span>Final Amount</span>
+                                <span>{formatProviderAmount(finalAmountInr)}</span>
+                              </div>
+                              {collectibleAmountInr > 0 ? (
+                                <div className="flex items-center justify-between font-semibold text-[#5d3e2b]">
+                                  <span>Pending Payable</span>
+                                  <span>{formatProviderAmount(collectibleAmountInr)}</span>
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">
+                                Included Services
+                              </p>
+                              {includedServices.length > 0 ? (
+                                <ul className="mt-1 space-y-1">
+                                  {includedServices.map((serviceName, index) => (
+                                    <li
+                                      key={`${booking.id}-service-${index}-${serviceName}`}
+                                      className="text-[11px] text-[#6f4b32] sm:text-xs"
+                                    >
+                                      {serviceName}
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="mt-1 text-[11px] text-[#7c5b43] sm:text-xs">
+                                  No bundled service lines found.
+                                </p>
+                              )}
+                            </div>
+
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">
+                                Add-on Summary
+                              </p>
+                              {addonItems.length > 0 ? (
+                                <ul className="mt-1 space-y-1">
+                                  {addonItems.map((item, index) => {
+                                    const totalPriceInr = Math.max(0, Number(item.total_price_inr ?? 0));
+                                    const unitPriceInr =
+                                      item.quantity > 0
+                                        ? Math.max(0, Math.round(totalPriceInr / item.quantity))
+                                        : null;
+
+                                    return (
+                                      <li
+                                        key={`${item.id}-${index}`}
+                                        className="text-[11px] text-[#6f4b32] sm:text-xs"
+                                      >
+                                        {item.name_snapshot} x{item.quantity}
+                                        {unitPriceInr != null
+                                          ? ` (${formatProviderAmount(unitPriceInr)} each)`
+                                          : ''}{' '}
+                                        • {formatProviderAmount(totalPriceInr)}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              ) : (
+                                <p className="mt-1 text-[11px] text-[#7c5b43] sm:text-xs">
+                                  No active add-ons selected.
+                                </p>
+                              )}
+                              {allAddonItems.length > addonItems.length ? (
+                                <p className="mt-1 text-[10px] text-[#8a6549] sm:text-[11px]">
+                                  Only active add-ons are included in totals.
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

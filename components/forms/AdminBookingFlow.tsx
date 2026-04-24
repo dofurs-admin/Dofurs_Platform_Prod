@@ -8,6 +8,7 @@ import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import AvailabilityCalendar from '@/components/ui/AvailabilityCalendar';
 import { apiRequest } from '@/lib/api/client';
 import { useToast } from '@/components/ui/ToastProvider';
+import { formatSavedAddress } from '@/lib/utils/address';
 
 const LocationPinMap = dynamic(() => import('./LocationPinMap'), { ssr: false });
 
@@ -218,19 +219,6 @@ const STEPS = [
 
 const ADD_ADDRESS_OPTION_VALUE = '__add_new_address__';
 
-function formatAddress(address: SavedAddress) {
-  return [
-    address.address_line_1,
-    address.address_line_2,
-    address.city,
-    address.state,
-    address.pincode,
-    address.country,
-  ]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(', ');
-}
-
 function resolveBookingMode(value: string | null | undefined): BookingMode {
   if (value === 'clinic_visit' || value === 'teleconsult' || value === 'home_visit') {
     return value;
@@ -239,7 +227,11 @@ function resolveBookingMode(value: string | null | undefined): BookingMode {
   return 'home_visit';
 }
 
-export default function AdminBookingFlow() {
+type AdminBookingFlowProps = {
+  defaultMinimized?: boolean;
+};
+
+export default function AdminBookingFlow({ defaultMinimized = false }: AdminBookingFlowProps) {
   const { showToast } = useToast();
 
   const searchParams = useSearchParams();
@@ -432,11 +424,12 @@ export default function AdminBookingFlow() {
       return 'Not selected';
     }
 
-    return formatAddress(selectedAddress);
+    return formatSavedAddress(selectedAddress);
   }, [selectedAddress]);
 
   const pincode = selectedAddress?.pincode?.trim() ?? '';
   const isFlowCompleted = bookingConfirmation !== null;
+  const [isOrchestratorMinimized, setIsOrchestratorMinimized] = useState(() => defaultMinimized && !isRescheduleMode);
 
   const stepProgress = isFlowCompleted ? 100 : (step / STEPS.length) * 100;
   const availabilityDebug = availability.debug ?? null;
@@ -1357,9 +1350,13 @@ export default function AdminBookingFlow() {
       return;
     }
 
-    const serviceLookupId = providerServiceId
-      ?? serviceOptions.find((service) => service.serviceType.trim().toLowerCase() === serviceType.trim().toLowerCase())?.serviceId
-      ?? null;
+    const normalizedServiceType = serviceType.trim().toLowerCase();
+    const serviceLookupId =
+      providerServiceId ??
+      availability.providers.find(
+        (provider) => provider.serviceType.trim().toLowerCase() === normalizedServiceType,
+      )?.providerServiceId ??
+      null;
 
     if (!serviceLookupId) {
       setServiceAddOns([]);
@@ -1419,7 +1416,7 @@ export default function AdminBookingFlow() {
     return () => {
       isMounted = false;
     };
-  }, [providerServiceId, serviceOptions, serviceType, totalSelectedServices]);
+  }, [availability.providers, providerServiceId, serviceType, totalSelectedServices]);
 
   useEffect(() => {
     if (!serviceType) {
@@ -1760,7 +1757,7 @@ export default function AdminBookingFlow() {
             startTime: slotStartTime,
             endTime: allowPastSlots && bundleEntries.length === 1 ? slotEndTime : undefined,
             bookingMode,
-            locationAddress: bookingMode === 'home_visit' ? formatAddress(selectedAddress) : null,
+            locationAddress: bookingMode === 'home_visit' ? formatSavedAddress(selectedAddress) : null,
             latitude: bookingMode === 'home_visit' ? selectedAddress.latitude : null,
             longitude: bookingMode === 'home_visit' ? selectedAddress.longitude : null,
             providerNotes: mergedProviderNotes || null,
@@ -1800,7 +1797,7 @@ export default function AdminBookingFlow() {
           bookingDate,
           startTime: slotStartTime,
           endTime: slotEndTime,
-          address: formatAddress(selectedAddress),
+          address: formatSavedAddress(selectedAddress),
           paymentMode: paymentChoice,
           totalAmount: summaryBaseAmount + summaryAddOnAmount,
           discountAmount: summaryDiscount,
@@ -1823,18 +1820,30 @@ export default function AdminBookingFlow() {
     >
       <div className="space-y-5" data-flow-state={isPending ? 'working' : 'ready'}>
         <div className="space-y-3">
-          <div>
-            <h3 className="text-lg font-semibold text-neutral-900 sm:text-xl">
-              {isRescheduleMode ? `Reschedule Booking #${rescheduleBookingId}` : 'Admin Booking Orchestrator'}
-            </h3>
-            <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
-              {isRescheduleMode
-                ? 'Pick a new date, time slot, and provider for this booking.'
-                : 'Structured 5-step flow with pincode-aware service, slot, and provider matching.'}
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 sm:text-xl">
+                {isRescheduleMode ? `Reschedule Booking #${rescheduleBookingId}` : 'Admin Booking Orchestrator'}
+              </h3>
+              <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
+                {isRescheduleMode
+                  ? 'Pick a new date, time slot, and provider for this booking.'
+                  : 'Structured 5-step flow with pincode-aware service, slot, and provider matching.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOrchestratorMinimized((previous) => !previous)}
+              className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-neutral-300"
+              aria-expanded={!isOrchestratorMinimized}
+            >
+              {isOrchestratorMinimized ? 'Expand' : 'Minimize'}
+            </button>
           </div>
 
-          <div className="pb-1">
+          {!isOrchestratorMinimized ? (
+            <>
+              <div className="pb-1">
             <div className="flex flex-wrap items-center gap-2 sm:inline-flex sm:min-w-max sm:gap-2">
               {STEPS.map((item, index) => {
                 const isActive = !isFlowCompleted && item.id === step;
@@ -2017,9 +2026,15 @@ export default function AdminBookingFlow() {
               </div>
             </details>
           ) : null}
+            </>
+          ) : (
+            <p className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+              Orchestrator is minimized. Click Expand to continue creating or rescheduling bookings.
+            </p>
+          )}
         </div>
 
-        {!isFlowCompleted && step === 1 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 1 ? (
           <section className="space-y-4">
             <h4 className="text-sm font-semibold text-neutral-900 sm:text-base">Step 1. Select User, Pet, Address</h4>
             <p className="mt-1 text-xs text-neutral-600 sm:text-sm">Search customer, then choose pet and exact service address.</p>
@@ -2301,7 +2316,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 2 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 2 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 2. Select Service & Apply Discounts</h4>
             <p className="mt-1 text-sm text-neutral-600">Services are filtered by selected address pincode.</p>
@@ -2546,7 +2561,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 3 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 3 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 3. Select Date & Time Window</h4>
             <p className="mt-1 text-sm text-neutral-600">Choose from suggested availability or enter a manual start/end slot.</p>
@@ -2681,7 +2696,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 4 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 4 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 4. Provider Selection</h4>
             <p className="mt-1 text-sm text-neutral-600">Auto-assigned best match is preselected. Click any other provider to override.</p>
@@ -2752,7 +2767,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 5 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 5 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 5. Final Booking Summary</h4>
             <p className="mt-1 text-sm text-neutral-600">Review all selections and create booking.</p>

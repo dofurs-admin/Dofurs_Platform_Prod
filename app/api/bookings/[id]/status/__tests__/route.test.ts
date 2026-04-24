@@ -93,10 +93,19 @@ describe('PATCH /api/bookings/[id]/status', () => {
     const adminSupabase = makeAdminSupabase({ hasCashCollection: false });
     vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
     vi.mocked(getBookingOutstandingSummary).mockResolvedValue({
-      bookingId: 44,
-      finalPriceInr: 1000,
+      booking: {
+        id: 44,
+        user_id: 'user-44',
+        provider_id: 404,
+        payment_mode: 'direct_to_provider',
+        booking_status: 'confirmed',
+        final_price: 1000,
+        wallet_credits_applied_inr: 0,
+      },
+      payableBeforeCapturedInr: 1000,
       capturedOnlineInr: 0,
-      collectedOfflineInr: 0,
+      settledManualInr: 0,
+      settledTotalInr: 0,
       outstandingInr: 1000,
     });
 
@@ -126,10 +135,19 @@ describe('PATCH /api/bookings/[id]/status', () => {
     const adminSupabase = makeAdminSupabase({ hasCashCollection: true });
     vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
     vi.mocked(getBookingOutstandingSummary).mockResolvedValue({
-      bookingId: 44,
-      finalPriceInr: 1000,
+      booking: {
+        id: 44,
+        user_id: 'user-44',
+        provider_id: 404,
+        payment_mode: 'direct_to_provider',
+        booking_status: 'confirmed',
+        final_price: 1000,
+        wallet_credits_applied_inr: 0,
+      },
+      payableBeforeCapturedInr: 1000,
       capturedOnlineInr: 0,
-      collectedOfflineInr: 1000,
+      settledManualInr: 1000,
+      settledTotalInr: 1000,
       outstandingInr: 0,
     });
     vi.mocked(updateBookingStatus).mockResolvedValue({ id: 44, booking_status: 'completed' } as never);

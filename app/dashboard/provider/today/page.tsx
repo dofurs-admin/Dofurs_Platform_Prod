@@ -86,7 +86,7 @@ export default async function ProviderTodayPage() {
   const bookingsResult = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, start_time, end_time, service_type, booking_mode, location_address, latitude, longitude, booking_status, price_at_booking, provider_notes, user_id, pets(name, breed, photo_url)',
+      'id, booking_date, start_time, end_time, service_type, provider_service_id, included_services, booking_mode, location_address, latitude, longitude, booking_status, price_at_booking, admin_price_reference, provider_notes, internal_notes, user_id, pets(name, breed, photo_url)',
     )
     .eq('provider_id', providerRow.id)
     .eq('booking_date', today)
@@ -163,13 +163,17 @@ export default async function ProviderTodayPage() {
       start_time: row.start_time,
       end_time: row.end_time,
       service_type: row.service_type ?? null,
+      provider_service_id: row.provider_service_id ?? null,
+      included_services: row.included_services ?? null,
       booking_mode: row.booking_mode,
       location_address: row.location_address ?? null,
       latitude: row.latitude ?? null,
       longitude: row.longitude ?? null,
       booking_status: row.booking_status as TodayBooking['booking_status'],
       price_at_booking: row.price_at_booking,
+      admin_price_reference: row.admin_price_reference ?? null,
       provider_notes: row.provider_notes ?? null,
+      internal_notes: row.internal_notes ?? null,
       pet_name: (pet as { name?: string } | null)?.name ?? 'Unknown Pet',
       pet_breed: (pet as { breed?: string | null } | null)?.breed ?? null,
       pet_photo_url: petPhotoPath ? petSignedUrlByPath.get(petPhotoPath) ?? petPhotoRaw : petPhotoRaw,

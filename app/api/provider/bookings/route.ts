@@ -10,6 +10,15 @@ import { toFriendlyApiError } from '@/lib/api/errors';
 import { logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getProviderIdByUserId } from '@/lib/provider-management/api';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import {
+  groupBookingAddonRowsByBookingId,
+  loadBookingAddonRowsByBookingIds,
+} from '@/lib/bookings/addon-items';
+import {
+  extractBundledPetIdsFromNotes,
+  extractProviderServiceIdsFromNotes,
+  resolveIncludedServicesForBooking,
+} from '@/lib/bookings/included-services';
 
 const querySchema = z.object({
   status: z.enum(['pending', 'confirmed', 'completed', 'cancelled', 'no_show']).optional(),
@@ -25,16 +34,6 @@ type CustomerFeedbackRow = {
   created_by_user_id: string;
   created_by_role: 'provider' | 'admin' | 'staff';
   created_at: string;
-};
-
-type BookingAddonSummaryRow = {
-  booking_id: number;
-  id: string;
-  name_snapshot: string;
-  quantity: number;
-  total_price_inr?: number | null;
-  total_price_snapshot?: number | null;
-  status: string;
 };
 
 function normalizeStoragePathCandidate(
@@ -98,6 +97,41 @@ function normalizeStoragePathCandidate(
   }
 }
 
+function extractPetIdsFromPayloadNode(value: unknown): number[] {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractPetIdsFromPayloadNode(entry));
+  }
+
+  if (typeof value !== 'object') {
+    return [];
+  }
+
+  const candidate = Number((value as { petId?: unknown }).petId);
+  if (!Number.isFinite(candidate) || candidate <= 0) {
+    return [];
+  }
+
+  return [candidate];
+}
+
+function extractPetIdsFromPaymentMetadata(metadata: unknown): number[] {
+  if (!metadata || typeof metadata !== 'object') {
+    return [];
+  }
+
+  const value = metadata as Record<string, unknown>;
+
+  return [
+    ...extractPetIdsFromPayloadNode(value.booking_payload),
+    ...extractPetIdsFromPayloadNode(value.booking_bundle_payload),
+    ...extractPetIdsFromPayloadNode(value.booking_payloads),
+  ];
+}
+
 export async function GET(request: Request) {
   const auth = await requireApiRole(['provider']);
 
@@ -145,18 +179,69 @@ export async function GET(request: Request) {
       };
     });
 
-    const userIds = Array.from(
-      new Set(bookingsWithTasks.map((booking) => booking.user_id).filter(Boolean)),
-    );
-    const petIds = Array.from(
-      new Set(
-        bookingsWithTasks
-          .map((booking) => booking.pet_id)
-          .filter((petId): petId is number => typeof petId === 'number' && Number.isFinite(petId)),
-      ),
-    );
+    const bookingsWithResolvedPetIds = bookingsWithTasks.map((booking) => {
+      const resolvedPetIds = Array.from(
+        new Set([
+          ...extractBundledPetIdsFromNotes(booking.provider_notes),
+          ...extractBundledPetIdsFromNotes(booking.internal_notes),
+          ...(typeof booking.pet_id === 'number' && Number.isFinite(booking.pet_id)
+            ? [booking.pet_id]
+            : []),
+        ]),
+      );
+
+      return {
+        ...booking,
+        resolved_pet_ids: resolvedPetIds,
+      };
+    });
 
     const adminSupabase = getSupabaseAdminClient();
+    const requestedBookingIds = bookingsWithResolvedPetIds.map((booking) => booking.id);
+    const paymentPetIdsByBookingId = new Map<number, number[]>();
+
+    if (requestedBookingIds.length > 0) {
+      const { data: paymentRows, error: paymentRowsError } = await adminSupabase
+        .from('payment_transactions')
+        .select('booking_id, metadata')
+        .in('booking_id', requestedBookingIds)
+        .returns<Array<{ booking_id: number | null; metadata: unknown }>>();
+
+      if (paymentRowsError && paymentRowsError.code !== '42P01') {
+        console.warn('Unable to load payment metadata for booking pet enrichment', paymentRowsError);
+      } else {
+        for (const row of paymentRows ?? []) {
+          if (!row.booking_id) {
+            continue;
+          }
+
+          const parsedPetIds = Array.from(new Set(extractPetIdsFromPaymentMetadata(row.metadata)));
+          if (parsedPetIds.length === 0) {
+            continue;
+          }
+
+          const existingPetIds = paymentPetIdsByBookingId.get(row.booking_id) ?? [];
+          paymentPetIdsByBookingId.set(
+            row.booking_id,
+            Array.from(new Set([...existingPetIds, ...parsedPetIds])),
+          );
+        }
+      }
+    }
+
+    const bookingsWithMergedPetIds = bookingsWithResolvedPetIds.map((booking) => ({
+      ...booking,
+      resolved_pet_ids: Array.from(
+        new Set([
+          ...booking.resolved_pet_ids,
+          ...(paymentPetIdsByBookingId.get(booking.id) ?? []),
+        ]),
+      ),
+    }));
+
+    const userIds = Array.from(
+      new Set(bookingsWithMergedPetIds.map((booking) => booking.user_id).filter(Boolean)),
+    );
 
     const [profileResult, petResult] = await Promise.all([
       userIds.length > 0
@@ -165,8 +250,13 @@ export async function GET(request: Request) {
             .select('id, full_name, profile_photo_url')
             .in('id', userIds)
         : Promise.resolve({ data: [], error: null }),
-      petIds.length > 0
-        ? adminSupabase.from('pets').select('id, name, photo_url').in('id', petIds)
+      userIds.length > 0
+        ? adminSupabase
+            .from('pets')
+            .select('id, user_id, name, photo_url')
+            .in('user_id', userIds)
+            .order('id', { ascending: true })
+            .returns<Array<{ id: number; user_id: string | null; name: string | null; photo_url: string | null }>>()
         : Promise.resolve({ data: [], error: null }),
     ]);
 
@@ -194,6 +284,17 @@ export async function GET(request: Request) {
     const petPhotoRawById = new Map<number, string | null>(
       (petResult.data ?? []).map((pet) => [pet.id, pet.photo_url ?? null]),
     );
+    const ownerPetIdsByUserId = new Map<string, number[]>();
+
+    for (const pet of petResult.data ?? []) {
+      if (!pet.user_id) {
+        continue;
+      }
+
+      const existing = ownerPetIdsByUserId.get(pet.user_id) ?? [];
+      existing.push(pet.id);
+      ownerPetIdsByUserId.set(pet.user_id, existing);
+    }
     const ownerPhoneByUserId = new Map<string, string | null>(
       (usersResult.data ?? []).map((user) => [user.id, user.phone ?? null]),
     );
@@ -242,25 +343,35 @@ export async function GET(request: Request) {
       }),
     );
 
-    const enrichedBookings = bookingsWithTasks.map((booking) => ({
-      ...booking,
-      owner_full_name:
-        ownerNameByUserId.get(booking.user_id) ?? ownerFallbackNameByUserId.get(booking.user_id) ?? null,
-      pet_name: petNameById.get(booking.pet_id) ?? null,
-      pet_photo_url:
-        (() => {
-          const raw = petPhotoRawById.get(booking.pet_id) ?? null;
-          const normalized = normalizeStoragePathCandidate(raw, 'pet-photos');
-          return normalized ? petSignedUrlByPath.get(normalized) ?? raw : raw;
-        })() ?? null,
-      owner_phone: ownerPhoneByUserId.get(booking.user_id) ?? null,
-      owner_photo_url:
-        (() => {
-          const raw = ownerPhotoRawByUserId.get(booking.user_id) ?? null;
-          const normalized = normalizeStoragePathCandidate(raw, 'user-photos');
-          return normalized ? ownerSignedUrlByPath.get(normalized) ?? raw : raw;
-        })() ?? null,
-    }));
+    const enrichedBookings = bookingsWithMergedPetIds.map(({ resolved_pet_ids, ...booking }) => {
+      const resolvedPetNames = resolved_pet_ids
+        .map((petId) => (petNameById.get(petId) ?? '').trim())
+        .filter((name) => name.length > 0);
+      const uniquePetNames = Array.from(new Set(resolvedPetNames));
+      const primaryPetId = resolved_pet_ids[0] ?? booking.pet_id;
+
+      return {
+        ...booking,
+        owner_full_name:
+          ownerNameByUserId.get(booking.user_id) ?? ownerFallbackNameByUserId.get(booking.user_id) ?? null,
+        pet_name: uniquePetNames.length > 0 ? uniquePetNames.join(', ') : petNameById.get(booking.pet_id) ?? null,
+        pet_names: uniquePetNames,
+        pet_ids: resolved_pet_ids,
+        pet_photo_url:
+          (() => {
+            const raw = petPhotoRawById.get(primaryPetId) ?? null;
+            const normalized = normalizeStoragePathCandidate(raw, 'pet-photos');
+            return normalized ? petSignedUrlByPath.get(normalized) ?? raw : raw;
+          })() ?? null,
+        owner_phone: ownerPhoneByUserId.get(booking.user_id) ?? null,
+        owner_photo_url:
+          (() => {
+            const raw = ownerPhotoRawByUserId.get(booking.user_id) ?? null;
+            const normalized = normalizeStoragePathCandidate(raw, 'user-photos');
+            return normalized ? ownerSignedUrlByPath.get(normalized) ?? raw : raw;
+          })() ?? null,
+      };
+    });
 
     // Enrich with payable collection status for direct_to_provider and mixed bookings
     const cashBookingIds = enrichedBookings
@@ -313,24 +424,53 @@ export async function GET(request: Request) {
     }));
 
     const bookingIds = finalBookings.map((booking) => booking.id);
-    const addonItemsByBookingId = new Map<number, BookingAddonSummaryRow[]>();
+    const addonRows = await loadBookingAddonRowsByBookingIds(adminSupabase, bookingIds);
+    const addonItemsByBookingId = groupBookingAddonRowsByBookingId(addonRows);
 
-    if (bookingIds.length > 0) {
-      const { data: addonRows } = await adminSupabase
-        .from('booking_addon_items')
-        .select('booking_id, id, name_snapshot, quantity, total_price_inr, total_price_snapshot, status')
-        .in('booking_id', bookingIds)
-        .order('created_at', { ascending: true })
-        .returns<BookingAddonSummaryRow[]>();
+    const referencedProviderServiceIds = new Set<string>();
 
-      for (const row of addonRows ?? []) {
-        const normalizedRow = {
-          ...row,
-          total_price_inr: Math.max(0, Number(row.total_price_inr ?? row.total_price_snapshot ?? 0)),
-        };
-        const current = addonItemsByBookingId.get(row.booking_id) ?? [];
-        current.push(normalizedRow);
-        addonItemsByBookingId.set(row.booking_id, current);
+    for (const booking of finalBookings) {
+      const bookingProviderServiceId = booking.provider_service_id?.trim();
+      if (bookingProviderServiceId) {
+        referencedProviderServiceIds.add(bookingProviderServiceId);
+      }
+
+      for (const serviceId of extractProviderServiceIdsFromNotes(booking.provider_notes)) {
+        referencedProviderServiceIds.add(serviceId);
+      }
+
+      for (const serviceId of extractProviderServiceIdsFromNotes(booking.internal_notes)) {
+        referencedProviderServiceIds.add(serviceId);
+      }
+    }
+
+    const serviceNameByProviderServiceId = new Map<string, string>();
+    const serviceBasePriceByProviderServiceId = new Map<string, number>();
+
+    if (referencedProviderServiceIds.size > 0) {
+      const { data: providerServiceRows, error: providerServiceError } = await adminSupabase
+        .from('provider_services')
+        .select('id, service_type, base_price')
+        .in('id', Array.from(referencedProviderServiceIds))
+        .returns<Array<{ id: string; service_type: string | null; base_price: number | null }>>();
+
+      if (providerServiceError) {
+        console.warn(
+          'Unable to resolve provider service names for bundled service summaries',
+          providerServiceError,
+        );
+      } else {
+        for (const row of providerServiceRows ?? []) {
+          const serviceType = row.service_type?.trim();
+          if (serviceType) {
+            serviceNameByProviderServiceId.set(row.id, serviceType);
+          }
+
+          const basePrice = Number(row.base_price ?? NaN);
+          if (Number.isFinite(basePrice) && basePrice > 0) {
+            serviceBasePriceByProviderServiceId.set(row.id, basePrice);
+          }
+        }
       }
     }
 
@@ -358,10 +498,49 @@ export async function GET(request: Request) {
       const providerEntry = entries.find(
         (entry) => entry.created_by_role === 'provider' && entry.created_by_user_id === user.id,
       );
+      const includedServices = resolveIncludedServicesForBooking(booking, {
+        serviceNameByProviderServiceId,
+        serviceBasePriceByProviderServiceId,
+      });
+      const existingPetIds = Array.from(
+        new Set(
+          (booking.pet_ids ?? []).filter(
+            (petId): petId is number => Number.isFinite(petId) && petId > 0,
+          ),
+        ),
+      );
+      const ownerPetIds = Array.from(new Set(ownerPetIdsByUserId.get(booking.user_id) ?? []));
+      const shouldExpandPetIdsFromOwner =
+        existingPetIds.length === 1 &&
+        includedServices.length > existingPetIds.length &&
+        ownerPetIds.length === includedServices.length &&
+        ownerPetIds.includes(existingPetIds[0]);
+      const resolvedPetIds = shouldExpandPetIdsFromOwner
+        ? ownerPetIds
+        : existingPetIds.length > 0
+          ? existingPetIds
+          : typeof booking.pet_id === 'number' && Number.isFinite(booking.pet_id)
+            ? [booking.pet_id]
+            : [];
+      const resolvedPetNames = resolvedPetIds
+        .map((petId) => (petNameById.get(petId) ?? '').trim())
+        .filter((name) => name.length > 0);
+      const uniquePetNames = Array.from(new Set(resolvedPetNames));
+      const primaryPetId = resolvedPetIds[0] ?? booking.pet_id;
 
       return {
         ...booking,
+        pet_name: uniquePetNames.length > 0 ? uniquePetNames.join(', ') : booking.pet_name ?? null,
+        pet_names: uniquePetNames,
+        pet_ids: resolvedPetIds,
+        pet_photo_url:
+          (() => {
+            const raw = petPhotoRawById.get(primaryPetId) ?? null;
+            const normalized = normalizeStoragePathCandidate(raw, 'pet-photos');
+            return normalized ? petSignedUrlByPath.get(normalized) ?? raw : raw;
+          })() ?? booking.pet_photo_url ?? null,
         addon_items: addonItemsByBookingId.get(booking.id) ?? [],
+        included_services: includedServices,
         has_customer_feedback: entries.length > 0,
         provider_customer_rating: providerEntry?.rating ?? null,
         provider_customer_notes: providerEntry?.notes ?? null,

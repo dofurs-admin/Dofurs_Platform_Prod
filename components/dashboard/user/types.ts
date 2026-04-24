@@ -225,6 +225,7 @@ export type Booking = {
   booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
+  provider_service_id?: string | null;
   provider_id?: number;
   pet_id?: number;
   providers?: { name: string }[] | { name: string } | null;
@@ -234,7 +235,9 @@ export type Booking = {
   discount_code?: string | null;
   final_price?: number | null;
   price_at_booking?: number | null;
+  included_services?: string[];
   provider_notes?: string | null;
+  internal_notes?: string | null;
   payment_mode: string | null;
   wallet_credits_applied_inr?: number | null;
   pending_payable_inr?: number;

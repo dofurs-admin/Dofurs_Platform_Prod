@@ -10,6 +10,10 @@ import type { PerformanceSummary, ProviderBooking } from './providerTypes';
 import BookingIdentityRow from './BookingIdentityRow';
 import BookingDetailsBlock from './BookingDetailsBlock';
 import {
+  buildIncludedServicesLabel,
+  resolveIncludedServicesForBooking,
+} from '@/lib/bookings/included-services';
+import {
   BOOKING_CARD_SURFACE_CLASS,
 } from './bookingCardTokens';
 
@@ -49,6 +53,24 @@ export default function ProviderOverviewTab({
   const upcomingBookingDateTimeLabel = upcomingBooking
     ? formatProviderBookingDateTime(upcomingBooking)
     : null;
+  const normalizedUpcomingPetNames = (upcomingBooking?.pet_names ?? [])
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  const upcomingPetPrimaryName =
+    normalizedUpcomingPetNames[0] ?? upcomingBooking?.pet_name ?? null;
+  const upcomingPetNameLabel =
+    normalizedUpcomingPetNames.length > 0
+      ? normalizedUpcomingPetNames.join(', ')
+      : upcomingBooking?.pet_name ?? null;
+  const upcomingIncludedServices = upcomingBooking
+    ? upcomingBooking.included_services && upcomingBooking.included_services.length > 0
+      ? upcomingBooking.included_services
+      : resolveIncludedServicesForBooking(upcomingBooking)
+    : [];
+  const upcomingServiceLabel = buildIncludedServicesLabel(
+    upcomingIncludedServices,
+    upcomingBooking?.service_type,
+  );
 
   return (
     <>
@@ -75,7 +97,7 @@ export default function ProviderOverviewTab({
                       bookingId={upcomingBooking.id}
                       dateTimeLabel={upcomingBookingDateTimeLabel?.full ?? ''}
                       mobileDateTimeLabel={upcomingBookingDateTimeLabel?.compact ?? ''}
-                      petName={upcomingBooking.pet_name}
+                      petName={upcomingPetPrimaryName}
                       ownerName={upcomingBooking.owner_full_name}
                       petPhotoUrl={upcomingBooking.pet_photo_url}
                       ownerPhotoUrl={upcomingBooking.owner_photo_url}
@@ -85,15 +107,14 @@ export default function ProviderOverviewTab({
                   </div>
 
                   <BookingDetailsBlock
-                    serviceType={upcomingBooking.service_type}
+                    serviceType={upcomingServiceLabel}
                     bookingMode={upcomingBooking.booking_mode}
                     customerName={upcomingBooking.owner_full_name}
-                    petName={upcomingBooking.pet_name}
+                    petName={upcomingPetNameLabel}
                     ownerPhone={upcomingBooking.owner_phone}
                     locationAddress={upcomingBooking.location_address}
                     latitude={upcomingBooking.latitude}
                     longitude={upcomingBooking.longitude}
-                    addonItems={upcomingBooking.addon_items}
                     showAcceptedPill={upcomingBooking.booking_status === 'confirmed'}
                   />
                 </div>

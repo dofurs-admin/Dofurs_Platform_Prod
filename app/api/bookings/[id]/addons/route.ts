@@ -33,9 +33,16 @@ async function resolveBookingAccess(
   const supabase = getAddonAdminClient();
   const { data: booking, error } = await supabase
     .from('bookings')
-    .select('id, user_id, provider_id, booking_status')
+    .select('id, user_id, provider_id, booking_status, provider_service_id, service_type')
     .eq('id', bookingId)
-    .single<{ id: string; user_id: string; provider_id: number; booking_status: string }>();
+    .single<{
+      id: string;
+      user_id: string;
+      provider_id: number;
+      booking_status: string;
+      provider_service_id: string | null;
+      service_type: string | null;
+    }>();
 
   if (error || !booking) {
     return { error: 'Booking not found', status: 404 as const, booking: null };
@@ -43,8 +50,9 @@ async function resolveBookingAccess(
 
   const requireMutableStatus = options?.requireMutableStatus ?? true;
   const mutable = BOOKING_ADDON_MUTABLE_STATUSES.has(booking.booking_status);
+  const hasAdminOverride = role === 'admin' || role === 'staff';
 
-  if (requireMutableStatus && !mutable) {
+  if (requireMutableStatus && !mutable && !hasAdminOverride) {
     return { error: 'Add-ons can only be changed for pending, confirmed, or in-progress bookings.', status: 400 as const, booking: null };
   }
 
@@ -73,6 +81,160 @@ type BookingAddonApiRow = {
   total_price_snapshot?: number | null;
 };
 
+type BookingAddonOption = {
+  id: string;
+  mappingId: string;
+  serviceId: string;
+  addonTemplateId: string;
+  name: string;
+  description: string | null;
+  iconUrl: string | null;
+  durationMinutes: number | null;
+  price: number;
+  minQuantity: number;
+  maxQuantity: number;
+  defaultQuantity: number;
+  isRequired: boolean;
+};
+
+function mapAddonOptions(
+  data: Array<{
+    id: string;
+    provider_service_id: string;
+    addon_template_id: string;
+    price_override: number | null;
+    min_quantity: number;
+    max_quantity: number;
+    is_required: boolean;
+    addon_templates:
+      | {
+          id: string;
+          name: string;
+          description: string | null;
+          icon_url: string | null;
+          default_duration_minutes: number | null;
+          default_price: number | null;
+          is_active: boolean;
+          moderation_status: string;
+        }
+      | Array<{
+          id: string;
+          name: string;
+          description: string | null;
+          icon_url: string | null;
+          default_duration_minutes: number | null;
+          default_price: number | null;
+          is_active: boolean;
+          moderation_status: string;
+        }>;
+  }>,
+) {
+  return (data ?? [])
+    .filter((row) => {
+      const template = Array.isArray(row.addon_templates) ? row.addon_templates[0] : row.addon_templates;
+      return Boolean(template?.is_active) && template?.moderation_status === 'approved';
+    })
+    .map((row) => {
+      const template = Array.isArray(row.addon_templates) ? row.addon_templates[0] : row.addon_templates;
+      const price = Number(row.price_override ?? template?.default_price ?? 0);
+
+      return {
+        id: row.id,
+        mappingId: row.id,
+        serviceId: row.provider_service_id,
+        addonTemplateId: row.addon_template_id,
+        name: template?.name ?? 'Add-on',
+        description: template?.description ?? null,
+        iconUrl: template?.icon_url ?? null,
+        durationMinutes: template?.default_duration_minutes ?? null,
+        price,
+        minQuantity: row.min_quantity,
+        maxQuantity: row.max_quantity,
+        defaultQuantity: Math.max(1, row.min_quantity),
+        isRequired: row.is_required,
+      } satisfies BookingAddonOption;
+    });
+}
+
+async function loadAddonOptionsForBooking(
+  supabase: ReturnType<typeof getAddonAdminClient>,
+  booking: {
+    provider_service_id: string | null;
+    service_type: string | null;
+  },
+): Promise<BookingAddonOption[]> {
+  if (booking.provider_service_id) {
+    const { data: directMappings, error: directMappingsError } = await supabase
+      .from('provider_service_addon_mappings')
+      .select(
+        'id, provider_service_id, addon_template_id, price_override, min_quantity, max_quantity, is_required, is_active, display_order, moderation_status, addon_templates(id, name, description, icon_url, default_duration_minutes, default_price, is_active, moderation_status)',
+      )
+      .eq('provider_service_id', booking.provider_service_id)
+      .eq('is_active', true)
+      .eq('moderation_status', 'approved')
+      .order('display_order', { ascending: true });
+
+    if (directMappingsError) {
+      throw directMappingsError;
+    }
+
+    const directRows = mapAddonOptions(directMappings ?? []);
+
+    if (directRows.length > 0) {
+      return directRows;
+    }
+  }
+
+  const normalizedServiceType = (booking.service_type ?? '').trim();
+
+  if (!normalizedServiceType) {
+    return [];
+  }
+
+  const { data: catalogServices, error: catalogServiceError } = await supabase
+    .from('provider_services')
+    .select('id')
+    .is('provider_id', null)
+    .eq('is_active', true)
+    .eq('service_type', normalizedServiceType);
+
+  if (catalogServiceError) {
+    throw catalogServiceError;
+  }
+
+  const catalogServiceIds = Array.from(new Set((catalogServices ?? []).map((row) => row.id)));
+
+  if (catalogServiceIds.length === 0) {
+    return [];
+  }
+
+  const { data: catalogMappings, error: catalogMappingsError } = await supabase
+    .from('provider_service_addon_mappings')
+    .select(
+      'id, provider_service_id, addon_template_id, price_override, min_quantity, max_quantity, is_required, is_active, display_order, moderation_status, addon_templates(id, name, description, icon_url, default_duration_minutes, default_price, is_active, moderation_status)',
+    )
+    .in('provider_service_id', catalogServiceIds)
+    .eq('is_active', true)
+    .eq('moderation_status', 'approved')
+    .order('display_order', { ascending: true });
+
+  if (catalogMappingsError) {
+    throw catalogMappingsError;
+  }
+
+  const fallbackRows = mapAddonOptions(catalogMappings ?? []);
+
+  return Array.from(
+    fallbackRows.reduce((map, row) => {
+      if (!map.has(row.addonTemplateId)) {
+        map.set(row.addonTemplateId, row);
+      }
+
+      return map;
+    }, new Map<string, BookingAddonOption>()),
+  ).map(([, row]) => row);
+}
+
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireApiRole(['user', 'provider', 'admin', 'staff']);
 
@@ -80,8 +242,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     return auth.response;
   }
 
+  const actorRole = auth.context.role;
+
+  if (!actorRole) {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await context.params;
-  const access = await resolveBookingAccess(id, auth.context.user.id, auth.context.role, { requireMutableStatus: false });
+  const access = await resolveBookingAccess(id, auth.context.user.id, actorRole, { requireMutableStatus: false });
 
   if (access.error || !access.booking) {
     return NextResponse.json({ success: false, error: access.error }, { status: access.status });
@@ -90,7 +258,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const supabase = getAddonAdminClient();
 
-    const [itemsResult, eventsResult] = await Promise.all([
+    const [itemsResult, eventsResult, options] = await Promise.all([
       supabase
         .from('booking_addon_items')
         .select('*')
@@ -101,6 +269,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         .select('*')
         .eq('booking_id', id)
         .order('created_at', { ascending: true }),
+      loadAddonOptionsForBooking(supabase, {
+        provider_service_id: access.booking.provider_service_id,
+        service_type: access.booking.service_type,
+      }),
     ]);
 
     if (itemsResult.error || eventsResult.error) {
@@ -113,7 +285,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       total_price_inr: Math.max(0, Number(item.total_price_inr ?? item.total_price_snapshot ?? 0)),
     }));
 
-    return NextResponse.json({ success: true, data: { items: normalizedItems, events: eventsResult.data ?? [] } });
+    const canMutate =
+      BOOKING_ADDON_MUTABLE_STATUSES.has(access.booking.booking_status) || actorRole === 'admin' || actorRole === 'staff';
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        bookingStatus: access.booking.booking_status,
+        canMutate,
+        items: normalizedItems,
+        options,
+        events: eventsResult.data ?? [],
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { success: false, error: error instanceof Error ? error.message : 'Internal server error' },
@@ -129,8 +313,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return auth.response;
   }
 
+  const actorRole = auth.context.role;
+
+  if (!actorRole) {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await context.params;
-  const access = await resolveBookingAccess(id, auth.context.user.id, auth.context.role);
+  const access = await resolveBookingAccess(id, auth.context.user.id, actorRole);
 
   if (access.error || !access.booking) {
     return NextResponse.json({ success: false, error: access.error }, { status: access.status });
@@ -222,7 +412,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       total_price_snapshot: totalPrice,
       status: 'selected',
       added_by_user_id: auth.context.user.id,
-      added_by_role: auth.context.role,
+      added_by_role: actorRole,
       source: parsed.data.source,
       notes: parsed.data.notes ?? null,
     };
@@ -242,7 +432,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       booking_id: id,
       event_type: 'added',
       actor_user_id: auth.context.user.id,
-      actor_role: auth.context.role,
+      actor_role: actorRole,
       previous_payload: null,
       next_payload: {
         quantity: item.quantity,
@@ -270,8 +460,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return auth.response;
   }
 
+  const actorRole = auth.context.role;
+
+  if (!actorRole) {
+    return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+  }
+
   const { id } = await context.params;
-  const access = await resolveBookingAccess(id, auth.context.user.id, auth.context.role);
+  const access = await resolveBookingAccess(id, auth.context.user.id, actorRole);
 
   if (access.error || !access.booking) {
     return NextResponse.json({ success: false, error: access.error }, { status: access.status });
@@ -303,6 +499,29 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     const nextQuantity = parsed.data.quantity ?? currentItem.quantity;
+
+    if (parsed.data.quantity && currentItem.provider_service_addon_mapping_id) {
+      const { data: mappingRule, error: mappingRuleError } = await supabase
+        .from('provider_service_addon_mappings')
+        .select('min_quantity, max_quantity')
+        .eq('id', currentItem.provider_service_addon_mapping_id)
+        .maybeSingle<{ min_quantity: number; max_quantity: number }>();
+
+      if (mappingRuleError) {
+        return NextResponse.json({ success: false, error: 'Unable to validate add-on quantity.' }, { status: 500 });
+      }
+
+      if (
+        mappingRule &&
+        (parsed.data.quantity < mappingRule.min_quantity || parsed.data.quantity > mappingRule.max_quantity)
+      ) {
+        return NextResponse.json(
+          { success: false, error: `Quantity must be between ${mappingRule.min_quantity} and ${mappingRule.max_quantity}.` },
+          { status: 400 },
+        );
+      }
+    }
+
     const payload: Record<string, unknown> = {
       quantity: nextQuantity,
       status: parsed.data.status ?? currentItem.status,
@@ -328,7 +547,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       booking_id: id,
       event_type: eventType,
       actor_user_id: auth.context.user.id,
-      actor_role: auth.context.role,
+      actor_role: actorRole,
       previous_payload: {
         quantity: currentItem.quantity,
         status: currentItem.status,

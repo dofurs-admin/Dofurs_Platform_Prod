@@ -504,7 +504,7 @@ export default function SignUpAuthPanel() {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_1fr]">
-      <section className="relative hidden overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-8 shadow-soft-md lg:block">
+      <section className="relative hidden overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-6 shadow-soft-md lg:block">
         <div className="pointer-events-none absolute -left-14 -top-16 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(253,196,146,0.55)_0%,rgba(253,196,146,0)_72%)]" aria-hidden="true" />
         <div className="pointer-events-none absolute -right-32 bottom-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(228,145,76,0.3)_0%,rgba(228,145,76,0)_72%)]" aria-hidden="true" />
 
@@ -548,11 +548,11 @@ export default function SignUpAuthPanel() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-[#f2dfcf] bg-white p-4 shadow-soft-md sm:p-5">
+      <section className="rounded-3xl border border-[#f2dfcf] bg-white p-4 shadow-soft-md sm:p-4">
         <h1 className="text-2xl font-bold text-ink">Create your account</h1>
 
         {step === 'collect' && (
-          <form onSubmit={handleSendOtp} className="mt-3 space-y-2.5">
+          <form onSubmit={handleSendOtp} className="mt-2.5 space-y-2">
             <div>
               <label htmlFor="name" className="mb-0.5 block text-sm font-medium text-ink">
                 Full Name
@@ -645,7 +645,7 @@ export default function SignUpAuthPanel() {
         )}
 
         {step === 'verify' && (
-          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
+          <form onSubmit={handleVerifyOtp} className="mt-5 space-y-3.5">
             <div className="rounded-xl border border-[#f2dfcf] bg-[#fffaf6] px-3 py-2 text-xs text-[#6b6b6b]">
               OTP sent to: <span className="font-semibold text-ink">{email}</span>
             </div>

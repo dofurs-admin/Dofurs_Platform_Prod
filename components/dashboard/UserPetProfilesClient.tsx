@@ -257,14 +257,15 @@ export default function UserPetProfilesClient({
           }
 
           const isStorageReference = /\/storage\/v1\/object\//.test(pet.photo_url);
-          const isDirectlyUsableStorageUrl = /\/storage\/v1\/object\/(public|sign)\//.test(pet.photo_url) || pet.photo_url.includes('token=');
+          const isPublicStorageReference = /\/storage\/v1\/object\/public\//.test(pet.photo_url);
           const directUrl = normalizeDisplayImageUrl(pet.photo_url);
 
-          if (isDirectlyUsableStorageUrl) {
+          if (directUrl && (!isStorageReference || isPublicStorageReference)) {
             return [pet.id, directUrl];
           }
 
-          if (directUrl && !isStorageReference) {
+          const storagePath = normalizeStorageObjectPath(pet.photo_url);
+          if (!storagePath) {
             return [pet.id, directUrl];
           }
 
@@ -274,7 +275,7 @@ export default function UserPetProfilesClient({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 bucket: 'pet-photos',
-                path: normalizeStorageObjectPath(pet.photo_url),
+                path: storagePath,
                 expiresIn: 3600,
               }),
             });

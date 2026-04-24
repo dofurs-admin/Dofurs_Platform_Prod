@@ -14,7 +14,7 @@ export const GROOMING_PACKAGES: GroomingPackage[] = [
     title: 'Doorstep Pet Grooming',
     price: 'Starts from 899',
     features: [
-      'Nail Trimming',
+      'Nail clipping',
       'Paw Hair Trimming',
       'Knot Removal & De-shedding',
       'Eye & Ear Cleaning',

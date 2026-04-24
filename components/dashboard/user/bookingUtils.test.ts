@@ -50,12 +50,39 @@ describe('normalizeBookingRecord', () => {
 });
 
 describe('resolveBookingServiceLabel', () => {
+  it('uses backend included_services when notes are unavailable', () => {
+    const booking = makeBooking({
+      service_type: 'Summer Bonanza (Offer Package)',
+      provider_notes: null,
+      internal_notes: null,
+      included_services: [
+        'Summer Bonanza (Offer Package)',
+        'Doorstep Pet Grooming (Basic Package)',
+      ],
+    });
+
+    expect(resolveBookingServiceLabel(booking)).toBe('Bundled services (2)');
+  });
+
   it('returns bundled services label when multiple services are present in provider notes', () => {
     const booking = makeBooking({
       service_type: 'Summer Bonanza (Offer Package)',
       provider_notes: [
         'Bundled services (2)',
         '1. Pet 81 | Summer Bonanza (Offer Package)',
+        '2. Pet 81 | Doorstep Pet Grooming (Basic Package)',
+      ].join('\n'),
+    });
+
+    expect(resolveBookingServiceLabel(booking)).toBe('Bundled services (2)');
+  });
+
+  it('returns bundled label when repeated service lines represent quantity booking', () => {
+    const booking = makeBooking({
+      service_type: 'Doorstep Pet Grooming (Basic Package)',
+      provider_notes: [
+        'Bundled services (2)',
+        '1. Pet 81 | Doorstep Pet Grooming (Basic Package)',
         '2. Pet 81 | Doorstep Pet Grooming (Basic Package)',
       ].join('\n'),
     });

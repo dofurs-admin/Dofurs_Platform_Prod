@@ -14,6 +14,7 @@ import PremiumBookingConfirmation from './PremiumBookingConfirmation';
 import { useOptimisticSelection } from '@/lib/hooks/useOptimisticSelection';
 import { bookingCreateSchema } from '@/lib/flows/validation';
 import { isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
+import { formatSavedAddress } from '@/lib/utils/address';
 
 const LocationPinMap = dynamic(() => import('./LocationPinMap'), { ssr: false });
 
@@ -280,16 +281,7 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
 
         const defaultAddress = (payload.addresses ?? []).find((item) => item.is_default) ?? (payload.addresses ?? [])[0];
         if (defaultAddress) {
-          const formattedAddress = [
-            defaultAddress.address_line_1,
-            defaultAddress.address_line_2,
-            defaultAddress.city,
-            defaultAddress.state,
-            defaultAddress.pincode,
-            defaultAddress.country,
-          ]
-            .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-            .join(', ');
+          const formattedAddress = formatSavedAddress(defaultAddress);
 
           setLocationAddress(formattedAddress);
           setSelectedSavedAddressId(defaultAddress.id);
@@ -930,19 +922,6 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
   function clearDiscount() {
     setDiscountCode('');
     setDiscountPreview(null);
-  }
-
-  function formatSavedAddress(address: SavedAddress) {
-    return [
-      address.address_line_1,
-      address.address_line_2,
-      address.city,
-      address.state,
-      address.pincode,
-      address.country,
-    ]
-      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      .join(', ');
   }
 
   useEffect(() => {

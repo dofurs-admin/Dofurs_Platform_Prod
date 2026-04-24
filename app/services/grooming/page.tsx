@@ -38,7 +38,7 @@ const GROOMING_PACKAGES = [
     badge: 'Popular',
     badgeColor: 'bg-[#fff4e6] text-[#c7773b] border border-[#f0c89a]',
     features: [
-      'Nail Trimming',
+      'Nail clipping',
       'Paw Hair Trimming',
       'Knot Removal & De-shedding',
       'Eye & Ear Cleaning',

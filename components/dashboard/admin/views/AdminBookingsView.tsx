@@ -8,6 +8,7 @@ import { bookingTimelineLabel } from '@/lib/bookings/timeline';
 import BookingDetailModal from '@/components/dashboard/admin/BookingDetailModal';
 import SendMessageModal from '@/components/dashboard/SendMessageModal';
 import { exportToCsv } from '@/lib/utils/export';
+import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
 
 type AdminBookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 
@@ -27,6 +28,7 @@ type AdminBooking = {
   customer_email?: string | null;
   customer_phone?: string | null;
   provider_name?: string | null;
+  included_services?: string[];
   payment_mode?: string | null;
   cash_collected?: boolean;
   completion_task_status?: 'pending' | 'completed' | null;
@@ -108,6 +110,10 @@ function formatBookingMode(value: AdminBooking['booking_mode']) {
   return 'Teleconsult';
 }
 
+function resolveBookingServiceLabel(booking: AdminBooking) {
+  return buildIncludedServicesLabel(booking.included_services ?? [], booking.service_type);
+}
+
 type AdminBookingsViewProps = {
   bookingRiskSummary: BookingRiskSummary;
   bookingSearchQuery: string;
@@ -173,11 +179,7 @@ export default function AdminBookingsView({
         ]}
       />
 
-      <div className="space-y-2">
-        <h2 className="text-section-title">Create Booking</h2>
-        <p className="text-muted">Premium 5-step booking orchestration for admin and staff operations.</p>
-      </div>
-      <AdminBookingFlow />
+      <AdminBookingFlow defaultMinimized />
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
@@ -185,7 +187,7 @@ export default function AdminBookingsView({
           <button
             type="button"
             className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-neutral-400"
-            onClick={() => exportToCsv('bookings-export', ['ID', 'Customer', 'Phone', 'Provider', 'Date', 'Status', 'Service', 'Mode'], visibleBookings.map((b) => [b.id, b.customer_name ?? b.user_id ?? '', b.customer_phone ?? '', b.provider_name ?? b.provider_id, b.booking_date ?? b.booking_start, b.booking_status ?? b.status, b.service_type ?? '', b.booking_mode ?? '']))}
+            onClick={() => exportToCsv('bookings-export', ['ID', 'Customer', 'Phone', 'Provider', 'Date', 'Status', 'Service', 'Mode'], visibleBookings.map((b) => [b.id, b.customer_name ?? b.user_id ?? '', b.customer_phone ?? '', b.provider_name ?? b.provider_id, b.booking_date ?? b.booking_start, b.booking_status ?? b.status, resolveBookingServiceLabel(b), b.booking_mode ?? '']))}
           >
             Export CSV
           </button>
@@ -273,7 +275,7 @@ export default function AdminBookingsView({
                 const canComplete = allowedTransitions.includes('completed');
                 const canNoShow = allowedTransitions.includes('no_show');
                 const canCancel = allowedTransitions.includes('cancelled');
-                const isCashBooking = booking.payment_mode === 'direct_to_provider';
+                const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
                 const cashReceived = isCashBooking && booking.cash_collected === true;
                 const cashPending = isCashBooking && !cashReceived;
                 const isTerminalStatus = allowedTransitions.length === 0;
@@ -305,7 +307,7 @@ export default function AdminBookingsView({
                           </p>
                           <p className="text-xs text-neutral-500 mt-1">{bookingTimelineLabel(status)}</p>
                           <p className="text-xs text-neutral-500">
-                            {booking.service_type ?? 'Service'} • {formatBookingMode(booking.booking_mode ?? 'home_visit')}
+                            {resolveBookingServiceLabel(booking)} • {formatBookingMode(booking.booking_mode ?? 'home_visit')}
                           </p>
                         </div>
                       </div>

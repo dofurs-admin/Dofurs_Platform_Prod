@@ -5,10 +5,79 @@ import { getMyBookings } from '@/lib/bookings/service';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import {
+  extractProviderServiceIdsFromNotes,
+  resolveIncludedServicesForBooking,
+} from '@/lib/bookings/included-services';
 
 const querySchema = z.object({
   userId: z.string().uuid().optional(),
 });
+
+type ProviderServiceRow = {
+  id: string;
+  service_type: string | null;
+  base_price: number | null;
+};
+
+function extractProviderServiceIdsFromPayloadNode(value: unknown): string[] {
+  if (!value) {
+    return [];
+  }
+
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractProviderServiceIdsFromPayloadNode(entry));
+  }
+
+  if (typeof value !== 'object') {
+    return [];
+  }
+
+  const candidate = (value as { providerServiceId?: unknown; provider_service_id?: unknown }).providerServiceId
+    ?? (value as { providerServiceId?: unknown; provider_service_id?: unknown }).provider_service_id;
+
+  if (typeof candidate !== 'string') {
+    return [];
+  }
+
+  const normalized = candidate.trim();
+  return normalized ? [normalized] : [];
+}
+
+function extractProviderServiceIdsFromPaymentMetadata(metadata: unknown): string[] {
+  if (!metadata || typeof metadata !== 'object') {
+    return [];
+  }
+
+  const value = metadata as Record<string, unknown>;
+
+  return [
+    ...extractProviderServiceIdsFromPayloadNode(value.booking_payload),
+    ...extractProviderServiceIdsFromPayloadNode(value.booking_bundle_payload),
+    ...extractProviderServiceIdsFromPayloadNode(value.booking_payloads),
+  ];
+}
+
+function resolveServiceLabelFromProviderServiceId(
+  providerServiceId: string,
+  serviceNameByProviderServiceId: ReadonlyMap<string, string>,
+) {
+  const resolvedName = serviceNameByProviderServiceId.get(providerServiceId)?.trim() ?? '';
+  if (resolvedName) {
+    return resolvedName;
+  }
+
+  return `Service package (${providerServiceId.slice(0, 8)})`;
+}
+
+function resolveIncludedServicesFromMetadata(
+  providerServiceIds: string[],
+  serviceNameByProviderServiceId: ReadonlyMap<string, string>,
+) {
+  return providerServiceIds.map((providerServiceId) =>
+    resolveServiceLabelFromProviderServiceId(providerServiceId, serviceNameByProviderServiceId),
+  );
+}
 
 export async function GET(request: Request) {
   const auth = await requireApiRole(['user', ...ADMIN_ROLES]);
@@ -34,6 +103,31 @@ export async function GET(request: Request) {
       const bookings = await getMyBookings(supabase, targetUserId);
       const admin = getSupabaseAdminClient();
       const bookingIds = bookings.map((booking) => booking.id);
+      const providerIds = Array.from(
+        new Set(
+          bookings
+            .map((booking) => Number((booking as { provider_id?: unknown }).provider_id ?? NaN))
+            .filter((providerId) => Number.isFinite(providerId) && providerId > 0),
+        ),
+      );
+
+      let providerNameById = new Map<number, string>();
+
+      if (providerIds.length > 0) {
+        const { data: providerRows, error: providerError } = await admin
+          .from('providers')
+          .select('id, name')
+          .in('id', providerIds)
+          .returns<Array<{ id: number; name: string | null }>>();
+
+        if (!providerError) {
+          providerNameById = new Map(
+            (providerRows ?? [])
+              .filter((row) => Number.isFinite(row.id) && row.id > 0 && typeof row.name === 'string' && row.name.trim().length > 0)
+              .map((row) => [row.id, row.name?.trim() ?? '']),
+          );
+        }
+      }
 
       let pendingMap = new Map<number, { amountInr: number; status: string }>();
 
@@ -74,6 +168,87 @@ export async function GET(request: Request) {
           map.set(row.booking_id, existing + Math.max(0, Number(row.amount_inr ?? 0)));
           return map;
         }, new Map<number, number>());
+      }
+
+      const referencedProviderServiceIds = new Set<string>();
+      const metadataProviderServiceIdsByBookingId = new Map<number, string[]>();
+
+      for (const booking of bookings) {
+        const providerServiceId =
+          typeof booking.provider_service_id === 'string'
+            ? booking.provider_service_id.trim()
+            : '';
+
+        if (providerServiceId) {
+          referencedProviderServiceIds.add(providerServiceId);
+        }
+
+        for (const serviceId of extractProviderServiceIdsFromNotes(booking.provider_notes)) {
+          referencedProviderServiceIds.add(serviceId);
+        }
+
+        for (const serviceId of extractProviderServiceIdsFromNotes(booking.internal_notes)) {
+          referencedProviderServiceIds.add(serviceId);
+        }
+      }
+
+      if (bookingIds.length > 0) {
+        const { data: paymentMetadataRows, error: paymentMetadataError } = await admin
+          .from('payment_transactions')
+          .select('booking_id, metadata')
+          .in('booking_id', bookingIds)
+          .returns<Array<{ booking_id: number | null; metadata: unknown }>>();
+
+        if (paymentMetadataError) {
+          console.warn('Unable to load payment metadata for user bundled service enrichment', paymentMetadataError);
+        } else {
+          for (const row of paymentMetadataRows ?? []) {
+            if (!row.booking_id) {
+              continue;
+            }
+
+            const providerServiceIds = extractProviderServiceIdsFromPaymentMetadata(row.metadata);
+            if (providerServiceIds.length === 0) {
+              continue;
+            }
+
+            for (const providerServiceId of providerServiceIds) {
+              referencedProviderServiceIds.add(providerServiceId);
+            }
+
+            const existing = metadataProviderServiceIdsByBookingId.get(row.booking_id) ?? [];
+            if (providerServiceIds.length > existing.length) {
+              metadataProviderServiceIdsByBookingId.set(row.booking_id, providerServiceIds);
+            }
+          }
+        }
+      }
+
+      const serviceNameByProviderServiceId = new Map<string, string>();
+      const serviceBasePriceByProviderServiceId = new Map<string, number>();
+
+      if (referencedProviderServiceIds.size > 0) {
+        const { data: providerServiceRows, error: providerServiceError } = await admin
+          .from('provider_services')
+          .select('id, service_type, base_price')
+          .in('id', Array.from(referencedProviderServiceIds))
+          .returns<ProviderServiceRow[]>();
+
+        if (providerServiceError) {
+          console.warn('Unable to resolve provider service names for user bundled services', providerServiceError);
+        } else {
+          for (const row of providerServiceRows ?? []) {
+            const serviceType = row.service_type?.trim();
+            if (serviceType) {
+              serviceNameByProviderServiceId.set(row.id, serviceType);
+            }
+
+            const basePrice = Number(row.base_price ?? NaN);
+            if (Number.isFinite(basePrice) && basePrice > 0) {
+              serviceBasePriceByProviderServiceId.set(row.id, basePrice);
+            }
+          }
+        }
       }
 
       const resolvePendingForBooking = (booking: {
@@ -119,10 +294,30 @@ export async function GET(request: Request) {
         return computedPending;
       };
 
-      const enriched = bookings.map((booking) => ({
-        ...booking,
-        pending_payable_inr: resolvePendingForBooking(booking),
-      }));
+      const enriched = bookings.map((booking) => {
+        const providerId = Number((booking as { provider_id?: unknown }).provider_id ?? NaN);
+        const providerName = providerNameById.get(providerId) ?? null;
+        const resolvedFromNotes = resolveIncludedServicesForBooking(booking, {
+          serviceNameByProviderServiceId,
+          serviceBasePriceByProviderServiceId,
+        });
+        const providerServiceIdsFromMetadata = metadataProviderServiceIdsByBookingId.get(booking.id) ?? [];
+        const resolvedFromMetadata = resolveIncludedServicesFromMetadata(
+          providerServiceIdsFromMetadata,
+          serviceNameByProviderServiceId,
+        );
+        const includedServices =
+          resolvedFromMetadata.length > resolvedFromNotes.length
+            ? resolvedFromMetadata
+            : resolvedFromNotes;
+
+        return {
+          ...booking,
+          pending_payable_inr: resolvePendingForBooking(booking),
+          providers: providerName ? [{ name: providerName }] : null,
+          included_services: includedServices,
+        };
+      });
 
       return NextResponse.json({ bookings: enriched });
     }

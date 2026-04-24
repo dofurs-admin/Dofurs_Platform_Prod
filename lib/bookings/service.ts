@@ -296,7 +296,7 @@ async function resolveBookingAddonsForCreate(
     ),
   );
 
-  let compatibleServiceTypes = new Map<string, string>();
+  const compatibleServiceTypes = new Map<string, string>();
   const compatibleServiceIds = new Set<string>();
   if ((mappingResult.data ?? []).length > 0) {
     const mappingServiceIds = Array.from(new Set((mappingResult.data ?? []).map((row) => row.provider_service_id)));
@@ -938,8 +938,11 @@ async function runPostTransitionHooks(
         .maybeSingle();
 
       if (!invoiceExisting) {
-        const subtotalInr = Number(bookingData.price_at_booking ?? 0);
+        const walletCreditsAppliedInr = Math.max(0, Number(bookingData.wallet_credits_applied_inr ?? 0));
         const discountInr = Number((bookingData as { discount_amount?: number | null }).discount_amount ?? 0);
+        const derivedFinalInr = Number(bookingData.final_price ?? (Number(bookingData.amount ?? 0) + walletCreditsAppliedInr));
+        const subtotalInr = Math.max(0, derivedFinalInr + Math.max(0, discountInr));
+
         if (subtotalInr > 0) {
           await createServiceInvoice(supabase, {
             userId: bookingData.user_id,
@@ -947,7 +950,7 @@ async function runPostTransitionHooks(
             description: `${bookingData.service_type ?? 'Service'} booking`,
             amountInr: subtotalInr,
             discountInr,
-            walletCreditsAppliedInr: Number(bookingData.wallet_credits_applied_inr ?? 0),
+            walletCreditsAppliedInr,
             status: bookingData.payment_mode === 'direct_to_provider' ? 'issued' : 'paid',
           });
         }

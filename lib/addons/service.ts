@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import type { AppRole } from '@/lib/auth/api-auth';
-import { getCapturedOnlineAmountForBooking } from '@/lib/payments/bookingPayable';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 
 export const BOOKING_ADDON_MUTABLE_STATUSES = new Set(['pending', 'confirmed', 'in_progress']);
 
@@ -76,26 +76,59 @@ export async function recalculateBookingAddonTotals(supabase: SupabaseClient, bo
   const baseAmount = Number(booking.admin_price_reference ?? booking.price_at_booking ?? 0);
   const discount = Number(booking.discount_amount ?? 0);
   const final = Math.max(baseAmount + addonTotal - discount, 0);
-  const walletCreditsAppliedInr = Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0));
-
-  const capturedOnlineInr = await getCapturedOnlineAmountForBooking(supabase, Number(bookingId));
-  const payableBeforeCapturedInr = Math.max(0, final - walletCreditsAppliedInr);
-  const outstandingInr = Math.max(0, payableBeforeCapturedInr - capturedOnlineInr);
-
-  const nextPaymentMode =
-    booking.payment_mode === 'platform' && outstandingInr > 0
-      ? 'mixed'
-      : booking.payment_mode === 'mixed' && outstandingInr <= 0
-        ? 'platform'
-        : booking.payment_mode;
 
   const { error: updateError } = await supabase
     .from('bookings')
-    .update({ final_price: final, amount: final, payment_mode: nextPaymentMode })
+    .update({ final_price: final, amount: final })
     .eq('id', bookingId);
 
   if (updateError) {
     throw updateError;
+  }
+
+  const payableSummary = await getBookingOutstandingSummary(supabase, Number(bookingId));
+  const payableBeforeCapturedInr = payableSummary.payableBeforeCapturedInr;
+  const capturedOnlineInr = payableSummary.capturedOnlineInr;
+  const settledManualInr = payableSummary.settledManualInr;
+  const settledTotalInr = payableSummary.settledTotalInr;
+  const outstandingInr = payableSummary.outstandingInr;
+
+  const hasOnlineSettlements = capturedOnlineInr > 0;
+  const hasManualSettlements = settledManualInr > 0;
+
+  const nextPaymentMode = (() => {
+    if (outstandingInr > 0) {
+      if (hasOnlineSettlements || booking.payment_mode === 'platform' || booking.payment_mode === 'mixed') {
+        return 'mixed';
+      }
+
+      return 'direct_to_provider';
+    }
+
+    if (hasOnlineSettlements && hasManualSettlements) {
+      return 'mixed';
+    }
+
+    if (hasOnlineSettlements) {
+      return 'platform';
+    }
+
+    if (hasManualSettlements) {
+      return 'direct_to_provider';
+    }
+
+    return booking.payment_mode;
+  })();
+
+  if (nextPaymentMode !== booking.payment_mode) {
+    const { error: paymentModeError } = await supabase
+      .from('bookings')
+      .update({ payment_mode: nextPaymentMode })
+      .eq('id', bookingId);
+
+    if (paymentModeError) {
+      throw paymentModeError;
+    }
   }
 
   const { data: existingCollection, error: collectionReadError } = await supabase
@@ -109,6 +142,10 @@ export async function recalculateBookingAddonTotals(supabase: SupabaseClient, bo
   }
 
   if (outstandingInr > 0) {
+    const collectionModeForOutstanding = existingCollection?.status === 'pending'
+      ? existingCollection.collection_mode ?? 'cash'
+      : 'cash';
+
     const { error: collectionUpsertError } = await supabase
       .from('booking_payment_collections')
       .upsert(
@@ -117,7 +154,7 @@ export async function recalculateBookingAddonTotals(supabase: SupabaseClient, bo
           user_id: booking.user_id,
           provider_id: booking.provider_id,
           amount_inr: outstandingInr,
-          collection_mode: existingCollection?.collection_mode ?? 'cash',
+          collection_mode: collectionModeForOutstanding,
           status: 'pending',
           marked_paid_by: null,
           marked_paid_at: null,
@@ -139,7 +176,18 @@ export async function recalculateBookingAddonTotals(supabase: SupabaseClient, bo
     }
   }
 
-  return { baseAmount, addonTotal, discount, final, payableBeforeCapturedInr, capturedOnlineInr, outstandingInr, paymentMode: nextPaymentMode };
+  return {
+    baseAmount,
+    addonTotal,
+    discount,
+    final,
+    payableBeforeCapturedInr,
+    capturedOnlineInr,
+    settledManualInr,
+    settledTotalInr,
+    outstandingInr,
+    paymentMode: nextPaymentMode,
+  };
 }
 
 export function getAddonEffectivePrice(priceOverride: number | null, defaultPrice: number) {

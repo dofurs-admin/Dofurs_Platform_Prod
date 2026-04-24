@@ -5,12 +5,23 @@ vi.mock('@/lib/auth/api-auth', () => ({
   requireApiRole: vi.fn(),
 }));
 
+vi.mock('@/lib/supabase/admin-client', () => ({
+  getSupabaseAdminClient: vi.fn(),
+}));
+
+vi.mock('@/lib/payments/bookingPayable', () => ({
+  getBookingOutstandingSummary: vi.fn(),
+}));
+
 import { requireApiRole } from '@/lib/auth/api-auth';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { GET } from '@/app/api/admin/bookings/[id]/route';
 
 type BookingRow = {
   id: number;
   user_id: string;
+  pet_id: number;
   provider_id: number;
   booking_start: string;
   booking_date: string | null;
@@ -31,7 +42,7 @@ type BookingRow = {
   created_at: string;
   users: { name: string | null; email: string | null; phone: string | null; address: string | null } | null;
   providers: { name: string | null; email: string | null; phone_number: string | null } | null;
-  pets: Array<{ id: number; name: string; breed: string | null; age: number | null; gender: string | null; size_category: string | null }>;
+  pets: null;
 };
 
 function makeSupabaseMock(options?: {
@@ -40,6 +51,7 @@ function makeSupabaseMock(options?: {
   const booking: BookingRow = {
     id: 32,
     user_id: 'user-1',
+    pet_id: 1,
     provider_id: 99,
     booking_start: '2026-04-08T10:00:00.000Z',
     booking_date: '2026-04-08',
@@ -60,7 +72,7 @@ function makeSupabaseMock(options?: {
     created_at: '2026-04-01T10:00:00.000Z',
     users: { name: 'Alice', email: 'alice@example.com', phone: '+919999999999', address: 'Bangalore' },
     providers: { name: 'Bob', email: 'bob@example.com', phone_number: '+918888888888' },
-    pets: [{ id: 1, name: 'Milo', breed: 'Labrador', age: 4, gender: 'male', size_category: 'large' }],
+    pets: null,
   };
 
   const bookingsQuery = {
@@ -110,9 +122,20 @@ function makeSupabaseMock(options?: {
     }),
   };
 
+  return {
+    from: vi.fn((table: string) => {
+      if (table === 'bookings') return bookingsQuery;
+      if (table === 'booking_status_transition_events') return transitionQuery;
+      if (table === 'billing_invoices') return invoicesQuery;
+      throw new Error(`Unexpected table: ${table}`);
+    }),
+  };
+}
+
+function makeAdminSupabaseMock() {
   const addonItemsQuery = {
     select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     order: vi.fn().mockReturnThis(),
     returns: vi.fn().mockResolvedValue({
       data: [
@@ -122,6 +145,7 @@ function makeSupabaseMock(options?: {
           name_snapshot: 'Nail Trim',
           quantity: 1,
           total_price_inr: 199,
+          total_price_snapshot: 199,
           status: 'active',
           created_at: '2026-04-08T09:00:00.000Z',
         },
@@ -130,13 +154,48 @@ function makeSupabaseMock(options?: {
     }),
   };
 
+  const paymentTransactionsQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    returns: vi.fn().mockResolvedValue({
+      data: [
+        {
+          metadata: {
+            booking_bundle_payload: [{ petId: 2 }],
+          },
+        },
+      ],
+      error: null,
+    }),
+  };
+
+  const petsQuery = {
+    select: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
+    returns: vi.fn().mockResolvedValue({
+      data: [
+        { id: 1, name: 'Milo', breed: 'Labrador', age: 4, gender: 'male', size_category: 'large' },
+        { id: 2, name: 'Luna', breed: 'Pug', age: 2, gender: 'female', size_category: 'small' },
+      ],
+      error: null,
+    }),
+  };
+
   return {
     from: vi.fn((table: string) => {
-      if (table === 'bookings') return bookingsQuery;
-      if (table === 'booking_status_transition_events') return transitionQuery;
-      if (table === 'billing_invoices') return invoicesQuery;
       if (table === 'booking_addon_items') return addonItemsQuery;
-      throw new Error(`Unexpected table: ${table}`);
+      if (table === 'payment_transactions') return paymentTransactionsQuery;
+      if (table === 'pets') return petsQuery;
+
+      if (table === 'provider_services') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          in: vi.fn().mockReturnThis(),
+          returns: vi.fn().mockResolvedValue({ data: [], error: null }),
+        };
+      }
+
+      throw new Error(`Unexpected admin table: ${table}`);
     }),
   };
 }
@@ -149,6 +208,7 @@ describe('GET /api/admin/bookings/[id]', () => {
 
   it('returns booking details with mapped transition events', async () => {
     const supabase = makeSupabaseMock();
+    const adminSupabase = makeAdminSupabaseMock();
 
     vi.mocked(requireApiRole).mockResolvedValue({
       response: null,
@@ -156,6 +216,23 @@ describe('GET /api/admin/bookings/[id]', () => {
         supabase,
       },
     } as never);
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+    vi.mocked(getBookingOutstandingSummary).mockResolvedValue({
+      booking: {
+        id: 32,
+        user_id: 'user-1',
+        provider_id: 99,
+        payment_mode: 'direct_to_provider',
+        booking_status: 'confirmed',
+        final_price: 1200,
+        wallet_credits_applied_inr: 0,
+      },
+      payableBeforeCapturedInr: 1200,
+      capturedOnlineInr: 0,
+      settledManualInr: 0,
+      settledTotalInr: 0,
+      outstandingInr: 1200,
+    });
 
     const response = await GET(new Request('http://localhost/api/admin/bookings/32'), {
       params: Promise.resolve({ id: '32' }),
@@ -170,6 +247,10 @@ describe('GET /api/admin/bookings/[id]', () => {
       new_status: 'confirmed',
       changed_by: 'admin-user-id',
     });
+    expect(payload.booking.pets).toEqual([
+      expect.objectContaining({ id: 1, name: 'Milo' }),
+      expect.objectContaining({ id: 2, name: 'Luna' }),
+    ]);
     expect(payload.invoices).toHaveLength(1);
     expect(payload.addonItems).toHaveLength(1);
   });
@@ -181,6 +262,7 @@ describe('GET /api/admin/bookings/[id]', () => {
         message: 'relation does not exist',
       },
     });
+    const adminSupabase = makeAdminSupabaseMock();
 
     vi.mocked(requireApiRole).mockResolvedValue({
       response: null,
@@ -188,6 +270,23 @@ describe('GET /api/admin/bookings/[id]', () => {
         supabase,
       },
     } as never);
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+    vi.mocked(getBookingOutstandingSummary).mockResolvedValue({
+      booking: {
+        id: 32,
+        user_id: 'user-1',
+        provider_id: 99,
+        payment_mode: 'direct_to_provider',
+        booking_status: 'confirmed',
+        final_price: 1200,
+        wallet_credits_applied_inr: 0,
+      },
+      payableBeforeCapturedInr: 1200,
+      capturedOnlineInr: 0,
+      settledManualInr: 0,
+      settledTotalInr: 0,
+      outstandingInr: 1200,
+    });
 
     const response = await GET(new Request('http://localhost/api/admin/bookings/32'), {
       params: Promise.resolve({ id: '32' }),

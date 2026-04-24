@@ -88,7 +88,7 @@ export default function ServiceAddonsManager({ services }: ServiceAddonsManagerP
         showToast(message, 'error');
       }
     });
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     if (!selectedServiceId) {
@@ -105,7 +105,7 @@ export default function ServiceAddonsManager({ services }: ServiceAddonsManagerP
         showToast(message, 'error');
       }
     });
-  }, [selectedServiceId]);
+  }, [selectedServiceId, showToast]);
 
   function setTemplateField<K extends keyof AddonTemplatePayload>(key: K, value: AddonTemplatePayload[K]) {
     setTemplateDraft((current) => ({ ...current, [key]: value }));

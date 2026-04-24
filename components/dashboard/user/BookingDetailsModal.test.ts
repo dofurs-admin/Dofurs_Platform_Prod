@@ -21,6 +21,23 @@ function makeBooking(overrides?: Partial<Booking>): Booking {
 }
 
 describe('extractBookedServices', () => {
+  it('prefers backend included_services when provided', () => {
+    const booking = makeBooking({
+      service_type: 'Summer Bonanza (Offer Package)',
+      provider_notes: null,
+      internal_notes: null,
+      included_services: [
+        'Summer Bonanza (Offer Package)',
+        'Doorstep Pet Grooming (Basic Package)',
+      ],
+    });
+
+    expect(extractBookedServices(booking)).toEqual([
+      'Summer Bonanza (Offer Package)',
+      'Doorstep Pet Grooming (Basic Package)',
+    ]);
+  });
+
   it('extracts all bundled service lines from provider notes', () => {
     const booking = makeBooking({
       provider_notes: [
@@ -32,6 +49,21 @@ describe('extractBookedServices', () => {
 
     expect(extractBookedServices(booking)).toEqual([
       'Summer Bonanza (Offer Package)',
+      'Doorstep Pet Grooming (Basic Package)',
+    ]);
+  });
+
+  it('preserves repeated service lines for bundled quantity bookings', () => {
+    const booking = makeBooking({
+      provider_notes: [
+        'Bundled services (2)',
+        '1. Pet 81 | Doorstep Pet Grooming (Basic Package)',
+        '2. Pet 81 | Doorstep Pet Grooming (Basic Package)',
+      ].join('\n'),
+    });
+
+    expect(extractBookedServices(booking)).toEqual([
+      'Doorstep Pet Grooming (Basic Package)',
       'Doorstep Pet Grooming (Basic Package)',
     ]);
   });
@@ -53,7 +85,7 @@ describe('extractBookedServices', () => {
 });
 
 describe('buildBookingPricingSummary', () => {
-  it('builds a full pricing summary with add-ons, discount, and pending payable', () => {
+  it('builds a complete pricing summary with add-ons, discount, wallet credits, and pending payable', () => {
     const booking = makeBooking({
       admin_price_reference: 2200,
       discount_amount: 200,
@@ -71,8 +103,7 @@ describe('buildBookingPricingSummary', () => {
           id: 'addon-1',
           name_snapshot: 'Nail Clipping',
           quantity: 2,
-          unit_price_snapshot: 150,
-          total_price_snapshot: 300,
+          total_price_inr: 300,
           status: 'selected',
         },
       ],
@@ -90,25 +121,53 @@ describe('buildBookingPricingSummary', () => {
     expect(summary.discountCode).toBe('ADMINF200');
   });
 
-  it('uses bundled service label and keeps a priced bundle row for multi-service bookings', () => {
+  it('ignores cancelled add-ons and preserves bundled service labels', () => {
     const booking = makeBooking({
       admin_price_reference: 2098,
-      amount: 0,
+      amount: 1998,
       final_price: 1998,
     });
 
     const summary = buildBookingPricingSummary(
       booking,
       ['Summer Bonanza (Offer Package)', 'Doorstep Pet Grooming (Basic Package)'],
-      [],
+      [
+        {
+          id: 'addon-2',
+          name_snapshot: 'Teeth Cleaning',
+          quantity: 1,
+          total_price_inr: 250,
+          status: 'cancelled',
+        },
+      ],
     );
 
     expect(summary.isBundledServices).toBe(true);
     expect(summary.serviceLabel).toBe('Bundled services (2)');
     expect(summary.serviceSubtotalInr).toBe(2098);
+    expect(summary.addonSubtotalInr).toBe(0);
     expect(summary.serviceLines).toEqual([
-      { name: 'Summer Bonanza (Offer Package)' },
-      { name: 'Doorstep Pet Grooming (Basic Package)' },
+      { name: 'Summer Bonanza (Offer Package)', priceInr: 1199, isEstimated: false },
+      { name: 'Doorstep Pet Grooming (Basic Package)', priceInr: 899, isEstimated: false },
+    ]);
+  });
+
+  it('allocates service line prices when package rates are not directly available', () => {
+    const booking = makeBooking({
+      admin_price_reference: 1500,
+      amount: 1500,
+      final_price: 1500,
+    });
+
+    const summary = buildBookingPricingSummary(
+      booking,
+      ['Custom Grooming Plan', 'Seasonal Care Plan'],
+      [],
+    );
+
+    expect(summary.serviceLines).toEqual([
+      { name: 'Custom Grooming Plan', priceInr: 750, isEstimated: true },
+      { name: 'Seasonal Care Plan', priceInr: 750, isEstimated: true },
     ]);
   });
 });

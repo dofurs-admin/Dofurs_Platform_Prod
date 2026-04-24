@@ -5,6 +5,11 @@ import Link from 'next/link';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import type { Booking } from './types';
+import BookingAddonManager, { type BookingAddonItem } from '@/components/dashboard/shared/BookingAddonManager';
+import { getGroomingPackageByServiceType } from '@/lib/service-catalog/grooming-packages';
+import { ACTIVE_BOOKING_ADDON_STATUSES } from '@/lib/bookings/addon-items';
+import { resolveIncludedServicesForBooking } from '@/lib/bookings/included-services';
+import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
 import {
   resolveBookingStatus,
   userDisplayStatus,
@@ -14,6 +19,7 @@ import {
   formatBookingMode,
   formatPaymentMode,
   formatBookingAmount,
+  resolveProviderName,
 } from './bookingUtils';
 
 type Props = {
@@ -22,6 +28,7 @@ type Props = {
   onClose: () => void;
   onCancelRequest: (bookingId: number) => void;
   onPaymentSuccess?: () => void;
+  onBookingUpdated?: () => void;
 };
 
 type BookingReview = {
@@ -32,61 +39,17 @@ type BookingReview = {
   created_at: string;
 };
 
-type BookingAddonItem = {
-  id: string;
-  name_snapshot: string;
-  quantity: number;
-  unit_price_inr?: number;
-  unit_price_snapshot?: number;
-  total_price_inr?: number;
-  total_price_snapshot?: number;
-  status: string;
-};
-
 function resolveAddonTotal(item: BookingAddonItem) {
   return Math.max(0, Number(item.total_price_inr ?? item.total_price_snapshot ?? 0));
 }
 
 function resolveAddonUnitPrice(item: BookingAddonItem) {
-  const explicit = Number(item.unit_price_inr ?? item.unit_price_snapshot ?? NaN);
-  if (Number.isFinite(explicit) && explicit >= 0) {
-    return explicit;
-  }
-
   const quantity = Math.max(1, Number(item.quantity ?? 1));
   return resolveAddonTotal(item) / quantity;
 }
 
-export function extractBookedServices(booking: Booking) {
-  const services = new Set<string>();
-  const primary = (booking.service_type ?? '').trim();
-
-  if (primary.length > 0) {
-    services.add(primary);
-  }
-
-  const notes = booking.provider_notes ?? '';
-  for (const line of notes.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      continue;
-    }
-
-    // Support both `1. Pet 12 | Grooming` and `1. Grooming` style bundle lines.
-    const match = trimmed.match(/^\d+\.\s*(?:Pet\s+\d+\s*\|\s*)?(.+)$/i);
-    if (match?.[1]) {
-      const label = match[1].trim();
-      if (label) {
-        services.add(label);
-      }
-    }
-  }
-
-  return Array.from(services);
-}
-
 type BookingPricingSummary = {
-  serviceLines: Array<{ name: string }>;
+  serviceLines: Array<{ name: string; priceInr: number; isEstimated: boolean }>;
   serviceLabel: string;
   isBundledServices: boolean;
   addOnLines: Array<{ id: string; name: string; quantity: number; unitPriceInr: number; totalPriceInr: number }>;
@@ -101,6 +64,103 @@ type BookingPricingSummary = {
   pendingPayableInr: number;
   discountCode: string | null;
 };
+
+function resolveServiceLinePriceInr(serviceName: string): number | null {
+  const matchedPackage = getGroomingPackageByServiceType(serviceName);
+
+  if (!matchedPackage) {
+    return null;
+  }
+
+  if (typeof matchedPackage.price === 'number' && Number.isFinite(matchedPackage.price)) {
+    return Math.max(0, Math.round(matchedPackage.price));
+  }
+
+  if (typeof matchedPackage.price === 'string') {
+    const match = matchedPackage.price.match(/(\d[\d,]*)/);
+    if (!match?.[1]) {
+      return null;
+    }
+
+    const parsed = Number.parseInt(match[1].replace(/,/g, ''), 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function reconcileServiceLineTotals(
+  lines: Array<{ name: string; priceInr: number; isEstimated: boolean }>,
+  targetTotalInr: number,
+) {
+  const target = Math.max(0, Math.round(targetTotalInr));
+  const current = lines.reduce((sum, line) => sum + line.priceInr, 0);
+  const delta = target - current;
+
+  if (delta === 0 || lines.length === 0) {
+    return;
+  }
+
+  if (delta > 0) {
+    const lastIndex = lines.length - 1;
+    lines[lastIndex].priceInr += delta;
+    lines[lastIndex].isEstimated = true;
+    return;
+  }
+
+  let remainingReduction = Math.abs(delta);
+
+  for (let index = lines.length - 1; index >= 0 && remainingReduction > 0; index -= 1) {
+    const reducible = Math.min(lines[index].priceInr, remainingReduction);
+    if (reducible <= 0) {
+      continue;
+    }
+
+    lines[index].priceInr -= reducible;
+    lines[index].isEstimated = true;
+    remainingReduction -= reducible;
+  }
+}
+
+function buildServiceLineBreakdown(
+  normalizedServices: string[],
+  serviceSubtotalInr: number,
+): Array<{ name: string; priceInr: number; isEstimated: boolean }> {
+  const serviceLines = normalizedServices.map((name) => ({
+    name,
+    priceInr: resolveServiceLinePriceInr(name),
+    isEstimated: false,
+  }));
+
+  const resolvedLines = serviceLines.map((line) => ({
+    name: line.name,
+    priceInr: line.priceInr ?? 0,
+    isEstimated: line.priceInr == null,
+  }));
+
+  const unknownIndices = serviceLines
+    .map((line, index) => (line.priceInr == null ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (unknownIndices.length > 0) {
+    const knownTotal = serviceLines.reduce((sum, line) => sum + (line.priceInr ?? 0), 0);
+    const remainingForUnknown = Math.max(0, Math.round(serviceSubtotalInr - knownTotal));
+    const evenShare = Math.floor(remainingForUnknown / unknownIndices.length);
+    let remainder = remainingForUnknown - evenShare * unknownIndices.length;
+
+    for (const index of unknownIndices) {
+      const extra = remainder > 0 ? 1 : 0;
+      resolvedLines[index].priceInr = evenShare + extra;
+      resolvedLines[index].isEstimated = true;
+      remainder -= extra;
+    }
+  }
+
+  reconcileServiceLineTotals(resolvedLines, serviceSubtotalInr);
+  return resolvedLines;
+}
 
 export function buildBookingPricingSummary(
   booking: Booking,
@@ -117,13 +177,15 @@ export function buildBookingPricingSummary(
 
   const serviceSubtotalInr = serviceCandidates.find((value) => value > 0) ?? serviceCandidates[0] ?? 0;
 
-  const addOnLines = addonItems.map((item) => ({
-    id: item.id,
-    name: item.name_snapshot,
-    quantity: Math.max(1, Number(item.quantity ?? 1)),
-    unitPriceInr: resolveAddonUnitPrice(item),
-    totalPriceInr: resolveAddonTotal(item),
-  }));
+  const addOnLines = addonItems
+    .filter((item) => ACTIVE_BOOKING_ADDON_STATUSES.has(item.status))
+    .map((item) => ({
+      id: item.id,
+      name: item.name_snapshot,
+      quantity: Math.max(1, Number(item.quantity ?? 1)),
+      unitPriceInr: resolveAddonUnitPrice(item),
+      totalPriceInr: resolveAddonTotal(item),
+    }));
 
   const addonSubtotalInr = addOnLines.reduce((sum, item) => sum + item.totalPriceInr, 0);
   const grossSubtotalInr = Math.max(0, serviceSubtotalInr + addonSubtotalInr);
@@ -145,7 +207,7 @@ export function buildBookingPricingSummary(
         : [];
 
   const isBundledServices = normalizedServices.length > 1;
-  const serviceLines = normalizedServices.map((name) => ({ name }));
+  const serviceLines = buildServiceLineBreakdown(normalizedServices, serviceSubtotalInr);
   const serviceLabel = isBundledServices
     ? `Bundled services (${normalizedServices.length})`
     : (normalizedServices[0] ?? 'Service');
@@ -168,12 +230,17 @@ export function buildBookingPricingSummary(
   };
 }
 
+export function extractBookedServices(booking: Booking) {
+  return resolveIncludedServicesForBooking(booking);
+}
+
 export default function BookingDetailsModal({
   activeBooking,
   isCancellingBookingId,
   onClose,
   onCancelRequest,
   onPaymentSuccess,
+  onBookingUpdated,
 }: Props) {
   const [review, setReview] = useState<BookingReview | null>(null);
   const [canReview, setCanReview] = useState(false);
@@ -184,6 +251,7 @@ export default function BookingDetailsModal({
   const [isSubmittingReview, startReviewTransition] = useTransition();
   const [isPayingPendingAmount, setIsPayingPendingAmount] = useState(false);
   const [addonItems, setAddonItems] = useState<BookingAddonItem[]>([]);
+  const [isAddonManagerOpen, setIsAddonManagerOpen] = useState(false);
 
   const isCompletedBooking = useMemo(() => {
     if (!activeBooking) return false;
@@ -206,44 +274,36 @@ export default function BookingDetailsModal({
     return buildBookingPricingSummary(activeBooking, bookedServices, addonItems);
   }, [activeBooking, addonItems, bookedServices]);
 
-  useEffect(() => {
-    let active = true;
+  const bookingServiceLabel = useMemo(() => {
+    if (!activeBooking) {
+      return 'Service';
+    }
 
-    setAddonItems([]);
+    return buildIncludedServicesLabel(bookedServices, activeBooking.service_type);
+  }, [activeBooking, bookedServices]);
+
+  const providerName = useMemo(() => {
+    if (!activeBooking) {
+      return null;
+    }
+
+    const resolved = resolveProviderName(activeBooking.providers);
+    if (!resolved) {
+      return null;
+    }
+
+    const trimmed = resolved.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [activeBooking]);
+
+  const pendingPayableInr = Math.max(0, Number(activeBooking?.pending_payable_inr ?? 0));
+
+  useEffect(() => {
+    setIsAddonManagerOpen(false);
 
     if (!activeBooking) {
-      return () => {
-        active = false;
-      };
+      setAddonItems([]);
     }
-
-    async function loadAddons() {
-      try {
-        const response = await fetch(`/api/bookings/${activeBooking.id}/addons`, { cache: 'no-store' });
-        const payload = (await response.json().catch(() => null)) as {
-          success?: boolean;
-          data?: { items?: BookingAddonItem[] };
-        } | null;
-
-        if (!active) return;
-        if (!response.ok || !payload?.success) {
-          setAddonItems([]);
-          return;
-        }
-
-        setAddonItems(payload.data?.items ?? []);
-      } catch {
-        if (active) {
-          setAddonItems([]);
-        }
-      }
-    }
-
-    void loadAddons();
-
-    return () => {
-      active = false;
-    };
   }, [activeBooking]);
 
   useEffect(() => {
@@ -399,7 +459,7 @@ export default function BookingDetailsModal({
         throw new Error(orderPayload?.error ?? 'Unable to start online payment.');
       }
 
-      const checkout = new (window as Window & {
+      const checkout = new (window as unknown as Window & {
         Razorpay: new (options: Record<string, unknown>) => {
           open: () => void;
           on: (event: 'payment.failed', handler: (response: { error?: { description?: string } }) => void) => void;
@@ -464,9 +524,7 @@ export default function BookingDetailsModal({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-500">Service Booking</p>
-                <h3 className="mt-1 text-lg font-bold text-neutral-950">
-                  {bookedServices.length > 1 ? `Bundled services (${bookedServices.length})` : (activeBooking.service_type ?? 'Service')}
-                </h3>
+                <h3 className="mt-1 text-lg font-bold text-neutral-950">{bookingServiceLabel}</h3>
               </div>
               <span
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${bookingStatusMeta(userDisplayStatus(resolveBookingStatus(activeBooking))).toneClass}`}
@@ -506,11 +564,23 @@ export default function BookingDetailsModal({
               </p>
             </div>
             <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Amount</p>
+              <p className="mt-1 text-sm font-semibold text-neutral-900">{formatBookingAmount(activeBooking.amount)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Pending Payable</p>
+              <p className="mt-1 text-sm font-semibold text-neutral-900">
+                {formatBookingAmount(Math.max(0, Number(activeBooking.pending_payable_inr ?? 0)))}
+              </p>
+            </div>
+            <div>
               <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Provider Reference</p>
               <p className="mt-1 text-sm font-semibold text-neutral-900">
-                {activeBooking.provider_id
-                  ? `Provider ${activeBooking.provider_id}`
-                  : 'Provider will be assigned after confirmation'}
+                {providerName
+                  ? (activeBooking.provider_id ? `${providerName} (Provider ${activeBooking.provider_id})` : providerName)
+                  : activeBooking.provider_id
+                    ? `Provider ${activeBooking.provider_id}`
+                    : 'Provider will be assigned after confirmation'}
               </p>
             </div>
           </div>
@@ -528,92 +598,6 @@ export default function BookingDetailsModal({
               </p>
             </div>
           </div>
-
-          {pricingSummary && (
-            <div className="rounded-xl border border-[#ead3bf] bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Pricing Summary</p>
-
-              {pricingSummary.serviceLines.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Services</p>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-neutral-700">{pricingSummary.serviceLabel}</span>
-                    <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.serviceSubtotalInr)}</span>
-                  </div>
-                  {pricingSummary.isBundledServices ? (
-                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
-                      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Included packages</p>
-                      <ul className="mt-1 space-y-1">
-                        {pricingSummary.serviceLines.map((serviceLine) => (
-                          <li key={serviceLine.name} className="text-sm text-neutral-700">
-                            {serviceLine.name}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-
-              {pricingSummary.addOnLines.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Add-ons</p>
-                  {pricingSummary.addOnLines.map((addOn) => (
-                    <div key={addOn.id} className="flex items-center justify-between text-sm">
-                      <span className="text-neutral-700">
-                        {addOn.name} x{addOn.quantity} ({formatBookingAmount(addOn.unitPriceInr)} each)
-                      </span>
-                      <span className="font-medium text-neutral-900">{formatBookingAmount(addOn.totalPriceInr)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-4 space-y-2 border-t border-neutral-200 pt-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-600">Service Subtotal</span>
-                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.serviceSubtotalInr)}</span>
-                </div>
-                {pricingSummary.addonSubtotalInr > 0 ? (
-                  <div className="flex items-center justify-between">
-                    <span className="text-neutral-600">Add-on Subtotal</span>
-                    <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.addonSubtotalInr)}</span>
-                  </div>
-                ) : null}
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-600">Gross Subtotal</span>
-                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.grossSubtotalInr)}</span>
-                </div>
-                {pricingSummary.discountAmountInr > 0 ? (
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span>
-                      Discount Applied
-                      {pricingSummary.discountCode ? ` (${pricingSummary.discountCode})` : ''}
-                    </span>
-                    <span className="font-semibold">- {formatBookingAmount(pricingSummary.discountAmountInr)}</span>
-                  </div>
-                ) : null}
-                {pricingSummary.walletCreditsInr > 0 ? (
-                  <div className="flex items-center justify-between text-emerald-700">
-                    <span>Wallet Credits Applied</span>
-                    <span className="font-semibold">- {formatBookingAmount(pricingSummary.walletCreditsInr)}</span>
-                  </div>
-                ) : null}
-                <div className="flex items-center justify-between border-t border-neutral-200 pt-2">
-                  <span className="font-semibold text-neutral-800">Final Price</span>
-                  <span className="font-bold text-neutral-900">{formatBookingAmount(pricingSummary.netPayableInr)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-600">Paid / Collected</span>
-                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.paidOrCollectedInr)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-neutral-600">Pending Payable</span>
-                  <span className="font-semibold text-neutral-900">{formatBookingAmount(pricingSummary.pendingPayableInr)}</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {isCompletedBooking && (
             <div className="rounded-xl border border-[#ead3bf] bg-white p-4 space-y-3">
@@ -687,41 +671,161 @@ export default function BookingDetailsModal({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 pt-3">
-            {Math.max(0, Number(activeBooking.pending_payable_inr ?? 0)) > 0 ? (
-              <Button type="button" variant="premium" isLoading={isPayingPendingAmount} onClick={payPendingAmountOnline}>
-                Pay Pending Amount Online
-              </Button>
-            ) : null}
-            <Link href="/forms/customer-booking">
-              <Button type="button" variant="premium">
-                Book Another Service
-              </Button>
-            </Link>
-            {(resolveBookingStatus(activeBooking) === 'pending' ||
-              resolveBookingStatus(activeBooking) === 'confirmed') && (
-              <>
-                <Link href={`/forms/customer-booking?reschedule=${activeBooking.id}`}>
-                  <Button type="button" variant="premium">
-                    Reschedule
-                  </Button>
-                </Link>
-                <Button
-                  variant="danger"
-                  type="button"
-                  isLoading={isCancellingBookingId === activeBooking.id}
-                  onClick={() => {
-                    onClose();
-                    onCancelRequest(activeBooking.id);
-                  }}
-                >
-                  Cancel Booking
+          {pricingSummary ? (
+            <div className="rounded-xl border border-[#ead3bf] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-neutral-500">Pricing Summary</p>
+
+              {pricingSummary.serviceLines.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Services</p>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-neutral-700">{pricingSummary.serviceLabel}</span>
+                    <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.serviceSubtotalInr)}</span>
+                  </div>
+                  {pricingSummary.isBundledServices ? (
+                    <div className="rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-neutral-500">Included packages</p>
+                      <ul className="mt-1 space-y-1">
+                        {pricingSummary.serviceLines.map((serviceLine, index) => (
+                          <li key={`${serviceLine.name}-${index}`} className="flex items-center justify-between gap-3 text-sm text-neutral-700">
+                            <span>{serviceLine.name}</span>
+                            <span className="font-medium text-neutral-900">{formatBookingAmount(serviceLine.priceInr)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {pricingSummary.serviceLines.some((serviceLine) => serviceLine.isEstimated) ? (
+                        <p className="mt-1 text-[11px] text-neutral-500">
+                          Some package prices are proportionally allocated to match the booking subtotal.
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {pricingSummary.addOnLines.length > 0 ? (
+                <div className="mt-4 space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Add-ons</p>
+                  {pricingSummary.addOnLines.map((addOn) => (
+                    <div key={addOn.id} className="flex items-center justify-between text-sm">
+                      <span className="text-neutral-700">
+                        {addOn.name} x{addOn.quantity} ({formatBookingAmount(addOn.unitPriceInr)} each)
+                      </span>
+                      <span className="font-medium text-neutral-900">{formatBookingAmount(addOn.totalPriceInr)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="mt-4 space-y-2 border-t border-neutral-200 pt-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Service Subtotal</span>
+                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.serviceSubtotalInr)}</span>
+                </div>
+                {pricingSummary.addonSubtotalInr > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span className="text-neutral-600">Add-on Subtotal</span>
+                    <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.addonSubtotalInr)}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Gross Subtotal</span>
+                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.grossSubtotalInr)}</span>
+                </div>
+                {pricingSummary.discountAmountInr > 0 ? (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span>
+                      Discount Applied
+                      {pricingSummary.discountCode ? ` (${pricingSummary.discountCode})` : ''}
+                    </span>
+                    <span className="font-semibold">- {formatBookingAmount(pricingSummary.discountAmountInr)}</span>
+                  </div>
+                ) : null}
+                {pricingSummary.walletCreditsInr > 0 ? (
+                  <div className="flex items-center justify-between text-emerald-700">
+                    <span>Wallet Credits Applied</span>
+                    <span className="font-semibold">- {formatBookingAmount(pricingSummary.walletCreditsInr)}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-neutral-200 pt-2">
+                  <span className="font-semibold text-neutral-800">Final Price</span>
+                  <span className="font-bold text-neutral-900">{formatBookingAmount(pricingSummary.netPayableInr)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Paid / Collected</span>
+                  <span className="font-medium text-neutral-900">{formatBookingAmount(pricingSummary.paidOrCollectedInr)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-neutral-600">Pending Payable</span>
+                  <span className="font-semibold text-neutral-900">{formatBookingAmount(pricingSummary.pendingPayableInr)}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="space-y-1 border-t border-neutral-200 pt-3">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {pendingPayableInr > 0 ? (
+                <Button type="button" variant="premium" isLoading={isPayingPendingAmount} onClick={payPendingAmountOnline}>
+                  Pay Pending Amount Online
                 </Button>
-              </>
-            )}
-            <Button type="button" variant="premium" onClick={onClose}>
-              Close
-            </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="premium"
+                onClick={() => {
+                  setIsAddonManagerOpen((isOpen) => !isOpen);
+                }}
+              >
+                {isAddonManagerOpen ? 'Hide Add-on Options' : 'Manage Add-ons'}
+              </Button>
+              <Link href="/forms/customer-booking">
+                <Button type="button" variant="premium">
+                  Book Another Service
+                </Button>
+              </Link>
+              {(resolveBookingStatus(activeBooking) === 'pending' ||
+                resolveBookingStatus(activeBooking) === 'confirmed') && (
+                <>
+                  <Link href={`/forms/customer-booking?reschedule=${activeBooking.id}`}>
+                    <Button type="button" variant="premium">
+                      Reschedule
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="danger"
+                    type="button"
+                    isLoading={isCancellingBookingId === activeBooking.id}
+                    onClick={() => {
+                      onClose();
+                      onCancelRequest(activeBooking.id);
+                    }}
+                  >
+                    Cancel Booking
+                  </Button>
+                </>
+              )}
+              <Button type="button" variant="premium" onClick={onClose}>
+                Close
+              </Button>
+            </div>
+            {pendingPayableInr > 0 ? (
+              <p className="text-right text-[11px] text-neutral-500">Or pay cash to your provider during the visit.</p>
+            ) : null}
+
+            <div className={isAddonManagerOpen ? 'pt-2' : 'hidden'}>
+              <BookingAddonManager
+                bookingId={activeBooking.id}
+                source="pre_service"
+                title="Add-ons"
+                interactionMode="add-only"
+                addButtonLabel="Add Another Add-on"
+                onItemsChange={setAddonItems}
+                onUpdated={() => {
+                  onBookingUpdated?.();
+                }}
+              />
+            </div>
           </div>
         </div>
       ) : null}

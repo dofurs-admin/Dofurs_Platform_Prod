@@ -66,8 +66,24 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: 'Payment transaction not found.' }, { status: 404 });
   }
 
-  if ((role === 'user' || role === 'provider') && tx.user_id !== user.id) {
+  if (role === 'user' && tx.user_id !== user.id) {
     return forbidden();
+  }
+
+  if (role === 'provider') {
+    const { data: providerBooking } = await admin
+      .from('bookings')
+      .select('id, providers!inner(user_id)')
+      .eq('id', bookingId)
+      .maybeSingle<{ id: number; providers: { user_id: string } | Array<{ user_id: string }> }>();
+
+    const providerUserId = (Array.isArray(providerBooking?.providers)
+      ? providerBooking?.providers[0]
+      : providerBooking?.providers)?.user_id;
+
+    if (!providerUserId || providerUserId !== user.id) {
+      return forbidden();
+    }
   }
 
   if (tx.status === 'captured') {
@@ -114,12 +130,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   const summary = await getBookingOutstandingSummary(admin, bookingId);
 
   if (summary.outstandingInr > 0) {
-    await admin
+    const { error: bookingModeError } = await admin
       .from('bookings')
       .update({ payment_mode: 'mixed' })
       .eq('id', bookingId);
 
-    await admin
+    if (bookingModeError) {
+      return NextResponse.json({ error: bookingModeError.message ?? 'Unable to refresh booking payment mode.' }, { status: 500 });
+    }
+
+    const { error: collectionUpsertError } = await admin
       .from('booking_payment_collections')
       .upsert(
         {
@@ -134,13 +154,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         },
         { onConflict: 'booking_id' },
       );
+
+    if (collectionUpsertError) {
+      return NextResponse.json({ error: collectionUpsertError.message ?? 'Unable to refresh pending collection.' }, { status: 500 });
+    }
   } else {
-    await admin
+    const { error: bookingModeError } = await admin
       .from('bookings')
       .update({ payment_mode: 'platform' })
       .eq('id', bookingId);
 
-    await admin
+    if (bookingModeError) {
+      return NextResponse.json({ error: bookingModeError.message ?? 'Unable to refresh booking payment mode.' }, { status: 500 });
+    }
+
+    const { error: collectionUpsertError } = await admin
       .from('booking_payment_collections')
       .upsert(
         {
@@ -148,13 +176,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           user_id: summary.booking.user_id,
           provider_id: summary.booking.provider_id,
           amount_inr: 0,
-          collection_mode: 'online',
+          collection_mode: 'upi',
           status: 'paid',
           marked_paid_by: user.id,
           marked_paid_at: getISTTimestamp(),
         },
         { onConflict: 'booking_id' },
       );
+
+    if (collectionUpsertError) {
+      return NextResponse.json({ error: collectionUpsertError.message ?? 'Unable to finalize collection status.' }, { status: 500 });
+    }
   }
 
   try {

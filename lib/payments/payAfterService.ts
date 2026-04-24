@@ -38,24 +38,6 @@ export async function markBookingPaymentCollected(
     throw collectionError ?? new Error('Unable to mark booking collection paid.');
   }
 
-  const { data: existingTransaction, error: existingTransactionError } = await supabase
-    .from('payment_transactions')
-    .select('id, booking_id, status')
-    .eq('provider', 'manual')
-    .eq('transaction_type', 'service_collection')
-    .eq('booking_id', input.bookingId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (existingTransactionError) {
-    throw existingTransactionError;
-  }
-
-  if (existingTransaction) {
-    return { collection, transaction: existingTransaction };
-  }
-
   const { data: transaction, error: txError } = await supabase
     .from('payment_transactions')
     .insert({

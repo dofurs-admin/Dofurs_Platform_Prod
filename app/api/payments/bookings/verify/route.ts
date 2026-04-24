@@ -582,13 +582,14 @@ export async function POST(request: Request) {
   }
 
   const priceBreakdown = metadata.price_breakdown;
-  if (priceBreakdown?.discountId && (priceBreakdown.discountAmount ?? 0) > 0) {
+  const redemptionDiscountAmount = Math.max(0, Number(priceBreakdown?.discountAmount ?? 0));
+  if (priceBreakdown?.discountId && redemptionDiscountAmount > 0) {
     try {
       await createDiscountRedemption(admin, {
         discountId: priceBreakdown.discountId,
         bookingId: primaryBookingId,
         userId: transaction.user_id,
-        discountAmount: priceBreakdown.discountAmount,
+        discountAmount: redemptionDiscountAmount,
       });
     } catch (redemptionError) {
       console.error(

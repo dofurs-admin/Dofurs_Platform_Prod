@@ -26,6 +26,7 @@ export type ProviderBooking = {
   id: number;
   user_id: string;
   pet_id: number;
+  provider_service_id?: string | null;
   booking_date: string;
   start_time: string;
   end_time: string;
@@ -39,12 +40,18 @@ export type ProviderBooking = {
   owner_photo_url?: string | null;
   owner_phone?: string | null;
   pet_name?: string | null;
+  pet_names?: string[];
+  pet_ids?: number[];
   pet_photo_url?: string | null;
   provider_notes: string | null;
+  included_services?: string[];
   payment_mode?: 'direct_to_provider' | 'platform' | 'mixed' | null;
   price_at_booking?: number | null;
+  admin_price_reference?: number | null;
+  discount_amount?: number | null;
   final_price?: number | null;
   wallet_credits_applied_inr?: number | null;
+  internal_notes?: string | null;
   cash_collected?: boolean;
   pending_payable_inr?: number;
   completion_task_status?: 'pending' | 'completed' | null;

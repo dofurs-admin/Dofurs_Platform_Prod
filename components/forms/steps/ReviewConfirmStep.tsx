@@ -126,8 +126,6 @@ export default function ReviewConfirmStep({
   isPackageBooking = false,
   isBoardingBooking = false,
   bookingEndDate = '',
-  onBundleRowQuantityChange,
-  onBundleRowRemove,
   bundlePriceTotal = 0,
   totalDurationMinutes = 0,
   onPrev,

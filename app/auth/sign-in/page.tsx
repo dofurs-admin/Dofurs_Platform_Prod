@@ -434,7 +434,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_1fr]">
-      <section className="relative hidden min-h-[512px] overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-6 shadow-soft-md lg:block">
+      <section className="relative hidden min-h-[470px] overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-5 shadow-soft-md lg:block">
         <div className="pointer-events-none absolute -left-14 -top-16 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(253,196,146,0.55)_0%,rgba(253,196,146,0)_72%)]" aria-hidden="true" />
         <div className="pointer-events-none absolute -right-32 bottom-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(228,145,76,0.3)_0%,rgba(228,145,76,0)_72%)]" aria-hidden="true" />
 
@@ -493,7 +493,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         </div>
       </section>
 
-      <section className="flex flex-col rounded-3xl border border-[#f2dfcf] bg-white p-6 shadow-soft-md sm:p-8">
+      <section className="flex flex-col rounded-3xl border border-[#f2dfcf] bg-white p-5 shadow-soft-md sm:p-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#f1decf] bg-[#fffaf6] px-3 py-1 text-xs font-semibold text-[#a05a2c]">
           <Sparkles className="h-3.5 w-3.5" />
           Secure Member Access
@@ -512,7 +512,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         )}
 
         {flowState !== 'success' && needsProfileSetup && (
-          <form onSubmit={handleCompleteProfile} className="mt-6 space-y-4">
+          <form onSubmit={handleCompleteProfile} className="mt-5 space-y-3.5">
             <div className="rounded-xl border border-[#f2dfcf] bg-[#fffaf6] px-3 py-2 text-xs text-[#6b6b6b]">
               Complete your profile to finish sign-in.
             </div>
@@ -582,7 +582,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         )}
 
         {flowState !== 'success' && !needsProfileSetup && step === 'collect' && (
-          <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
+          <form onSubmit={handleSendOtp} className="mt-5 space-y-3.5">
             <div>
               <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">
                 Email Address
@@ -612,7 +612,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         )}
 
         {flowState !== 'success' && !needsProfileSetup && step === 'verify' && (
-          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
+          <form onSubmit={handleVerifyOtp} className="mt-5 space-y-3.5">
             <div className="rounded-xl border border-[#f2dfcf] bg-[#fffaf6] px-3 py-2 text-xs text-[#6b6b6b]">
               OTP sent to: <span className="font-semibold text-ink">{email}</span>
             </div>
@@ -739,23 +739,23 @@ function UnifiedAuthPageContent() {
 
   if (!isModeReady) {
     return (
-      <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8">
+      <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 pt-9 pb-6 sm:pt-10 sm:pb-7">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_14%_6%,rgba(228,153,90,0.15),transparent_52%),radial-gradient(circle_at_84%_12%,rgba(154,122,87,0.1),transparent_48%)]"
           aria-hidden="true"
         />
-        <div className="relative mx-auto mb-5 h-12 w-full max-w-5xl animate-pulse rounded-full border border-[#e8ccb3] bg-white/95" />
+        <div className="relative mx-auto mt-2 mb-4 h-12 w-full max-w-5xl animate-pulse rounded-full border border-[#e8ccb3] bg-white/95" />
       </main>
     );
   }
 
   return (
-    <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8">
+    <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 pt-9 pb-6 sm:pt-10 sm:pb-7">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_14%_6%,rgba(228,153,90,0.15),transparent_52%),radial-gradient(circle_at_84%_12%,rgba(154,122,87,0.1),transparent_48%)]"
         aria-hidden="true"
       />
-      <div className="relative mx-auto mb-5 flex w-full max-w-5xl items-center justify-center gap-2 rounded-full border border-[#e8ccb3] bg-white/95 p-1 shadow-premium">
+      <div className="relative mx-auto mt-2 mb-4 flex w-full max-w-5xl items-center justify-center gap-2 rounded-full border border-[#e8ccb3] bg-white/95 p-1 shadow-premium">
         <Link
           href={signInHref}
           className={`inline-flex flex-1 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -785,7 +785,7 @@ function UnifiedAuthPageContent() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={<main className="bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8" />}>
+    <Suspense fallback={<main className="bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 pt-9 pb-6 sm:pt-10 sm:pb-7" />}>
       <UnifiedAuthPageContent />
     </Suspense>
   );

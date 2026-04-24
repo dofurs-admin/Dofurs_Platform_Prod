@@ -1,4 +1,5 @@
 import UserDashboardClient from '@/components/dashboard/UserDashboardClient';
+import type { Booking } from '@/components/dashboard/user/types';
 import { requireAuthenticatedUser } from '@/lib/auth/session';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { claimPendingPetShares, listAccessiblePetsForUser } from '@/lib/pets/share-access';
@@ -9,6 +10,24 @@ type UserDashboardView = 'home' | 'bookings' | 'pets' | 'account';
 type UserDashboardPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
+
+function normalizeDashboardStatus(status: string): Booking['status'] {
+  if (status === 'in_progress') {
+    return 'confirmed';
+  }
+
+  if (
+    status === 'pending' ||
+    status === 'confirmed' ||
+    status === 'completed' ||
+    status === 'cancelled' ||
+    status === 'no_show'
+  ) {
+    return status;
+  }
+
+  return 'pending';
+}
 
 function resolveBookingId(value: string | string[] | undefined) {
   const resolvedValue = Array.isArray(value) ? value[0] : value;
@@ -137,10 +156,30 @@ export default async function UserDashboardPage({ searchParams }: UserDashboardP
     return computedPending;
   };
 
-  const initialBookings = bookings.map((booking) => ({
-    ...booking,
-    pending_payable_inr: resolvePendingForBooking(booking),
-  }));
+  const initialBookings: Booking[] = bookings.map((booking) => {
+    const normalizedStatus = normalizeDashboardStatus(booking.booking_status);
+    const bookingStart = `${booking.booking_date}T${booking.start_time}`;
+    const bookingEnd = `${booking.booking_date}T${booking.end_time}`;
+    const normalizedAmount = Math.max(
+      0,
+      Number(
+        (booking as { final_price?: number | null; amount?: number | null }).final_price ??
+          (booking as { amount?: number | null }).amount ??
+          booking.price_at_booking ??
+          0,
+      ),
+    );
+
+    return {
+      ...booking,
+      booking_start: bookingStart,
+      booking_end: bookingEnd,
+      status: normalizedStatus,
+      booking_status: normalizedStatus,
+      amount: normalizedAmount,
+      pending_payable_inr: resolvePendingForBooking(booking),
+    };
+  });
 
   const userName = (user.user_metadata?.name as string) || user.email || 'User';
   const firstName = userName.split(' ')[0];

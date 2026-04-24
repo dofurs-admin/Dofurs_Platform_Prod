@@ -12,13 +12,14 @@ import {
 
 // Premium Layout
 import DashboardPageLayout from './premium/DashboardPageLayout';
-import { Card } from '@/components/ui';
+import { Card, Modal } from '@/components/ui';
 
 // Provider subcomponents
 import ProviderOverviewTab from './provider/ProviderOverviewTab';
 import ProviderOperationsTab from './provider/ProviderOperationsTab';
 import ProviderProfileTab from './provider/ProviderProfileTab';
 import ProviderModals from './provider/ProviderModals';
+import BookingAddonManager from './shared/BookingAddonManager';
 
 import type {
   ProviderDashboardView,
@@ -105,6 +106,7 @@ export default function ProviderDashboardClient({
   const [isManagingAvailability, setIsManagingAvailability] = useState(false);
   const [isManagingDocuments, setIsManagingDocuments] = useState(false);
   const [isManagingBlockedDates, setIsManagingBlockedDates] = useState(false);
+  const [activeAddonEditorBookingId, setActiveAddonEditorBookingId] = useState<number | null>(null);
   const [activeReviewEditorId, setActiveReviewEditorId] = useState<string | null>(null);
 
   // ── Reviews state ────────────────────────────────────────────────────────────
@@ -865,6 +867,8 @@ export default function ProviderDashboardClient({
     providerBookings.find((booking) => booking.id === activeCompletionEditorId) ?? null;
   const activeCustomerFeedbackBooking =
     providerBookings.find((booking) => booking.id === activeCustomerFeedbackEditorId) ?? null;
+  const activeAddonEditorBooking =
+    providerBookings.find((booking) => booking.id === activeAddonEditorBookingId) ?? null;
 
   return (
     <DashboardPageLayout
@@ -895,6 +899,7 @@ export default function ProviderDashboardClient({
             onBookingStatusChange={(bookingId, status) =>
               setProviderBookingStatus(bookingId, status)
             }
+            onManageAddons={setActiveAddonEditorBookingId}
             onMarkCashCollected={markCashCollected}
             onOpenCompletionEditor={setActiveCompletionEditorId}
             onOpenCustomerFeedbackEditor={openCustomerFeedbackEditor}
@@ -1026,6 +1031,33 @@ export default function ProviderDashboardClient({
           }
           onSaveCustomerFeedback={saveCustomerFeedback}
         />
+
+        <Modal
+          isOpen={activeAddonEditorBookingId !== null}
+          onClose={() => setActiveAddonEditorBookingId(null)}
+          title={
+            activeAddonEditorBooking
+              ? `Manage Add-ons · Booking #${activeAddonEditorBooking.id}`
+              : 'Manage Add-ons'
+          }
+          size="lg"
+        >
+          {activeAddonEditorBookingId != null ? (
+            <div className="space-y-3">
+              <p className="text-sm text-neutral-600">
+                Update in-visit add-ons and keep payable amount in sync for this booking.
+              </p>
+              <BookingAddonManager
+                bookingId={activeAddonEditorBookingId}
+                source="in_service"
+                title="Booking Add-ons"
+                onUpdated={() => {
+                  void fetchProviderBookings(bookingFilter);
+                }}
+              />
+            </div>
+          ) : null}
+        </Modal>
       </div>
     </DashboardPageLayout>
   );
