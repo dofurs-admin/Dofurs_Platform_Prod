@@ -9,6 +9,7 @@ import AvailabilityCalendar from '@/components/ui/AvailabilityCalendar';
 import { apiRequest } from '@/lib/api/client';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatSavedAddress } from '@/lib/utils/address';
+import { MAX_PET_AGE_YEARS } from '@/lib/utils/date';
 
 const LocationPinMap = dynamic(() => import('./LocationPinMap'), { ssr: false });
 
@@ -16,6 +17,7 @@ type BookableUser = {
   id: string;
   name: string | null;
   email: string | null;
+  phone: string | null;
 };
 
 type Pet = {
@@ -190,6 +192,7 @@ type CreditWalletResponse = {
 };
 
 type CatalogResponse = {
+  actorRole?: 'user' | 'provider' | 'admin' | 'staff' | null;
   canBookForUsers: boolean;
   bookableUsers: BookableUser[];
   selectedUserId: string | null;
@@ -197,6 +200,18 @@ type CatalogResponse = {
   services?: CatalogService[];
   addresses: SavedAddress[];
   discounts: CatalogDiscount[];
+};
+
+type QuickCustomerResponse = {
+  success: boolean;
+  user: BookableUser;
+  isNewUser: boolean;
+  inviteSent: boolean;
+};
+
+type QuickPetResponse = {
+  success: boolean;
+  pet: Pet;
 };
 
 type BookingMode = 'home_visit' | 'clinic_visit' | 'teleconsult';
@@ -252,6 +267,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null);
 
   const [bookableUsers, setBookableUsers] = useState<BookableUser[]>([]);
+  const [actorRole, setActorRole] = useState<'user' | 'provider' | 'admin' | 'staff' | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [catalogServices, setCatalogServices] = useState<CatalogService[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -262,9 +278,24 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   const [hasSearchedUsers, setHasSearchedUsers] = useState(false);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
+  const [customerEntryMode, setCustomerEntryMode] = useState<'search' | 'create'>('search');
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [newCustomerNoEmailInvite, setNewCustomerNoEmailInvite] = useState(true);
+  const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+
   const [selectedBookingUserId, setSelectedBookingUserId] = useState<string | null>(null);
   const [selectedPetIds, setSelectedPetIds] = useState<number[]>([]);
   const [petServiceSelections, setPetServiceSelections] = useState<Record<number, PetServiceSelection>>({});
+  const [isQuickPetFormOpen, setIsQuickPetFormOpen] = useState(false);
+  const [quickPetName, setQuickPetName] = useState('');
+  const [quickPetBreed, setQuickPetBreed] = useState('');
+  const [quickPetAge, setQuickPetAge] = useState('');
+  const [quickPetGender, setQuickPetGender] = useState<'' | 'male' | 'female'>('');
+  const [quickPetError, setQuickPetError] = useState<string | null>(null);
+  const [isSavingQuickPet, setIsSavingQuickPet] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -320,6 +351,25 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     [bookableUsers, selectedBookingUserId],
   );
 
+  const canQuickCreateCustomers = (actorRole === 'admin' || actorRole === 'staff') && !isRescheduleMode;
+
+  const resetNewCustomerForm = useCallback(() => {
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setNewCustomerEmail('');
+    setNewCustomerNoEmailInvite(true);
+    setNewCustomerError(null);
+  }, []);
+
+  const resetQuickPetForm = useCallback(() => {
+    setIsQuickPetFormOpen(false);
+    setQuickPetName('');
+    setQuickPetBreed('');
+    setQuickPetAge('');
+    setQuickPetGender('');
+    setQuickPetError(null);
+  }, []);
+
   const resetStepTwoToFive = useCallback(() => {
     setServiceType('');
     setPetServiceSelections({});
@@ -349,6 +399,20 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     setAvailableDateOptions([]);
     setBookingConfirmation(null);
     setStep(1);
+  }, []);
+
+  const prepareAddAddressModal = useCallback(() => {
+    setNewAddressLabel('Other');
+    setNewAddressLine1('');
+    setNewAddressLine2('');
+    setNewAddressCity('');
+    setNewAddressState('');
+    setNewAddressPincode('');
+    setNewAddressCountry('India');
+    setNewAddressLatitude('');
+    setNewAddressLongitude('');
+    setNewAddressError(null);
+    setShowAddAddressModal(true);
   }, []);
 
   const selectedAddress = useMemo(
@@ -631,18 +695,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
       return;
     }
 
-    setNewAddressLabel('Other');
-    setNewAddressLine1('');
-    setNewAddressLine2('');
-    setNewAddressCity('');
-    setNewAddressState('');
-    setNewAddressPincode('');
-    setNewAddressCountry('India');
-    setNewAddressLatitude('');
-    setNewAddressLongitude('');
-    setNewAddressError(null);
-    setShowAddAddressModal(true);
-  }, [selectedBookingUserId, showToast]);
+    prepareAddAddressModal();
+  }, [prepareAddAddressModal, selectedBookingUserId, showToast]);
 
   const closeAddAddressModal = useCallback(() => {
     setShowAddAddressModal(false);
@@ -983,6 +1037,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
       `/api/bookings/catalog${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
     );
 
+    setActorRole(payload.actorRole ?? null);
     setBookableUsers(payload.bookableUsers ?? []);
     setPets(payload.pets ?? []);
     setCatalogServices(payload.services ?? []);
@@ -1004,7 +1059,10 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
 
     // Reset downstream choices when user context changes.
     resetStepTwoToFive();
-  }, [resetStepTwoToFive]);
+    resetQuickPetForm();
+
+    return payload;
+  }, [resetQuickPetForm, resetStepTwoToFive]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1534,6 +1592,120 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     }
   }
 
+  async function createQuickCustomer() {
+    if (!canQuickCreateCustomers) {
+      showToast('Only admin or staff can create customers from this flow.', 'error');
+      return;
+    }
+
+    const name = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+    const email = newCustomerEmail.trim().toLowerCase();
+
+    if (name.length < 2) {
+      setNewCustomerError('Customer name should be at least 2 characters.');
+      return;
+    }
+
+    if (phone.replace(/\D/g, '').length < 10) {
+      setNewCustomerError('Enter a valid Indian phone number.');
+      return;
+    }
+
+    if (!newCustomerNoEmailInvite && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setNewCustomerError('Enter a valid email address or keep phone-only profile selected.');
+      return;
+    }
+
+    setIsCreatingCustomer(true);
+    setNewCustomerError(null);
+
+    try {
+      const payload = await apiRequest<QuickCustomerResponse>('/api/bookings/customers/quick-create', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          phone,
+          email: newCustomerNoEmailInvite ? '' : email,
+          noEmailInvite: newCustomerNoEmailInvite,
+        }),
+      });
+
+      const catalogPayload = await loadCatalog(payload.user.id);
+      setBookingUserSearch(payload.user.phone ?? payload.user.email ?? payload.user.name ?? '');
+      setCustomerEntryMode('search');
+      resetNewCustomerForm();
+      showToast(
+        payload.isNewUser ? 'Customer created and selected.' : 'Existing customer selected for this booking.',
+        'success',
+      );
+
+      if ((catalogPayload.addresses ?? []).length === 0) {
+        prepareAddAddressModal();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to create customer.';
+      setNewCustomerError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsCreatingCustomer(false);
+    }
+  }
+
+  async function createQuickPet() {
+    if (!selectedBookingUserId) {
+      setQuickPetError('Select a customer first.');
+      return;
+    }
+
+    const name = quickPetName.trim();
+    const age = quickPetAge.trim() ? Number.parseInt(quickPetAge.trim(), 10) : null;
+
+    if (!name) {
+      setQuickPetError('Pet name is required.');
+      return;
+    }
+
+    if (age !== null && (!Number.isFinite(age) || age < 0 || age > MAX_PET_AGE_YEARS)) {
+      setQuickPetError(`Pet age must be between 0 and ${MAX_PET_AGE_YEARS}.`);
+      return;
+    }
+
+    setIsSavingQuickPet(true);
+    setQuickPetError(null);
+
+    try {
+      const payload = await apiRequest<QuickPetResponse>(
+        `/api/bookings/user-pets?userId=${encodeURIComponent(selectedBookingUserId)}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            breed: quickPetBreed.trim() || null,
+            age,
+            gender: quickPetGender || null,
+          }),
+        },
+      );
+
+      resetAddressDependentState();
+      setPets((previous) => [payload.pet, ...previous.filter((pet) => pet.id !== payload.pet.id)]);
+      setSelectedPetIds((previous) => Array.from(new Set([...previous, payload.pet.id])));
+      setPetServiceSelections((previous) => ({
+        ...previous,
+        [payload.pet.id]: previous[payload.pet.id] ?? { serviceType: null, quantity: 1 },
+      }));
+      resetQuickPetForm();
+      showToast('Pet added for customer.', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to add pet.';
+      setQuickPetError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsSavingQuickPet(false);
+    }
+  }
+
   function canMoveToStep(targetStep: (typeof STEPS)[number]['id']) {
     if (targetStep <= step) {
       return true;
@@ -2039,65 +2211,261 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
             <h4 className="text-sm font-semibold text-neutral-900 sm:text-base">Step 1. Select User, Pet, Address</h4>
             <p className="mt-1 text-xs text-neutral-600 sm:text-sm">Search customer, then choose pet and exact service address.</p>
 
-            <form
-              className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void searchUsers();
-              }}
-            >
-              <input
-                value={bookingUserSearch}
-                onChange={(event) => setBookingUserSearch(event.target.value)}
-                placeholder="Search customer"
-                className="h-10 w-full rounded-xl border border-neutral-200 px-3 text-sm sm:h-11"
-              />
-              <button
-                type="submit"
-                disabled={isSearchingUsers}
-                className="h-10 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold hover:border-coral/60 sm:h-11 sm:w-auto"
-              >
-                {isSearchingUsers ? 'Searching...' : 'Search'}
-              </button>
-            </form>
+            {canQuickCreateCustomers ? (
+              <div className="mt-3 grid gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2 sm:mt-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerEntryMode('search');
+                    setNewCustomerError(null);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${
+                    customerEntryMode === 'search' ? 'border-coral bg-white text-neutral-900' : 'border-transparent text-neutral-600 hover:bg-white'
+                  }`}
+                >
+                  Search existing customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerEntryMode('create');
+                    setHasSearchedUsers(false);
+                    setSearchResults([]);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${
+                    customerEntryMode === 'create' ? 'border-coral bg-white text-neutral-900' : 'border-transparent text-neutral-600 hover:bg-white'
+                  }`}
+                >
+                  Create new customer
+                </button>
+              </div>
+            ) : null}
 
-            <div className="mt-2 max-h-44 space-y-2 overflow-auto rounded-xl border border-neutral-200 p-2 sm:mt-3 sm:max-h-48">
-              {isSearchingUsers ? <p className="text-xs text-neutral-500">Searching users...</p> : null}
-              {!isSearchingUsers && !hasSearchedUsers ? <p className="text-xs text-neutral-500">Search for a customer to begin.</p> : null}
-              {!isSearchingUsers && hasSearchedUsers && searchResults.length === 0 ? (
-                <p className="text-xs text-neutral-500">No matching users.</p>
-              ) : null}
-              {searchResults.map((item) => {
-                const selected = selectedBookingUserId === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      startTransition(async () => {
-                        await loadCatalog(item.id);
-                      });
+            {customerEntryMode === 'create' && canQuickCreateCustomers ? (
+              <form
+                className="mt-3 rounded-xl border border-coral/30 bg-orange-50/70 p-3 sm:mt-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void createQuickCustomer();
+                }}
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Customer name
+                    <input
+                      value={newCustomerName}
+                      onChange={(event) => setNewCustomerName(event.target.value)}
+                      placeholder="Customer full name"
+                      className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Phone
+                    <input
+                      value={newCustomerPhone}
+                      onChange={(event) => setNewCustomerPhone(event.target.value)}
+                      placeholder="9876543210 or +919876543210"
+                      className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-3 inline-flex items-start gap-2 rounded-xl bg-white/80 px-3 py-2 text-xs text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={newCustomerNoEmailInvite}
+                    onChange={(event) => {
+                      setNewCustomerNoEmailInvite(event.target.checked);
+                      if (event.target.checked) {
+                        setNewCustomerEmail('');
+                      }
                     }}
-                    className={`flex w-full flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between ${
-                      selected ? 'border-coral bg-orange-50' : 'border-neutral-200 bg-white hover:border-coral/50'
-                    }`}
+                    className="mt-0.5"
+                  />
+                  <span>Create phone-only profile without email invite.</span>
+                </label>
+
+                {!newCustomerNoEmailInvite ? (
+                  <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Email
+                    <input
+                      type="email"
+                      value={newCustomerEmail}
+                      onChange={(event) => setNewCustomerEmail(event.target.value)}
+                      placeholder="customer@example.com"
+                      className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                ) : null}
+
+                {newCustomerError ? <p className="mt-3 text-xs font-medium text-red-600">{newCustomerError}</p> : null}
+
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={resetNewCustomerForm}
+                    disabled={isCreatingCustomer}
+                    className="h-10 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 disabled:opacity-60"
                   >
-                    <span className="font-medium text-neutral-900">{item.name?.trim() || item.email || item.id}</span>
-                    {item.email ? <span className="text-xs text-neutral-500">{item.email}</span> : null}
+                    Clear
                   </button>
-                );
-              })}
-            </div>
+                  <button
+                    type="submit"
+                    disabled={isCreatingCustomer}
+                    className="h-10 rounded-xl bg-coral px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {isCreatingCustomer ? 'Creating...' : 'Create & select'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <form
+                  className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void searchUsers();
+                  }}
+                >
+                  <input
+                    value={bookingUserSearch}
+                    onChange={(event) => setBookingUserSearch(event.target.value)}
+                    placeholder="Search customer by name, phone, or email"
+                    className="h-10 w-full rounded-xl border border-neutral-200 px-3 text-sm sm:h-11"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSearchingUsers}
+                    className="h-10 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold hover:border-coral/60 sm:h-11 sm:w-auto"
+                  >
+                    {isSearchingUsers ? 'Searching...' : 'Search'}
+                  </button>
+                </form>
+
+                <div className="mt-2 max-h-44 space-y-2 overflow-auto rounded-xl border border-neutral-200 p-2 sm:mt-3 sm:max-h-48">
+                  {isSearchingUsers ? <p className="text-xs text-neutral-500">Searching users...</p> : null}
+                  {!isSearchingUsers && !hasSearchedUsers ? <p className="text-xs text-neutral-500">Search for a customer to begin.</p> : null}
+                  {!isSearchingUsers && hasSearchedUsers && searchResults.length === 0 ? (
+                    <p className="text-xs text-neutral-500">No matching users.</p>
+                  ) : null}
+                  {searchResults.map((item) => {
+                    const selected = selectedBookingUserId === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          startTransition(async () => {
+                            await loadCatalog(item.id);
+                          });
+                        }}
+                        className={`flex w-full flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between ${
+                          selected ? 'border-coral bg-orange-50' : 'border-neutral-200 bg-white hover:border-coral/50'
+                        }`}
+                      >
+                        <span className="font-medium text-neutral-900">{item.name?.trim() || item.email || item.phone || item.id}</span>
+                        <span className="flex flex-wrap gap-2 text-xs text-neutral-500">
+                          {item.phone ? <span>{item.phone}</span> : null}
+                          {item.email ? <span>{item.email}</span> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             {selectedUser ? (
               <div className="mt-4 rounded-xl border border-coral/30 bg-orange-50 px-3 py-2 text-sm text-neutral-700">
-                <p className="font-semibold text-neutral-900">Selected customer: {selectedUser.name?.trim() || selectedUser.email || selectedUser.id}</p>
+                <p className="font-semibold text-neutral-900">Selected customer: {selectedUser.name?.trim() || selectedUser.email || selectedUser.phone || selectedUser.id}</p>
+                <p className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-600">
+                  {selectedUser.phone ? <span>{selectedUser.phone}</span> : null}
+                  {selectedUser.email ? <span>{selectedUser.email}</span> : null}
+                </p>
               </div>
             ) : null}
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Pets</label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">Pets</label>
+                  {canQuickCreateCustomers && selectedUser ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsQuickPetFormOpen((current) => !current);
+                        setQuickPetError(null);
+                      }}
+                      className="rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-semibold text-neutral-700 hover:border-coral/50"
+                    >
+                      {isQuickPetFormOpen ? 'Close' : 'Quick add pet'}
+                    </button>
+                  ) : null}
+                </div>
+                {isQuickPetFormOpen ? (
+                  <div className="mb-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Pet name
+                        <input
+                          value={quickPetName}
+                          onChange={(event) => setQuickPetName(event.target.value)}
+                          placeholder="Pet name"
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Breed
+                        <input
+                          value={quickPetBreed}
+                          onChange={(event) => setQuickPetBreed(event.target.value)}
+                          placeholder="Optional"
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Age
+                        <input
+                          value={quickPetAge}
+                          onChange={(event) => setQuickPetAge(event.target.value.replace(/\D/g, '').slice(0, 2))}
+                          placeholder="Optional"
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Gender
+                        <select
+                          value={quickPetGender}
+                          onChange={(event) => setQuickPetGender(event.target.value as '' | 'male' | 'female')}
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        >
+                          <option value="">Optional</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </label>
+                    </div>
+                    {quickPetError ? <p className="mt-2 text-xs font-medium text-red-600">{quickPetError}</p> : null}
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={resetQuickPetForm}
+                        disabled={isSavingQuickPet}
+                        className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void createQuickPet()}
+                        disabled={isSavingQuickPet}
+                        className="h-9 rounded-xl bg-coral px-3 text-xs font-semibold text-white disabled:opacity-60"
+                      >
+                        {isSavingQuickPet ? 'Adding...' : 'Add pet'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="max-h-44 space-y-2 overflow-auto rounded-xl border border-neutral-200 p-2">
                   {pets.length === 0 ? <p className="text-xs text-neutral-500">No pets available</p> : null}
                   {pets.map((pet) => {
@@ -2144,7 +2512,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
                   ))}
                   <option value={ADD_ADDRESS_OPTION_VALUE}>+ Add new address</option>
                 </select>
-                <p className="mt-1 text-xs text-neutral-500">Tip: choose `+ Add new address` to create and save a fresh address for this customer.</p>
+                <p className="mt-1 text-xs text-neutral-500">Tip: choose + Add new address to create and save a fresh address for this customer.</p>
               </div>
             </div>
 

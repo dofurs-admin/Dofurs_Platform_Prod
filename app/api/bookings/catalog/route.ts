@@ -21,6 +21,7 @@ type BookableUser = {
   id: string;
   name: string | null;
   email: string | null;
+  phone: string | null;
   role?: string | null;
 };
 
@@ -103,7 +104,7 @@ export async function GET(request: Request) {
   if (canBookForUsers) {
     const allUsersResult = await adminClient
       .from('users')
-      .select('id, name, email, roles(name)')
+      .select('id, name, email, phone, roles(name)')
       .order('name', { ascending: true })
       .limit(1000);
 
@@ -119,15 +120,46 @@ export async function GET(request: Request) {
           id: row.id,
           name: row.name,
           email: row.email,
+          phone: row.phone,
           role: roleName,
         } as BookableUser;
       })
       .filter((row) => row.role !== 'admin' && row.role !== 'staff' && row.role !== 'provider')
       .sort((left, right) => {
-        const leftLabel = (left.name ?? left.email ?? left.id).toLowerCase();
-        const rightLabel = (right.name ?? right.email ?? right.id).toLowerCase();
+        const leftLabel = (left.name ?? left.email ?? left.phone ?? left.id).toLowerCase();
+        const rightLabel = (right.name ?? right.email ?? right.phone ?? right.id).toLowerCase();
         return leftLabel.localeCompare(rightLabel);
       });
+
+    const requestedUserId = parsed.data.userId ?? null;
+    if (requestedUserId && !bookableUsers.some((item) => item.id === requestedUserId)) {
+      const requestedUserResult = await adminClient
+        .from('users')
+        .select('id, name, email, phone, roles(name)')
+        .eq('id', requestedUserId)
+        .maybeSingle();
+
+      if (requestedUserResult.error) {
+        const mapped = toFriendlyApiError(requestedUserResult.error, 'Failed to load selected booking customer');
+        return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+      }
+
+      if (requestedUserResult.data) {
+        const roleName = (Array.isArray(requestedUserResult.data.roles) ? requestedUserResult.data.roles[0] : requestedUserResult.data.roles)?.name ?? null;
+        if (roleName !== 'admin' && roleName !== 'staff' && roleName !== 'provider') {
+          bookableUsers = [
+            ...bookableUsers,
+            {
+              id: requestedUserResult.data.id,
+              name: requestedUserResult.data.name,
+              email: requestedUserResult.data.email,
+              phone: requestedUserResult.data.phone,
+              role: roleName,
+            },
+          ];
+        }
+      }
+    }
   }
 
   let selectedUserId: string | null;
