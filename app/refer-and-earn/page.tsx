@@ -17,14 +17,18 @@ async function getIsAuthenticated() {
 }
 
 export const metadata: Metadata = {
-  title: 'Refer & Earn | Dofurs',
-  description: 'Invite friends to Dofurs and earn ₹500 Dofurs Credits for every successful referral.',
+  title: 'Refer & Earn — Get ₹500 Dofurs Credits',
+  description:
+    'Invite pet parents to Dofurs and you both earn ₹500 in credits — use them on grooming, vet visits, boarding, sitting, training and more across Bangalore.',
+  alternates: { canonical: 'https://dofurs.in/refer-and-earn' },
   openGraph: {
-    title: 'Refer & Earn | Dofurs',
-    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on any service.',
+    title: 'Refer & Earn ₹500 Credits | Dofurs',
+    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on any pet service.',
+    url: 'https://dofurs.in/refer-and-earn',
+    type: 'website',
     images: [
       {
-        url: '/logo/brand-logo.png',
+        url: '/logo/og-default.jpg',
         width: 1200,
         height: 630,
         alt: 'Dofurs Refer & Earn — ₹500 Credits',
@@ -33,10 +37,11 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Refer & Earn | Dofurs',
-    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on any service.',
-    images: ['/logo/brand-logo.png'],
+    title: 'Refer & Earn ₹500 Credits | Dofurs',
+    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on any pet service.',
+    images: ['/logo/og-default.jpg'],
   },
+  robots: { index: true, follow: true },
 };
 
 export default async function ReferAndEarnPage() {

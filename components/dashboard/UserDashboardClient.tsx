@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useToast } from '@/components/ui/ToastProvider';
@@ -168,6 +169,12 @@ export default function UserDashboardClient({
     }
   }, []);
 
+  // Always hydrate bookings from the enriched API payload on first dashboard load.
+  // Initial SSR bookings are intentionally lightweight and can miss derived fields.
+  useEffect(() => {
+    void refreshBookings();
+  }, [refreshBookings]);
+
   useBookingRealtime(userId, refreshBookings);
 
   useEffect(() => {
@@ -186,23 +193,35 @@ export default function UserDashboardClient({
           if (!pet.photo_url) return [pet.id, ''];
 
           const isStorageReference = /\/storage\/v1\/object\//.test(pet.photo_url);
-          const isDirectlyUsableStorageUrl = /\/storage\/v1\/object\/(public|sign)\//.test(pet.photo_url) || pet.photo_url.includes('token=');
-          const directUrl = !isStorageReference ? normalizeDisplayImageUrl(pet.photo_url) : '';
-          if (isDirectlyUsableStorageUrl) return [pet.id, normalizeDisplayImageUrl(pet.photo_url)];
-          if (directUrl) return [pet.id, directUrl];
+          const isPublicStorageReference = /\/storage\/v1\/object\/public\//.test(pet.photo_url);
+          const directUrl = normalizeDisplayImageUrl(pet.photo_url);
+
+          if (directUrl && (!isStorageReference || isPublicStorageReference)) {
+            return [pet.id, directUrl];
+          }
+
+          const storagePath = normalizeStorageObjectPath(pet.photo_url);
+          if (!storagePath) {
+            return [pet.id, directUrl];
+          }
 
           try {
             const response = await fetch('/api/storage/signed-read-url', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ bucket: 'pet-photos', path: normalizeStorageObjectPath(pet.photo_url), expiresIn: 3600 }),
+              body: JSON.stringify({ bucket: 'pet-photos', path: storagePath, expiresIn: 3600 }),
             });
-            if (!response.ok) return [pet.id, ''];
+
+            if (!response.ok) {
+              return [pet.id, directUrl];
+            }
+
             const payload = (await response.json().catch(() => null)) as { signedUrl?: string } | null;
-            return [pet.id, normalizeDisplayImageUrl(payload?.signedUrl)];
+            const signedUrl = normalizeDisplayImageUrl(payload?.signedUrl);
+            return [pet.id, signedUrl || directUrl];
           } catch (err) {
             console.error(err);
-            return [pet.id, ''];
+            return [pet.id, directUrl];
           }
         }),
       );
@@ -383,9 +402,49 @@ export default function UserDashboardClient({
             type="button"
             onClick={() => openPetManagerModal(null)}
           >
-            Pet Profiles
+            Manage Pet Profiles
           </Button>
         </div>
+        {pets.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-500 sm:text-xs">
+              Open Pet Passport
+            </p>
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:gap-3">
+              {pets.map((pet) => {
+                const photoUrl = petPhotoUrls[pet.id];
+
+                return (
+                  <button
+                    key={pet.id}
+                    type="button"
+                    onClick={() => {
+                      void openPetPassportModal(pet.id);
+                    }}
+                    className="group inline-flex min-w-[74px] flex-col items-center gap-1.5 rounded-2xl px-1.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:ring-offset-1"
+                    aria-label={`Open ${pet.name} passport`}
+                  >
+                    <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-[#dfbe9f] bg-[#fff3e4] shadow-[0_8px_18px_rgba(147,101,63,0.18)] transition-all duration-200 group-hover:-translate-y-0.5 group-hover:shadow-[0_12px_24px_rgba(147,101,63,0.24)] sm:h-[60px] sm:w-[60px]">
+                      {photoUrl ? (
+                        <Image
+                          src={photoUrl}
+                          alt={`${pet.name} profile photo`}
+                          width={60}
+                          height={60}
+                          unoptimized
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-2xl" aria-hidden="true">🐾</span>
+                      )}
+                    </span>
+                    <span className="max-w-[72px] truncate" title={pet.name}>{pet.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <DashboardTabBar view={view} />
@@ -416,7 +475,6 @@ export default function UserDashboardClient({
           pets={pets}
           petPhotoUrls={petPhotoUrls}
           petCompletionById={petCompletionById}
-          bookingCounts={bookingCounts}
           activityItems={activityItems}
           reminders={reminders}
           reminderPreferences={reminderPreferences}
@@ -435,6 +493,7 @@ export default function UserDashboardClient({
       {/* ===== BOOKINGS VIEW ===== */}
       {view === 'bookings' && (
         <BookingsTab
+          bookings={bookings}
           filteredBookings={filteredBookings}
           pets={pets}
           bookingFilter={bookingFilter}
@@ -484,6 +543,13 @@ export default function UserDashboardClient({
         isCancellingBookingId={isCancellingBookingId}
         onClose={() => setActiveBookingId(null)}
         onCancelRequest={requestBookingCancellation}
+        onBookingUpdated={() => {
+          void refreshBookings();
+        }}
+        onPaymentSuccess={() => {
+          void refreshBookings();
+          showToast('Payment completed successfully.', 'success');
+        }}
       />
 
       <PetManagerModal

@@ -4,6 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { links, whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'Pet Birthday Celebrations in Bangalore — Dofurs',
@@ -88,11 +89,33 @@ const FAQS = [
   },
 ];
 
+const birthdayServiceSchema = buildServiceSchema({
+  name: 'Pet Birthday Celebrations in Bangalore',
+  description:
+    'Premium pet birthday celebration packages in Bangalore — custom party setups, pet-safe cakes and treats, festive decor, and photoshoots delivered to your door.',
+  url: 'https://dofurs.in/services/pet-birthday',
+  serviceType: 'Pet Birthday Party',
+  category: 'Pet Celebrations',
+  offers: [
+    { name: 'Pet Birthday Essential', priceFrom: 1999, description: 'Party setup, decorations, and pet-safe cake for a small celebration.' },
+    { name: 'Pet Birthday Premium', priceFrom: 3999, description: 'Full celebration including decor, pet cake, treats, and photoshoot.' },
+  ],
+});
+
+const birthdayBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Pet Birthday', url: '/services/pet-birthday' },
+]);
+
 export default function PetBirthdayPage() {
   const primaryCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
   const secondaryCtaClass = premiumSecondaryCtaClass('h-11 px-6 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(birthdayServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(birthdayBreadcrumbSchema)} />
     <ContentPageLayout
       title="Pet Birthday Celebrations"
       description="Make your pet's birthday unforgettable — custom setups, pet-safe treats, decor, and photoshoots delivered to your home across Bangalore."
@@ -201,21 +224,7 @@ export default function PetBirthdayPage() {
         ))}
       </div>
 
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Pet Birthday Celebration',
-            provider: { '@type': 'LocalBusiness', name: 'Dofurs', url: 'https://dofurs.in', areaServed: 'Bangalore' },
-            description: 'Premium pet birthday celebration packages in Bangalore — custom party setups, pet-safe cakes, treats, decor, and photoshoots.',
-            offers: [{ '@type': 'Offer', name: 'Pet Birthday Package', price: '1999', priceCurrency: 'INR' }],
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

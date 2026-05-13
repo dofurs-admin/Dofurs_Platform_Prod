@@ -51,6 +51,7 @@ type AdminBooking = {
   booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
+  included_services?: string[];
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -509,10 +510,10 @@ type BillingReminderRunsHistory = {
   limit: number;
   runs: BillingReminderAutomationRun[];
 };
-type ServiceCatalogPanel = 'types' | 'services';
+type ServiceCatalogPanel = 'types' | 'services' | 'addons';
 
 function parseServiceCatalogPanel(value: string | null): ServiceCatalogPanel {
-  if (value === 'services') {
+  if (value === 'services' || value === 'addons') {
     return value;
   }
 
@@ -1197,6 +1198,7 @@ export default function AdminDashboardClient({
           booking.customer_phone ?? '',
           booking.provider_name ?? '',
           booking.service_type ?? '',
+          (booking.included_services ?? []).join(' '),
           status,
         ]
           .join(' ')
@@ -2871,8 +2873,8 @@ export default function AdminDashboardClient({
       return;
     }
 
-    if (booking.payment_mode !== 'direct_to_provider') {
-      showToast('Manual collection is only available for direct-to-provider payments.', 'error');
+    if (booking.payment_mode !== 'direct_to_provider' && booking.payment_mode !== 'mixed') {
+      showToast('Manual collection is only available for direct-to-provider or mixed payments.', 'error');
       return;
     }
 

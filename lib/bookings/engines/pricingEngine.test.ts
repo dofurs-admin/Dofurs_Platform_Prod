@@ -2,41 +2,85 @@ import { describe, it, expect } from 'vitest';
 import { calculateBookingPriceWithSupabase } from './pricingEngine';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-// Mock Supabase client
-function createMockSupabase<T>(mockData: T, error: Error | null = null) {
-  const eqChain = {
-    eq: () => eqChain,
-    single: async () => ({ data: mockData, error }),
-    returns: async () => ({ data: mockData, error }),
-    in: () => ({
-      returns: async () => ({ data: mockData, error }),
-    }),
-  };
+type PricingMockConfig = {
+  serviceRow?: { base_price: number | null; service_type: string } | null;
+  serviceRowError?: Error | null;
+  serviceTypes?: Array<{ id: string; service_type: string | null; provider_id?: number | null }>;
+  serviceTypesError?: Error | null;
+  mappingRows?: Array<{
+    id: string;
+    provider_service_id: string;
+    addon_template_id: string;
+    price_override: number | null;
+    is_active: boolean;
+    moderation_status: string;
+    addon_templates:
+      | { id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }
+      | Array<{ id: string; name: string; default_price: number | null; is_active: boolean; moderation_status: string }>;
+  }>;
+  mappingRowsError?: Error | null;
+  legacyRows?: Array<{ id: string; provider_service_id: string; name: string; price: number | null; is_active: boolean }>;
+  legacyRowsError?: Error | null;
+};
 
+function createPricingMockSupabase(config: PricingMockConfig) {
   return {
-    from: () => ({
-      select: () => ({
-        eq: () => eqChain,
-        in: () => ({
-          returns: async () => ({ data: mockData, error }),
-        }),
-      }),
-    }),
+    from: (table: string) => {
+      if (table === 'provider_services') {
+        const eqChain = {
+          eq: () => eqChain,
+          single: async () => ({ data: config.serviceRow ?? null, error: config.serviceRowError ?? null }),
+        };
+
+        return {
+          select: () => ({
+            eq: () => eqChain,
+            in: () => ({
+              returns: async () => ({ data: config.serviceTypes ?? [], error: config.serviceTypesError ?? null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'provider_service_addon_mappings') {
+        return {
+          select: () => ({
+            in: () => ({
+              returns: async () => ({ data: config.mappingRows ?? [], error: config.mappingRowsError ?? null }),
+            }),
+          }),
+        };
+      }
+
+      if (table === 'service_addons') {
+        return {
+          select: () => ({
+            in: () => ({
+              returns: async () => ({ data: config.legacyRows ?? [], error: config.legacyRowsError ?? null }),
+            }),
+          }),
+        };
+      }
+
+      throw new Error(`Unexpected table: ${table}`);
+    },
   } as unknown as SupabaseClient;
 }
 
 describe('pricingEngine', () => {
   describe('calculateBookingPriceWithSupabase - Service Booking', () => {
     it('should calculate price for basic service without add-ons', async () => {
-      const supabase = createMockSupabase({
-        base_price: 500,
-        service_type: 'grooming_session',
+      const supabase = createPricingMockSupabase({
+        serviceRow: {
+          base_price: 500,
+          service_type: 'grooming_session',
+        },
       });
 
       const result = await calculateBookingPriceWithSupabase(supabase, {
         bookingType: 'service',
         providerId: 123,
-        serviceId: 'service-abc',
+        serviceId: 'service-selected',
         addOns: [],
       });
 
@@ -47,71 +91,75 @@ describe('pricingEngine', () => {
       expect(result.breakdown).toContain('grooming_session: ₹500');
     });
 
-    it('should calculate price with single add-on', async () => {
-      const serviceData = { base_price: 500, service_type: 'grooming_session' };
-      const addonRows = [{ id: 'addon-1', name: 'Nail Trimming', price: 50 }];
-
-      const supabase = {
-        from: (table: string) => {
-          if (table === 'service_addons') {
-            return {
-              select: () => ({
-                in: async () => ({ data: addonRows, error: null }),
-              }),
-            };
-          }
-          const eqChain = {
-            eq: () => eqChain,
-            single: async () => ({ data: serviceData, error: null }),
-          };
-          return { select: () => ({ eq: () => eqChain }) };
-        },
-      } as unknown as SupabaseClient;
+    it('should calculate price with normalized mapping add-on id', async () => {
+      const supabase = createPricingMockSupabase({
+        serviceRow: { base_price: 500, service_type: 'grooming_session' },
+        serviceTypes: [
+          { id: 'service-selected', service_type: 'grooming_session' },
+          { id: 'service-catalog-grooming', service_type: 'grooming_session' },
+        ],
+        mappingRows: [
+          {
+            id: 'mapping-1',
+            provider_service_id: 'service-catalog-grooming',
+            addon_template_id: 'template-1',
+            price_override: 60,
+            is_active: true,
+            moderation_status: 'approved',
+            addon_templates: {
+              id: 'template-1',
+              name: 'Nail Trimming',
+              default_price: 50,
+              is_active: true,
+              moderation_status: 'approved',
+            },
+          },
+        ],
+      });
 
       const result = await calculateBookingPriceWithSupabase(supabase, {
         bookingType: 'service',
         providerId: 123,
-        serviceId: 'service-abc',
-        addOns: [{ id: 'addon-1', quantity: 1 }],
+        serviceId: 'service-selected',
+        addOns: [{ id: 'mapping-1', quantity: 2 }],
       });
 
       expect(result.base_total).toBe(500);
-      expect(result.addon_total).toBe(50);
-      expect(result.final_total).toBe(550);
-      expect(result.breakdown).toContain('Nail Trimming (x1): ₹50');
+      expect(result.addon_total).toBe(120);
+      expect(result.final_total).toBe(620);
+      expect(result.breakdown).toContain('Nail Trimming (x2): ₹120');
     });
 
-    it('should calculate price with multiple add-ons and quantities', async () => {
-      const serviceData = { base_price: 600, service_type: 'vet_consultation' };
-      const addonRows = [
-        { id: 'addon-1', name: 'Vaccination', price: 200 },
-        { id: 'addon-2', name: 'Health Certificate', price: 100 },
-      ];
-
-      const supabase = {
-        from: (table: string) => {
-          if (table === 'service_addons') {
-            return {
-              select: () => ({
-                in: async () => ({ data: addonRows, error: null }),
-              }),
-            };
-          }
-          const eqChain = {
-            eq: () => eqChain,
-            single: async () => ({ data: serviceData, error: null }),
-          };
-          return { select: () => ({ eq: () => eqChain }) };
-        },
-      } as unknown as SupabaseClient;
+    it('should fall back to legacy service_addons ids', async () => {
+      const supabase = createPricingMockSupabase({
+        serviceRow: { base_price: 600, service_type: 'vet_consultation' },
+        serviceTypes: [{ id: 'service-vet', service_type: 'vet_consultation' }],
+        mappingRows: [],
+        legacyRows: [
+          {
+            id: 'legacy-addon-1',
+            provider_service_id: 'service-vet',
+            name: 'Vaccination',
+            price: 200,
+            is_active: true,
+          },
+          {
+            id: 'legacy-addon-2',
+            provider_service_id: 'service-vet',
+            name: 'Health Certificate',
+            price: 100,
+            is_active: true,
+          },
+        ],
+      });
 
       const result = await calculateBookingPriceWithSupabase(supabase, {
         bookingType: 'service',
         providerId: 123,
         serviceId: 'service-vet',
         addOns: [
-          { id: 'addon-1', quantity: 2 },
-          { id: 'addon-2', quantity: 1 },
+          { id: 'legacy-addon-1', quantity: 2 },
+          { id: 'legacy-addon-2', quantity: 1 },
         ],
       });
 
@@ -121,7 +169,10 @@ describe('pricingEngine', () => {
     });
 
     it('should throw error if service not found', async () => {
-      const supabase = createMockSupabase(null, new Error('Service not found'));
+      const supabase = createPricingMockSupabase({
+        serviceRow: null,
+        serviceRowError: new Error('Service not found'),
+      });
 
       await expect(
         calculateBookingPriceWithSupabase(supabase, {
@@ -133,10 +184,48 @@ describe('pricingEngine', () => {
       ).rejects.toThrow('Service not found');
     });
 
+    it('should throw on incompatible mapping service type', async () => {
+      const supabase = createPricingMockSupabase({
+        serviceRow: { base_price: 500, service_type: 'grooming_session' },
+        serviceTypes: [
+          { id: 'service-selected', service_type: 'grooming_session', provider_id: 123 },
+          { id: 'service-vet-catalog', service_type: 'vet_consultation', provider_id: 456 },
+        ],
+        mappingRows: [
+          {
+            id: 'mapping-vet-1',
+            provider_service_id: 'service-vet-catalog',
+            addon_template_id: 'template-vet-1',
+            price_override: null,
+            is_active: true,
+            moderation_status: 'approved',
+            addon_templates: {
+              id: 'template-vet-1',
+              name: 'ECG Add-on',
+              default_price: 300,
+              is_active: true,
+              moderation_status: 'approved',
+            },
+          },
+        ],
+      });
+
+      await expect(
+        calculateBookingPriceWithSupabase(supabase, {
+          bookingType: 'service',
+          providerId: 123,
+          serviceId: 'service-selected',
+          addOns: [{ id: 'mapping-vet-1', quantity: 1 }],
+        }),
+      ).rejects.toThrow('Add-on not found');
+    });
+
     it('should handle null/missing base_price gracefully', async () => {
-      const supabase = createMockSupabase({
-        base_price: null,
-        service_type: 'grooming_session',
+      const supabase = createPricingMockSupabase({
+        serviceRow: {
+          base_price: null,
+          service_type: 'grooming_session',
+        },
       });
 
       const result = await calculateBookingPriceWithSupabase(supabase, {
@@ -151,31 +240,36 @@ describe('pricingEngine', () => {
     });
 
     it('should handle zero-quantity add-ons', async () => {
-      const serviceData = { base_price: 500, service_type: 'grooming_session' };
-      const addonRows = [{ id: 'addon-1', name: 'Extra Product', price: 50 }];
-
-      const supabase = {
-        from: (table: string) => {
-          if (table === 'service_addons') {
-            return {
-              select: () => ({
-                in: async () => ({ data: addonRows, error: null }),
-              }),
-            };
-          }
-          const eqChain = {
-            eq: () => eqChain,
-            single: async () => ({ data: serviceData, error: null }),
-          };
-          return { select: () => ({ eq: () => eqChain }) };
-        },
-      } as unknown as SupabaseClient;
+      const supabase = createPricingMockSupabase({
+        serviceRow: { base_price: 500, service_type: 'grooming_session' },
+        serviceTypes: [
+          { id: 'service-selected', service_type: 'grooming_session' },
+          { id: 'service-catalog-grooming', service_type: 'grooming_session' },
+        ],
+        mappingRows: [
+          {
+            id: 'mapping-1',
+            provider_service_id: 'service-catalog-grooming',
+            addon_template_id: 'template-1',
+            price_override: null,
+            is_active: true,
+            moderation_status: 'approved',
+            addon_templates: {
+              id: 'template-1',
+              name: 'Extra Product',
+              default_price: 50,
+              is_active: true,
+              moderation_status: 'approved',
+            },
+          },
+        ],
+      });
 
       const result = await calculateBookingPriceWithSupabase(supabase, {
         bookingType: 'service',
         providerId: 123,
-        serviceId: 'service-abc',
-        addOns: [{ id: 'addon-1', quantity: 0 }],
+        serviceId: 'service-selected',
+        addOns: [{ id: 'mapping-1', quantity: 0 }],
       });
 
       // Quantity 0 should be treated as 1 (Math.max(1, qty))
@@ -186,9 +280,11 @@ describe('pricingEngine', () => {
 
   describe('Edge Cases & Security', () => {
     it('should floor final price at 0 (no negative prices)', async () => {
-      const supabase = createMockSupabase({
-        base_price: 0,
-        service_type: 'test_service',
+      const supabase = createPricingMockSupabase({
+        serviceRow: {
+          base_price: 0,
+          service_type: 'test_service',
+        },
       });
 
       const result = await calculateBookingPriceWithSupabase(supabase, {

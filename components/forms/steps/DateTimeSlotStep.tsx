@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { apiRequest } from '@/lib/api/client';
 import { isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
+import { formatSavedAddress } from '@/lib/utils/address';
 
 const LocationPinMap = dynamic(() => import('../LocationPinMap'), { ssr: false });
 import AvailabilityCalendar from '@/components/ui/AvailabilityCalendar';
@@ -129,7 +130,6 @@ export default function DateTimeSlotStep({
   savedAddresses,
   selectedSavedAddressId,
   providerNotes,
-  selectedPets = [],
   isPackageBooking = false,
   isBoardingBooking = false,
   bookingEndDate = '',
@@ -182,15 +182,44 @@ export default function DateTimeSlotStep({
   const [isDetectingCurrentLocation, setIsDetectingCurrentLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
+  const [isAddressSelectorOpen, setIsAddressSelectorOpen] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [isResolvingPincode, setIsResolvingPincode] = useState(false);
 
   const allAddresses = useMemo<SelectableAddress[]>(() => [...savedAddresses], [savedAddresses]);
+  const selectedSavedAddress = useMemo(
+    () => allAddresses.find((address) => address.id === selectedSavedAddressId) ?? null,
+    [allAddresses, selectedSavedAddressId],
+  );
 
   const availableProvidersForSlot = useMemo(
     () => providers.filter((provider) => provider.availableForSelectedSlot),
     [providers],
   );
+
+  const providersForDisplay = useMemo(() => {
+    const source = isBoardingBooking ? providers : availableProvidersForSlot;
+
+    return [...source].sort((a, b) => {
+      if (a.recommended !== b.recommended) {
+        return a.recommended ? -1 : 1;
+      }
+
+      const aRating = typeof a.averageRating === 'number' ? a.averageRating : 0;
+      const bRating = typeof b.averageRating === 'number' ? b.averageRating : 0;
+      if (aRating !== bRating) {
+        return bRating - aRating;
+      }
+
+      const aVerified = a.isVerified ? 1 : 0;
+      const bVerified = b.isVerified ? 1 : 0;
+      if (aVerified !== bVerified) {
+        return bVerified - aVerified;
+      }
+
+      return a.basePrice - b.basePrice;
+    });
+  }, [availableProvidersForSlot, isBoardingBooking, providers]);
 
   const canProceed = isPackageBooking
     ? selectedDate && (!isBoardingBooking || bookingEndDate) && providerSupportsSelectedServices
@@ -235,6 +264,12 @@ export default function DateTimeSlotStep({
 
     return 'Complete this step to continue.';
   })();
+
+  useEffect(() => {
+    if (!selectedSavedAddressId) {
+      setIsAddressSelectorOpen(true);
+    }
+  }, [selectedSavedAddressId]);
 
   useEffect(() => {
     if (!showAddAddressModal) {
@@ -524,17 +559,12 @@ export default function DateTimeSlotStep({
         }
 
         onLocationChange(formatSavedAddress(payload.address ?? {
-          id: editingAddressId,
-          label: 'Other',
           address_line_1: addressLine1,
           address_line_2: addressLine2 || null,
           city,
           state,
           pincode,
           country,
-          latitude: parsedLatitude,
-          longitude: parsedLongitude,
-          is_default: false,
         }));
         onLatitudeChange(String(parsedLatitude));
         onLongitudeChange(String(parsedLongitude));
@@ -577,6 +607,7 @@ export default function DateTimeSlotStep({
       onLatitudeChange(String(parsedLatitude));
       onLongitudeChange(String(parsedLongitude));
       setAddressError(null);
+      setIsAddressSelectorOpen(false);
 
       closeAddAddressModal();
       resetNewAddressForm();
@@ -585,19 +616,6 @@ export default function DateTimeSlotStep({
     } finally {
       setIsSavingAddress(false);
     }
-  }
-
-  function formatSavedAddress(address: SavedAddress) {
-    return [
-      address.address_line_1,
-      address.address_line_2,
-      address.city,
-      address.state,
-      address.pincode,
-      address.country,
-    ]
-      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      .join(', ');
   }
 
   function handleSelectSavedAddress(address: SavedAddress) {
@@ -610,6 +628,7 @@ export default function DateTimeSlotStep({
       onLatitudeChange(String(address.latitude));
       onLongitudeChange(String(address.longitude));
       setShowAddAddressModal(false);
+      setIsAddressSelectorOpen(false);
       setLocationError(null);
       return;
     }
@@ -620,35 +639,54 @@ export default function DateTimeSlotStep({
     setLocationError('This saved address has no map pin yet. Use current location or drop a pin on the map.');
   }
 
+  function formatTimeLabel(value: string) {
+    const parts = value.split(':');
+    if (parts.length < 2) {
+      return value;
+    }
+
+    const hours = Number.parseInt(parts[0], 10);
+    const minutes = Number.parseInt(parts[1], 10);
+
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      return value;
+    }
+
+    const normalized = new Date();
+    normalized.setHours(hours, minutes, 0, 0);
+    return normalized.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  function roundToNearestFiveMinutes(value: string) {
+    const parts = value.split(':');
+    if (parts.length < 2) {
+      return value;
+    }
+
+    const hours = Number.parseInt(parts[0], 10);
+    const minutes = Number.parseInt(parts[1], 10);
+
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) {
+      return value;
+    }
+
+    const normalized = new Date();
+    normalized.setHours(hours, minutes, 0, 0);
+
+    const roundedMinutes = Math.round(normalized.getMinutes() / 5) * 5;
+    normalized.setMinutes(roundedMinutes, 0, 0);
+
+    const nextHours = String(normalized.getHours()).padStart(2, '0');
+    const nextMinutes = String(normalized.getMinutes()).padStart(2, '0');
+    return `${nextHours}:${nextMinutes}`;
+  }
+
+  function formatSlotLabel(start: string, end: string) {
+    return `${formatTimeLabel(start)} - ${formatTimeLabel(roundToNearestFiveMinutes(end))}`;
+  }
+
   return (
     <div className="premium-fade-up space-y-2.5 sm:space-y-7 rounded-2xl sm:rounded-3xl border border-[#e9d7c7] bg-[linear-gradient(165deg,#fffdfb_0%,#fff8f1_100%)] p-2.5 max-[380px]:p-2 sm:p-5 shadow-[0_10px_30px_rgba(79,47,25,0.08)] md:p-7">
-      {/* Top navigation */}
-      <div className="hidden sm:flex sm:flex-row sm:justify-between sm:gap-3">
-        <button
-          onClick={onPrev}
-          className="inline-flex w-full items-center justify-center rounded-full border border-[#e3c7ae] bg-white px-6 py-2.5 text-center text-sm font-semibold leading-5 text-[#7c5335] transition-all hover:border-[#c7773b] sm:w-auto"
-        >
-          Back
-        </button>
-        <button
-          onClick={() => {
-            if (!isPackageBooking && bookingMode === 'home_visit' && !locationAddress.trim()) {
-              setAddressError('Please select your address.');
-            } else {
-              setAddressError(null);
-            }
-            onNext();
-          }}
-          disabled={!canProceed}
-          className="inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-7 py-2.5 text-center text-sm font-semibold leading-5 text-white whitespace-nowrap shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all sm:hover:-translate-y-0.5 sm:hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-        >
-          Continue To Review
-        </button>
-      </div>
-      {!canProceed && continueDisabledReason ? (
-        <p className="hidden sm:block text-right text-xs font-medium text-[#8f4a1d]">{continueDisabledReason}</p>
-      ) : null}
-
       {/* Step indicator — hidden on mobile since BookingProgressBar shows step info */}
       <div className="hidden sm:block">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#9a6a44]">Step 2 of 3</p>
@@ -669,153 +707,140 @@ export default function DateTimeSlotStep({
         )}
       </div>
 
-      {/* Pet passport summary — shows selected pets with their service and any health flags */}
-      {selectedPets.length > 0 && (
-        <div>
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[#9a6a44] sm:mb-2 sm:text-xs">Booking For</p>
-          <div className="flex flex-wrap gap-2">
-            {selectedPets.map((pet) => (
-              <div
-                key={pet.id}
-                className="flex items-center gap-2 rounded-xl border border-[#e8d0b8] bg-[#fff8f0] px-2.5 py-1.5 sm:px-3 sm:py-2"
-              >
-                <span className="text-base">🐾</span>
-                <div>
-                  <p className="text-[13px] font-semibold text-neutral-950 sm:text-sm">{pet.name}</p>
-                  <p className="text-[11px] text-[#6e4d35]">
-                    {pet.serviceType ?? pet.breed ?? 'Pet'}
-                    {pet.hasVaccinationsDue && (
-                      <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
-                        💉 Vaccination due
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Address for home visit — hidden for package bookings (birthday/boarding) */}
       {bookingMode === 'home_visit' && !isPackageBooking && (
         <div>
-          <div className="mb-3 rounded-2xl border border-[#ebdccf] bg-[#fff9f4] p-3 sm:mb-4 sm:p-4">
+          <div className="mb-2.5 rounded-xl border border-[#ebdccf] bg-white p-2.5 sm:mb-3 sm:p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="w-full">
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[#8a6445]">Pincode checker</label>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[#8a6445]">Pincode checker</label>
                 <input
                   type="text"
                   inputMode="numeric"
                   value={pincodeCheckerValue}
                   onChange={(event) => onPincodeCheckerValueChange(event.target.value.replace(/\D/g, '').slice(0, 6))}
                   placeholder="Enter 6-digit pincode"
-                  className="w-full rounded-lg border border-[#dcbfa8] bg-white px-3 py-1.5 text-[13px] focus:border-coral focus:outline-none sm:py-2 sm:text-sm"
+                  className="w-full rounded-lg border border-[#dcbfa8] bg-white px-2.5 py-1.5 text-xs focus:border-coral focus:outline-none sm:py-2 sm:text-sm"
                 />
               </div>
               <button
                 type="button"
                 onClick={onPincodeCheck}
                 disabled={isCheckingPincodeCoverage}
-                className="rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-4 py-1.5 text-[13px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:px-5 sm:py-2 sm:text-sm"
+                className="rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-3.5 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60 sm:px-4 sm:py-2 sm:text-sm"
               >
                 {isCheckingPincodeCoverage ? 'Checking...' : 'Check availability'}
               </button>
             </div>
 
             {pincodeCoverageError ? (
-              <p className="mt-3 text-sm font-medium text-amber-700">{pincodeCoverageError}</p>
+              <p className="mt-2.5 text-xs font-medium text-amber-700 sm:text-sm">{pincodeCoverageError}</p>
             ) : null}
 
             {hasCheckedPincodeCoverage && pincodeCoverageServiceCount === 0 && !pincodeCoverageError ? (
-              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+              <p className="mt-2.5 text-xs font-medium text-rose-700 sm:text-sm">
                 Services are not available on your pincode. We are working to bring services to your area.
               </p>
             ) : null}
 
             {hasCheckedPincodeCoverage && pincodeCoverageServiceCount > 0 && !pincodeCoverageError ? (
-              <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+              <p className="mt-2 text-xs font-medium text-emerald-700 sm:text-sm">
                 Good news. Services are available for this pincode.
               </p>
             ) : null}
           </div>
 
-          <label className="block text-sm font-semibold text-neutral-950 mb-3">Service Address</label>
+          <label className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-neutral-700">Service Address</label>
           {addressError && (
-            <p className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-600">{addressError}</p>
+            <p className="mb-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-600 sm:text-sm">{addressError}</p>
           )}
-          <div className="mb-3 space-y-2">
-            <p className="text-xs font-medium text-neutral-700">Saved addresses</p>
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {allAddresses.length > 0 ? (
-                allAddresses.map((address) => {
-                  const isSelected = selectedSavedAddressId === address.id;
-                  const chipLabel = address.label ? `${address.label} · ${address.address_line_1}` : address.address_line_1;
-                  const isLocalAddress = address.id.startsWith('local-');
+          {locationAddress ? (
+            <div className="rounded-lg border border-neutral-200 bg-white px-2 py-1.5 sm:px-2.5 sm:py-2">
+              <p
+                className="text-[11px] font-medium leading-relaxed text-neutral-900 line-clamp-2 sm:text-xs"
+                title={selectedSavedAddress ? formatSavedAddress(selectedSavedAddress) : locationAddress}
+              >
+                {selectedSavedAddress ? formatSavedAddress(selectedSavedAddress) : locationAddress}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddressSelectorOpen((prev) => !prev)}
+                  className="text-[10px] font-semibold text-coral hover:underline sm:text-[11px]"
+                >
+                  {isAddressSelectorOpen ? 'Hide addresses' : 'Change address'}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
-                  return (
-                    <div key={address.id} className="inline-flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleSelectSavedAddress(address)}
-                        className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
-                          isSelected
-                            ? 'border-coral bg-orange-50 text-coral'
-                            : 'border-neutral-200 bg-white text-neutral-700 hover:border-coral'
-                        }`}
-                      >
-                        {chipLabel}
-                      </button>
-                      {!isLocalAddress ? (
+          {(isAddressSelectorOpen || !selectedSavedAddressId) ? (
+            <div className="mb-2.5 mt-2.5 space-y-1.5">
+              <p className="text-[11px] font-medium text-neutral-700">Saved addresses</p>
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                {allAddresses.length > 0 ? (
+                  allAddresses.map((address) => {
+                    const isSelected = selectedSavedAddressId === address.id;
+                    const chipLabel = address.label ? `${address.label} · ${address.address_line_1}` : address.address_line_1;
+                    const isLocalAddress = address.id.startsWith('local-');
+
+                    return (
+                      <div key={address.id} className="inline-flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => openEditAddressModal(address)}
-                          className="rounded-full border border-neutral-200 bg-white px-2 py-1 text-[11px] font-semibold text-neutral-700 transition hover:border-coral"
-                          aria-label={`Edit saved address ${chipLabel}`}
+                          onClick={() => handleSelectSavedAddress(address)}
+                          className={`rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all ${
+                            isSelected
+                              ? 'border-coral bg-orange-50 text-coral'
+                              : 'border-neutral-200 bg-white text-neutral-700 hover:border-coral'
+                          }`}
                         >
-                          Edit
+                          {chipLabel}
                         </button>
-                      ) : null}
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="text-xs text-neutral-500">No saved addresses yet.</p>
-              )}
-              <button
-                type="button"
-                onClick={openAddAddressModal}
-                className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-700 hover:border-coral sm:px-3 sm:py-1.5 sm:text-xs"
-              >
-                + Add New Address
-              </button>
-            </div>
-          </div>
-
-          {locationAddress && latitude && longitude ? (
-            <div className="rounded-lg border-2 border-green-200 bg-green-50 p-2.5 sm:p-3">
-              <p className="text-[13px] font-medium text-neutral-950 sm:text-sm">{locationAddress}</p>
-              <p className="text-xs text-neutral-600 mt-1">
-                📍 {parseFloat(latitude).toFixed(5)}, {parseFloat(longitude).toFixed(5)}
-              </p>
-              <button
-                type="button"
-                onClick={openAddAddressModal}
-                className="mt-2 text-xs font-semibold text-coral hover:underline"
-              >
-                Change address
-              </button>
+                        {!isLocalAddress ? (
+                          <button
+                            type="button"
+                            onClick={() => openEditAddressModal(address)}
+                            className="rounded-full border border-neutral-200 bg-white px-2 py-1 text-[10px] font-semibold text-neutral-700 transition hover:border-coral"
+                            aria-label={`Edit saved address ${chipLabel}`}
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="text-xs text-neutral-500">No saved addresses yet.</p>
+                )}
+                <button
+                  type="button"
+                  onClick={openAddAddressModal}
+                  className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-medium text-neutral-700 hover:border-coral sm:px-3 sm:py-1.5 sm:text-xs"
+                >
+                  + Add New Address
+                </button>
+                {selectedSavedAddressId ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsAddressSelectorOpen(false)}
+                    className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[10px] font-medium text-neutral-700 hover:border-coral sm:px-3 sm:py-1.5 sm:text-xs"
+                  >
+                    Done
+                  </button>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
           {!selectedSavedAddressId ? (
-            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+            <p className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 sm:text-sm">
               Select a saved address inside our serviceable area to unlock date selection.
             </p>
           ) : null}
 
           {selectedSavedAddressId && !selectedAddressPincode ? (
-            <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+            <p className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 sm:text-sm">
               Selected address is missing a valid pincode. Edit the address and add a correct 6-digit pincode.
             </p>
           ) : null}
@@ -823,20 +848,20 @@ export default function DateTimeSlotStep({
           {selectedSavedAddressId && selectedAddressPincode ? (
             <div className="mt-3">
               {isCheckingSelectedAddressCoverage ? (
-                <p className="text-sm font-medium text-[#8a6445]">Checking serviceability for selected address pincode...</p>
+                <p className="text-xs font-medium text-[#8a6445] sm:text-sm">Checking serviceability for selected address pincode...</p>
               ) : null}
               {selectedAddressCoverageError ? (
-                <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+                <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 sm:text-sm">
                   {selectedAddressCoverageError}
                 </p>
               ) : null}
               {hasCheckedSelectedAddressCoverage && !isSelectedAddressServiceable && !selectedAddressCoverageError ? (
-                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+                <p className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1.5 text-xs font-medium text-rose-700 sm:text-sm">
                   Services are not available on your pincode. We are working to bring services to your area.
                 </p>
               ) : null}
               {hasCheckedSelectedAddressCoverage && isSelectedAddressServiceable && !selectedAddressCoverageError ? (
-                <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+                <p className="text-xs font-medium text-emerald-700 sm:text-sm">
                   Selected address pincode is serviceable. You can continue scheduling.
                 </p>
               ) : null}
@@ -1033,11 +1058,6 @@ export default function DateTimeSlotStep({
         <label className="mb-2 block text-[13px] font-semibold text-neutral-950 sm:mb-3 sm:text-sm">
           {isBoardingBooking ? 'Select Start Date' : 'Select Date'}
         </label>
-        {canSelectDate ? (
-          <p className="mb-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
-            Green dates have available slots. You can book only within the next 30 days.
-          </p>
-        ) : null}
         <div className={canSelectDate ? '' : 'pointer-events-none opacity-60'}>
           <AvailabilityCalendar
             value={selectedDate}
@@ -1113,7 +1133,7 @@ export default function DateTimeSlotStep({
                         : 'border-neutral-200 bg-white text-neutral-600 hover:border-coral'
                     }`}
                   >
-                    <span className="block font-semibold">{slot.startTime} - {slot.endTime}</span>
+                    <span className="block font-semibold">{formatSlotLabel(slot.startTime, slot.endTime)}</span>
                     <span className="text-[10px] text-neutral-500">{slot.availableProviderCount} providers available</span>
                     {slot.recommended ? <span className="text-[10px] font-semibold text-coral">Recommended</span> : null}
                   </button>
@@ -1131,69 +1151,59 @@ export default function DateTimeSlotStep({
             Select {bookingMode === 'clinic_visit' ? 'Clinic or Center' : 'Provider'}
           </label>
 
+          {providersForDisplay.length > 0 ? (
+            <div className="mb-2 rounded-xl border border-[#ecd8c5] bg-[#fff9f3] px-3 py-2 text-[11px] text-[#754f33] sm:text-xs">
+              <span className="font-semibold">Sorted for quick decision:</span>{' '}
+              recommended first, then rating and trust indicators.
+            </div>
+          ) : null}
+
           {!isBoardingBooking && !selectedSlot ? (
             <div className="rounded-2xl border border-dashed border-[#ddc9b6] bg-white p-4 text-center">
               <p className="text-sm text-neutral-500">Select a time slot first to see available providers.</p>
             </div>
           ) : (
             <>
-              <div className="grid gap-2 sm:gap-3 sm:grid-cols-2">
+              <div className="grid gap-1.5 sm:gap-2 sm:grid-cols-2">
                 <button
                   onClick={() => onAutoProviderSelect(true)}
-                  className={`premium-lift relative rounded-xl sm:rounded-2xl border p-3 sm:p-4 text-left transition-all ${
+                  className={`premium-lift relative rounded-lg sm:rounded-xl border p-2.5 sm:p-3 text-left transition-all ${
                     selectedAutoProvider
                       ? 'border-[#d99a66] bg-[linear-gradient(165deg,#fff8ef_0%,#fff0e3_100%)] shadow-[0_8px_20px_rgba(208,133,72,0.18)]'
                       : 'border-[#ebdfd3] bg-white hover:border-[#d9b89a]'
                   }`}
                 >
-                  <h3 className="font-semibold text-neutral-950">Auto-Select</h3>
-                  <p className="mt-1 text-xs text-[#6e4d35]">Best available provider is selected automatically{isBoardingBooking ? '.' : ' for this slot.'}</p>
+                  <h3 className="text-sm font-semibold text-neutral-950">Auto-Select</h3>
+                  <p className="mt-0.5 text-[11px] text-[#6e4d35]">Best available provider is selected automatically{isBoardingBooking ? '.' : ' for this slot.'}</p>
                 </button>
 
-                {(isBoardingBooking ? providers : availableProvidersForSlot).map((provider) => (
+                {providersForDisplay.map((provider) => (
                   <button
                     key={provider.providerServiceId}
                     onClick={() => {
                       onAutoProviderSelect(false);
                       onProviderSelect(provider.providerServiceId, provider.providerId);
                     }}
-                    className={`premium-lift relative rounded-xl sm:rounded-2xl border p-3 sm:p-4 text-left transition-all ${
+                    className={`premium-lift relative rounded-lg sm:rounded-xl border p-2 sm:p-2.5 text-left transition-all ${
                       !selectedAutoProvider && selectedProviderServiceId === provider.providerServiceId
                         ? 'border-[#d99a66] bg-[linear-gradient(165deg,#fff8ef_0%,#fff0e3_100%)] shadow-[0_8px_20px_rgba(208,133,72,0.18)]'
                         : 'border-[#ebdfd3] bg-white hover:border-[#d9b89a]'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-neutral-950">{provider.providerName}</h3>
-                      {provider.isVerified && (
-                        <span className="shrink-0 rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-700">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-sm font-semibold text-neutral-950">{provider.providerName}</h3>
+                      {provider.isVerified ? (
+                        <span className="shrink-0 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[9px] font-semibold text-green-700">
                           ✓ Verified
                         </span>
-                      )}
+                      ) : null}
                     </div>
-                    <p className="mt-0.5 text-xs text-[#6e4d35]">{provider.providerType || 'Provider'}</p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-neutral-600">
-                      <span>₹{provider.basePrice}{isBoardingBooking ? '/night' : ''} • {provider.serviceDurationMinutes} mins</span>
-                      {typeof provider.averageRating === 'number' && provider.averageRating > 0 && (
-                        <span className="flex items-center gap-0.5 font-semibold text-amber-600">
-                          ★ {provider.averageRating.toFixed(1)}
-                          {typeof provider.totalBookings === 'number' && provider.totalBookings > 0 && (
-                            <span className="font-normal text-neutral-500">({provider.totalBookings} bookings)</span>
-                          )}
-                        </span>
-                      )}
-                      {provider.backgroundVerified && (
-                        <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                          🛡 BG Checked
-                        </span>
-                      )}
-                    </div>
-                    {provider.recommended ? <p className="mt-1.5 text-[11px] font-semibold text-coral">Auto Recommended</p> : null}
+                    <p className="mt-0.5 text-[11px] text-[#6e4d35]">{provider.providerType || 'Provider'}</p>
                   </button>
                 ))}
               </div>
 
-              {(isBoardingBooking ? providers : availableProvidersForSlot).length === 0 ? (
+              {providersForDisplay.length === 0 ? (
                 <div className="mt-3 rounded-2xl border border-[#efc6c6] bg-[#fff4f4] p-4 text-center">
                   <p className="text-sm text-[#9f2f2f]">{isBoardingBooking ? 'No providers available for boarding. Please try another service or date.' : 'No providers are available for this slot. Please choose another service or slot.'}</p>
                 </div>
@@ -1219,7 +1229,7 @@ export default function DateTimeSlotStep({
       )}
 
       {/* Navigation buttons */}
-      <div className="flex flex-col-reverse gap-3 pt-4 sm:flex-row sm:justify-between">
+      <div className="hidden pt-4 sm:flex sm:flex-row sm:justify-between sm:gap-3">
         <button
           onClick={onPrev}
           className="w-full rounded-full border border-[#e3c7ae] bg-white px-6 py-2.5 text-sm font-semibold text-[#7c5335] transition-all hover:border-[#c7773b] sm:w-auto"
@@ -1239,12 +1249,37 @@ export default function DateTimeSlotStep({
           disabled={!canProceed}
           className="w-full rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-7 py-2.5 text-sm font-semibold text-white whitespace-nowrap shadow-[0_10px_20px_rgba(199,119,59,0.25)] transition-all hover:-translate-y-0.5 hover:shadow-[0_14px_24px_rgba(199,119,59,0.3)] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
         >
-          Continue To Review
+          Continue to Review
         </button>
       </div>
-      {!canProceed && continueDisabledReason ? (
-        <p className="sm:hidden text-xs font-medium text-[#8f4a1d]">{continueDisabledReason}</p>
-      ) : null}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#edd9c7] bg-white/95 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 backdrop-blur sm:hidden">
+        {!canProceed && continueDisabledReason ? (
+          <p className="mb-2 text-xs font-medium text-[#8f4a1d]">{continueDisabledReason}</p>
+        ) : null}
+        <div className="grid grid-cols-[auto,1fr] gap-2">
+          <button
+            onClick={onPrev}
+            className="rounded-full border border-[#e3c7ae] bg-white px-4 py-2 text-sm font-semibold text-[#7c5335]"
+          >
+            Back
+          </button>
+          <button
+            onClick={() => {
+              if (!isPackageBooking && bookingMode === 'home_visit' && !locationAddress.trim()) {
+                setAddressError('Please select your address.');
+              } else {
+                setAddressError(null);
+              }
+              onNext();
+            }}
+            disabled={!canProceed}
+            className="rounded-full bg-[linear-gradient(115deg,#de9158,#c7773b)] px-6 py-2 text-sm font-semibold text-white shadow-[0_10px_20px_rgba(199,119,59,0.25)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continue to Review
+          </button>
+        </div>
+      </div>
+      <div className="h-20 sm:hidden" aria-hidden="true" />
     </div>
   );
 }

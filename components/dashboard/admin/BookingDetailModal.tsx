@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import { useState, useEffect, useTransition, useCallback } from 'react';
 import Link from 'next/link';
 import Modal from '@/components/ui/Modal';
 import { Button, Alert } from '@/components/ui';
+import BookingAddonManager from '@/components/dashboard/shared/BookingAddonManager';
+import { ACTIVE_BOOKING_ADDON_STATUSES } from '@/lib/bookings/addon-items';
+import { resolveIncludedServicesForBooking } from '@/lib/bookings/included-services';
+import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
 
 type BookingNote = {
   id: string;
@@ -21,6 +25,15 @@ type BookingInvoice = {
   wallet_credits_applied_inr?: number | null;
   issued_at: string | null;
   paid_at: string | null;
+};
+
+type BookingAddonItem = {
+  id: string;
+  name_snapshot: string;
+  quantity: number;
+  total_price_inr?: number | null;
+  total_price_snapshot?: number | null;
+  status: string;
 };
 
 type StatusEvent = {
@@ -58,15 +71,21 @@ type BookingDetail = {
   booking_mode: string | null;
   payment_mode: string | null;
   service_type: string | null;
+  provider_service_id: string | null;
   address: string | null;
   pincode: string | null;
   notes: string | null;
+  internal_notes?: string | null;
+  provider_notes?: string | null;
+  admin_price_reference?: number | null;
+  included_services?: string[];
   subtotal_inr: number | null;
   discount_inr: number | null;
   total_inr: number | null;
   final_price: number | null;
   price_at_booking: number | null;
   wallet_credits_applied_inr: number | null;
+  pending_payable_inr?: number | null;
   discount_code: string | null;
   created_at: string;
   users: { name: string | null; email: string | null; phone: string | null; address: string | null } | null;
@@ -81,6 +100,19 @@ const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', { day: 'numeric', m
 function fmt(v: number | null | undefined) { return v != null ? CURRENCY_FORMATTER.format(v) : '—'; }
 function fmtDt(v: string) { const d = new Date(v); return Number.isNaN(d.getTime()) ? v : DATE_TIME_FORMATTER.format(d); }
 
+function formatPaymentModeLabel(value: string | null | undefined) {
+  if (!value) return 'Not specified';
+  if (value === 'direct_to_provider') return 'Direct to provider';
+  if (value === 'platform') return 'Paid online';
+  if (value === 'subscription_credit') return 'Subscription credits';
+  if (value === 'mixed') return 'Mixed payment';
+  return value.replace(/_/g, ' ');
+}
+
+function isActiveAddonStatus(value: string | null | undefined) {
+  return ACTIVE_BOOKING_ADDON_STATUSES.has((value ?? '').trim().toLowerCase());
+}
+
 type Props = {
   bookingId: number | null;
   isOpen: boolean;
@@ -90,6 +122,8 @@ type Props = {
 export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props) {
   const [booking, setBooking] = useState<BookingDetail | null>(null);
   const [invoices, setInvoices] = useState<BookingInvoice[]>([]);
+  const [addonItems, setAddonItems] = useState<BookingAddonItem[]>([]);
+  const [isAddonManagementOpen, setIsAddonManagementOpen] = useState(false);
   const [notes, setNotes] = useState<BookingNote[]>([]);
   const [customerFeedback, setCustomerFeedback] = useState<CustomerFeedbackEntry[]>([]);
   const [noteInput, setNoteInput] = useState('');
@@ -101,12 +135,28 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
   const [isLoading, startLoad] = useTransition();
   const [isSavingNote, startSave] = useTransition();
 
+  const refreshBookingCore = useCallback(async (targetBookingId: number) => {
+    const detailRes = await fetch(`/api/admin/bookings/${targetBookingId}`, { cache: 'no-store' });
+
+    if (!detailRes.ok) {
+      const payload = (await detailRes.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error ?? 'Failed to load booking details.');
+    }
+
+    const detail = await detailRes.json();
+    setBooking(detail.booking ?? null);
+    setInvoices(detail.invoices ?? []);
+    setAddonItems(detail.addonItems ?? []);
+  }, []);
+
   useEffect(() => {
     if (!isOpen || bookingId == null) return;
     setBooking(null);
     setNotes([]);
     setCustomerFeedback([]);
     setInvoices([]);
+    setAddonItems([]);
+    setIsAddonManagementOpen(false);
     setLoadError(null);
     setCustomerFeedbackError(null);
     setCustomerFeedbackInput('');
@@ -114,25 +164,12 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
 
     startLoad(async () => {
       try {
-        const [detailRes, notesRes, customerFeedbackRes] = await Promise.all([
-          fetch(`/api/admin/bookings/${bookingId}`, { cache: 'no-store' }),
+        const [notesRes, customerFeedbackRes] = await Promise.all([
           fetch(`/api/admin/bookings/${bookingId}/notes`, { cache: 'no-store' }),
           fetch(`/api/admin/bookings/${bookingId}/customer-feedback`, { cache: 'no-store' }),
         ]);
 
-        if (!detailRes.ok) {
-          const payload = (await detailRes.json().catch(() => null)) as { error?: string } | null;
-          if (detailRes.status === 401 || detailRes.status === 403) {
-            setLoadError('Your session expired or you do not have access to this booking.');
-            return;
-          }
-          setLoadError(payload?.error ?? 'Failed to load booking details.');
-          return;
-        }
-
-        const detail = await detailRes.json();
-        setBooking(detail.booking ?? null);
-        setInvoices(detail.invoices ?? []);
+        await refreshBookingCore(bookingId);
 
         if (notesRes.ok) {
           const notesData = await notesRes.json();
@@ -143,11 +180,12 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
           const feedbackData = await customerFeedbackRes.json();
           setCustomerFeedback(feedbackData.feedback ?? []);
         }
-      } catch {
-        setLoadError('Failed to load booking details. Please try again.');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to load booking details. Please try again.';
+        setLoadError(message);
       }
     });
-  }, [bookingId, isOpen]);
+  }, [bookingId, isOpen, refreshBookingCore]);
 
   function handleSaveNote() {
     if (!noteInput.trim() || bookingId == null) return;
@@ -201,15 +239,62 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
     });
   }
 
+  const handleAddonManagerUpdated = useCallback(() => {
+    if (bookingId == null) {
+      return;
+    }
+
+    void refreshBookingCore(bookingId).catch((error) => {
+      setLoadError(error instanceof Error ? error.message : 'Unable to refresh booking after addon update.');
+    });
+  }, [bookingId, refreshBookingCore]);
+
   const status = booking?.booking_status ?? booking?.status ?? '';
-  const servicePrice = booking ? Number(booking.subtotal_inr ?? booking.price_at_booking ?? booking.total_inr ?? booking.final_price ?? 0) : 0;
-  const storedDiscount = booking ? Number(booking.discount_inr ?? 0) : 0;
-  const payableBeforeWallet = booking
-    ? Number(booking.final_price ?? booking.total_inr ?? Math.max(servicePrice - storedDiscount, 0))
+  const walletApplied = booking ? Math.max(0, Number(booking.wallet_credits_applied_inr ?? 0)) : 0;
+  const discountInr = booking ? Math.max(0, Number(booking.discount_inr ?? 0)) : 0;
+  const referenceServiceSubtotalInr = booking
+    ? Math.max(0, Number(booking.subtotal_inr ?? booking.admin_price_reference ?? booking.price_at_booking ?? 0))
     : 0;
-  const effectiveDiscount = Math.max(storedDiscount, Math.max(servicePrice - payableBeforeWallet, 0));
-  const walletApplied = booking ? Number(booking.wallet_credits_applied_inr ?? 0) : 0;
-  const netPayable = Math.max(0, servicePrice - effectiveDiscount - walletApplied);
+  const allAddonItems = addonItems;
+  const activeAddonItems = addonItems.filter((item) => isActiveAddonStatus(item.status));
+  const addonSubtotalInr = activeAddonItems.reduce(
+    (sum, item) => sum + Math.max(0, Number(item.total_price_inr ?? item.total_price_snapshot ?? 0)),
+    0,
+  );
+  const finalAmountFromBookingInr = booking
+    ? Math.max(0, Number(booking.final_price ?? booking.total_inr ?? 0))
+    : 0;
+  const fallbackFinalAmountInr = Math.max(
+    0,
+    referenceServiceSubtotalInr + addonSubtotalInr - discountInr - walletApplied,
+  );
+  const finalAmountInr = finalAmountFromBookingInr > 0 ? finalAmountFromBookingInr : fallbackFinalAmountInr;
+  const impliedGrossSubtotalInr = Math.max(0, finalAmountInr + discountInr + walletApplied);
+  const hasReferenceServiceSubtotal = referenceServiceSubtotalInr > 0;
+  const serviceSubtotalInr = hasReferenceServiceSubtotal
+    ? referenceServiceSubtotalInr
+    : Math.max(0, impliedGrossSubtotalInr - addonSubtotalInr);
+  const reconciliationAdjustmentInr = hasReferenceServiceSubtotal
+    ? Math.round(impliedGrossSubtotalInr - (referenceServiceSubtotalInr + addonSubtotalInr))
+    : 0;
+  const grossSubtotalInr = Math.max(0, serviceSubtotalInr + addonSubtotalInr + reconciliationAdjustmentInr);
+  const pendingPayable = booking
+    ? Math.max(0, Number(booking.pending_payable_inr ?? Math.max(0, finalAmountInr - walletApplied)))
+    : 0;
+  const paidOrCollectedInr = Math.max(0, finalAmountInr - pendingPayable);
+  const includedServices = booking
+    ? Array.isArray(booking.included_services)
+      ? booking.included_services
+      : resolveIncludedServicesForBooking({
+          service_type: booking.service_type,
+          provider_service_id: booking.provider_service_id,
+          provider_notes: booking.provider_notes,
+          internal_notes: booking.internal_notes ?? booking.notes,
+          admin_price_reference: booking.admin_price_reference ?? booking.subtotal_inr,
+          price_at_booking: booking.price_at_booking,
+        })
+    : [];
+  const serviceLabel = buildIncludedServicesLabel(includedServices, booking?.service_type);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Booking #${bookingId}`} size="xl">
@@ -223,7 +308,7 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
           <div className="rounded-xl bg-neutral-50 p-4 space-y-1">
             <p className="text-sm font-semibold text-neutral-900">
               Status: <span className="font-normal capitalize">{status.replace('_', ' ')}</span>
-              {booking.service_type ? ` • ${booking.service_type}` : ''}
+              {serviceLabel ? ` • ${serviceLabel}` : ''}
               {booking.booking_mode ? ` • ${booking.booking_mode.replace('_', ' ')}` : ''}
             </p>
             {booking.booking_date && booking.start_time ? (
@@ -232,7 +317,7 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
               <p className="text-sm text-neutral-600">{fmtDt(booking.booking_start)}</p>
             )}
             {booking.address ? <p className="text-xs text-neutral-500">{booking.address}{booking.pincode ? `, ${booking.pincode}` : ''}</p> : null}
-            {booking.notes ? <p className="text-xs text-neutral-500 italic">Customer note: {booking.notes}</p> : null}
+            {booking.notes ? <p className="text-xs text-neutral-500 italic">Notes: {booking.notes}</p> : null}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -272,54 +357,131 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
             </div>
           ) : null}
 
-          {/* Pricing */}
-          <div className="rounded-xl border border-neutral-200 p-4">
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Pricing</p>
-            <div className="space-y-1 text-sm">
-              {(booking.subtotal_inr ?? booking.price_at_booking) != null ? (
-                <div className="flex justify-between">
-                  <span className="text-neutral-600">Service Price</span>
-                  <span>{fmt(servicePrice)}</span>
+          <div className="space-y-3 rounded-lg border border-[#ecd8c7] bg-[#fffaf4] px-3 py-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">Price Breakup</p>
+              <div className="mt-1 space-y-1 text-[11px] text-[#6f4b32] sm:text-xs">
+                {serviceSubtotalInr > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>Service Subtotal</span>
+                    <span>{fmt(serviceSubtotalInr)}</span>
+                  </div>
+                ) : null}
+                {addonSubtotalInr > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>Add-on Subtotal</span>
+                    <span>{fmt(addonSubtotalInr)}</span>
+                  </div>
+                ) : null}
+                {reconciliationAdjustmentInr !== 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>Price Adjustment</span>
+                    <span>
+                      {reconciliationAdjustmentInr > 0 ? '+ ' : '- '}
+                      {fmt(Math.abs(reconciliationAdjustmentInr))}
+                    </span>
+                  </div>
+                ) : null}
+                {grossSubtotalInr > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>Gross Subtotal</span>
+                    <span>{fmt(grossSubtotalInr)}</span>
+                  </div>
+                ) : null}
+                {discountInr > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>Discount Applied{booking.discount_code ? ` (${booking.discount_code})` : ''}</span>
+                    <span>- {fmt(discountInr)}</span>
+                  </div>
+                ) : null}
+                {walletApplied > 0 ? (
+                  <div className="flex items-center justify-between">
+                    <span>Dofurs Credits Applied</span>
+                    <span>- {fmt(walletApplied)}</span>
+                  </div>
+                ) : null}
+                <div className="flex items-center justify-between border-t border-[#e7c4a7]/70 pt-1 font-semibold text-[#5d3e2b]">
+                  <span>Final Amount</span>
+                  <span>{fmt(finalAmountInr)}</span>
                 </div>
-              ) : null}
-              {effectiveDiscount > 0 ? (
-                <div className="flex justify-between">
-                  <span className="text-neutral-600">Discount {booking.discount_code ? `(${booking.discount_code})` : ''}</span>
-                  <span className="text-green-600">−{fmt(effectiveDiscount)}</span>
+                <div className="flex items-center justify-between font-semibold text-[#5d3e2b]">
+                  <span>Pending Payable</span>
+                  <span>{fmt(pendingPayable)}</span>
                 </div>
-              ) : null}
-              {(booking.wallet_credits_applied_inr ?? 0) > 0 ? (
-                <div className="flex justify-between">
-                  <span className="text-neutral-600">Dofurs Credits Applied</span>
-                  <span className="text-green-600">−{fmt(booking.wallet_credits_applied_inr)}</span>
-                </div>
-              ) : null}
-              <div className="flex justify-between border-t border-neutral-100 pt-1 font-semibold">
-                <span>Net Payable</span>
-                <span>{fmt(netPayable)}</span>
               </div>
             </div>
-          </div>
 
-          {/* Payment information */}
-          <div className="rounded-xl border border-neutral-200 p-4">
-            <p className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">Payment Information</p>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Payment Mode</span>
-                <span className="capitalize">{booking.payment_mode ? booking.payment_mode.replace(/_/g, ' ') : '—'}</span>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">Included Services</p>
+                {includedServices.length > 0 ? (
+                  <ul className="mt-1 space-y-1">
+                    {includedServices.map((serviceName, index) => (
+                      <li
+                        key={`${booking.id}-service-${index}-${serviceName}`}
+                        className="text-[11px] text-[#6f4b32] sm:text-xs"
+                      >
+                        {serviceName}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-[11px] text-[#7c5b43] sm:text-xs">No bundled service lines found.</p>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Discount Code</span>
-                <span>{booking.discount_code ?? '—'}</span>
+
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">Add-on Summary</p>
+                {activeAddonItems.length > 0 ? (
+                  <ul className="mt-1 space-y-1">
+                    {activeAddonItems.map((item, index) => {
+                      const totalPriceInr = Math.max(0, Number(item.total_price_inr ?? item.total_price_snapshot ?? 0));
+                      const unitPriceInr =
+                        item.quantity > 0
+                          ? Math.max(0, Math.round(totalPriceInr / item.quantity))
+                          : null;
+
+                      return (
+                        <li
+                          key={`${item.id}-${index}`}
+                          className="text-[11px] text-[#6f4b32] sm:text-xs"
+                        >
+                          {item.name_snapshot} x{item.quantity}
+                          {unitPriceInr != null ? ` (${fmt(unitPriceInr)} each)` : ''} • {fmt(totalPriceInr)}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="mt-1 text-[11px] text-[#7c5b43] sm:text-xs">No active add-ons selected.</p>
+                )}
+                {allAddonItems.length > activeAddonItems.length ? (
+                  <p className="mt-1 text-[10px] text-[#8a6549] sm:text-[11px]">
+                    Only active add-ons are included in totals.
+                  </p>
+                ) : null}
               </div>
-              <div className="flex justify-between">
-                <span className="text-neutral-600">Wallet Credits Applied</span>
-                <span>{fmt(walletApplied)}</span>
-              </div>
-              <div className="flex justify-between border-t border-neutral-100 pt-1 font-semibold">
-                <span>Amount to Collect</span>
-                <span>{fmt(netPayable)}</span>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8a6549]">Payment Snapshot</p>
+              <div className="mt-1 space-y-1 text-[11px] text-[#6f4b32] sm:text-xs">
+                <div className="flex items-center justify-between">
+                  <span>Payment Mode</span>
+                  <span className="capitalize">{formatPaymentModeLabel(booking.payment_mode)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Discount Code</span>
+                  <span>{booking.discount_code ?? '—'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Paid / Collected</span>
+                  <span>{fmt(paidOrCollectedInr)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t border-[#e7c4a7]/70 pt-1 font-semibold text-[#5d3e2b]">
+                  <span>Amount to Collect</span>
+                  <span>{fmt(pendingPayable)}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -453,15 +615,39 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
           </div>
 
           {/* Admin actions */}
-          {(status === 'pending' || status === 'confirmed') && (
-            <div className="flex items-center justify-end gap-2 border-t border-neutral-200 pt-4">
-              <Link href={`/forms/customer-booking?reschedule=${bookingId}`}>
-                <Button type="button" size="sm" variant="premium">
-                  Reschedule
+          {bookingId != null ? (
+            <>
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-neutral-200 pt-4">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setIsAddonManagementOpen((open) => !open)}
+                >
+                  {isAddonManagementOpen ? 'Hide Add-on Management' : 'Add-on Management'}
                 </Button>
-              </Link>
-            </div>
-          )}
+                {(status === 'pending' || status === 'confirmed') ? (
+                  <Link href={`/forms/customer-booking?reschedule=${bookingId}`}>
+                    <Button type="button" size="sm" variant="premium">
+                      Reschedule
+                    </Button>
+                  </Link>
+                ) : null}
+              </div>
+
+              {isAddonManagementOpen ? (
+                <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                  <BookingAddonManager
+                    bookingId={bookingId}
+                    source="admin_adjustment"
+                    title="Add-on Management"
+                    onItemsChange={setAddonItems}
+                    onUpdated={handleAddonManagerUpdated}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : null}
         </div>
       )}
     </Modal>

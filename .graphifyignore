@@ -1,0 +1,32 @@
+# Dependency and build output
+node_modules/
+.next/
+out/
+dist/
+build/
+
+# Version control and local IDE artifacts
+.git/
+.vscode/
+.idea/
+.cache/
+.turbo/
+.vercel/
+
+# Logs, reports, and generated outputs
+audit-output/
+coverage/
+graphify-out/
+*.log
+
+# Strict code-only mode (docs and static assets)
+public/
+*.md
+*.mdx
+*.rtf
+
+# Local environment and transient files
+.env.local
+.env.*.local
+tsconfig.tsbuildinfo
+.DS_Store

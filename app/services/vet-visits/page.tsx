@@ -4,6 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'Vet Home Visits & Pet Health Consultations in Bangalore | Dofurs',
@@ -36,10 +37,28 @@ const SERVICES_OFFERED = [
   { icon: '📱', title: 'Teleconsult', desc: 'Quick remote consultations for non-emergency questions, follow-ups, and second opinions.' },
 ];
 
+const vetServiceSchema = buildServiceSchema({
+  name: 'Veterinary Home Visits in Bangalore',
+  description:
+    'Trusted vet home visits in Bangalore — wellness checkups, vaccinations, preventive care, diagnostic support, and teleconsult from verified veterinarians.',
+  url: 'https://dofurs.in/services/vet-visits',
+  serviceType: 'Veterinary Services',
+  category: 'Pet Healthcare',
+});
+
+const vetBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Vet Visits', url: '/services/vet-visits' },
+]);
+
 export default function VetVisitsPage() {
   const notifyCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(vetServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(vetBreadcrumbSchema)} />
     <ContentPageLayout
       title="Vet Visits & Health Consultations"
       description="Trusted veterinary care delivered to your home across Bangalore — wellness checks, vaccinations, preventive plans, and specialist consultations. Coming soon."
@@ -143,20 +162,7 @@ export default function VetVisitsPage() {
         ))}
       </div>
 
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Veterinary Home Visits',
-            provider: { '@type': 'LocalBusiness', name: 'Dofurs', url: 'https://dofurs.in', areaServed: 'Bangalore' },
-            description: 'Trusted veterinary home visits and consultations in Bangalore — wellness checks, vaccinations, and preventive care. Coming soon.',
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

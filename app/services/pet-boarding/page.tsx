@@ -4,6 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { links, whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'Safe Pet Boarding in Bangalore — Trusted Overnight Care | Dofurs',
@@ -109,11 +110,33 @@ const FAQS = [
   },
 ];
 
+const boardingServiceSchema = buildServiceSchema({
+  name: 'Safe Pet Boarding in Bangalore',
+  description:
+    'Overnight pet boarding in Bangalore with verified caregivers. Clean, home-like stays with daily updates, walks, and complete care from ₹999/night.',
+  url: 'https://dofurs.in/services/pet-boarding',
+  serviceType: 'Pet Boarding',
+  category: 'Pet Accommodation',
+  offers: [
+    { name: 'Overnight Pet Boarding', priceFrom: 999, description: 'Per-night safe, supervised stay with meals, walks and daily photo updates.' },
+    { name: 'Extended Pet Boarding', priceFrom: 2799, description: '3-night stay discount bundle for travellers and vacationers.' },
+  ],
+});
+
+const boardingBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Pet Boarding', url: '/services/pet-boarding' },
+]);
+
 export default function PetBoardingPage() {
   const primaryCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
   const secondaryCtaClass = premiumSecondaryCtaClass('h-11 px-6 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(boardingServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(boardingBreadcrumbSchema)} />
     <ContentPageLayout
       title="Safe & Comfortable Pet Boarding"
       description="Your pet stays with verified, caring hosts in a home-like environment while you travel — daily updates, full care, and peace of mind from ₹999 per night."
@@ -237,21 +260,7 @@ export default function PetBoardingPage() {
         ))}
       </div>
 
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Pet Boarding',
-            provider: { '@type': 'LocalBusiness', name: 'Dofurs', url: 'https://dofurs.in', areaServed: 'Bangalore' },
-            description: 'Safe overnight pet boarding in Bangalore with verified caregivers. Home-like environment, daily updates, and complete care.',
-            offers: [{ '@type': 'Offer', name: 'Pet Boarding Stay', price: '999', priceCurrency: 'INR', unitCode: 'DAY' }],
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

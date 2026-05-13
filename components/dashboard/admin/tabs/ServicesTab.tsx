@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useSearchParams, usePathname, useRouter } from 'next/navigation';
+import CollapsibleAdminSection, { AdminSectionCollapseToolbar } from '@/components/dashboard/admin/CollapsibleAdminSection';
 import AdminServicesView from '@/components/dashboard/admin/views/AdminServicesView';
 import Modal from '@/components/ui/Modal';
 import { Button, Input } from '@/components/ui';
@@ -12,13 +13,37 @@ import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
 import type { AdminServiceModerationSummaryItem, PlatformDiscount, PlatformDiscountAnalyticsSummary } from '@/lib/provider-management/types';
 import type { AdminProviderModerationItem } from '@/lib/provider-management/types';
 import type { BusinessReferralCampaignSnapshot } from '@/lib/referrals/business-campaign';
+import { DEFAULT_BUSINESS_REFEREE_REWARD_INR, DEFAULT_BUSINESS_REFERRAL_CODE, REFERRAL_CODE_MAX_LENGTH } from '@/lib/referrals/business-campaign-config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type ServiceCatalogPanel = 'types' | 'services';
+type ServiceCatalogPanel = 'types' | 'services' | 'addons';
+type ServicesSectionId = 'catalogBuilders' | 'catalogManagement' | 'businessReferral' | 'discounts';
+
+const servicesSectionIds: ServicesSectionId[] = [
+  'catalogBuilders',
+  'catalogManagement',
+  'businessReferral',
+  'discounts',
+];
+
+const defaultExpandedServicesSections: Record<ServicesSectionId, boolean> = {
+  catalogBuilders: true,
+  catalogManagement: false,
+  businessReferral: false,
+  discounts: false,
+};
 
 function parseServiceCatalogPanel(value: string | null): ServiceCatalogPanel {
-  return value === 'services' ? 'services' : 'types';
+  if (value === 'services') {
+    return 'services';
+  }
+
+  if (value === 'addons') {
+    return 'addons';
+  }
+
+  return 'types';
 }
 
 type GlobalServiceRolloutDraft = {
@@ -61,7 +86,7 @@ type BusinessReferralCampaignDraft = {
 const adminRawFieldClass =
   'rounded-xl border border-neutral-200/60 px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 focus-visible:ring-offset-1';
 const adminToggleFieldClass =
-  'inline-flex items-center gap-2 rounded-xl border border-neutral-200/60 px-3 py-2 text-xs';
+  'inline-flex flex-wrap items-center gap-2 rounded-xl border border-neutral-200/60 px-3 py-2 text-xs';
 
 const ADMIN_DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
   day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true,
@@ -112,11 +137,14 @@ export default function ServicesTab({
   const [businessReferralDraft, setBusinessReferralDraft] = useState<BusinessReferralCampaignDraft>({
     referral_code: '',
     is_active: true,
-    reward_inr: '500',
+    reward_inr: String(DEFAULT_BUSINESS_REFEREE_REWARD_INR),
     notes: '',
   });
   const [serviceCatalogPanel, setServiceCatalogPanel] = useState<ServiceCatalogPanel>(
     parseServiceCatalogPanel(searchParams.get('catalog')),
+  );
+  const [expandedServicesSections, setExpandedServicesSections] = useState<Record<ServicesSectionId, boolean>>(
+    defaultExpandedServicesSections,
   );
 
   const [globalServiceDraft, setGlobalServiceDraft] = useState<GlobalServiceRolloutDraft>({
@@ -173,6 +201,25 @@ export default function ServicesTab({
     }
     return Array.from(counts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value));
   }, [moderationProviders, globalServiceDraft.provider_types]);
+
+  const areAllServicesSectionsExpanded = servicesSectionIds.every((sectionId) => expandedServicesSections[sectionId]);
+  const areAllServicesSectionsMinimized = servicesSectionIds.every((sectionId) => !expandedServicesSections[sectionId]);
+
+  function toggleServicesSection(sectionId: ServicesSectionId) {
+    setExpandedServicesSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  }
+
+  function setAllServicesSectionsExpanded(isExpanded: boolean) {
+    setExpandedServicesSections({
+      catalogBuilders: isExpanded,
+      catalogManagement: isExpanded,
+      businessReferral: isExpanded,
+      discounts: isExpanded,
+    });
+  }
 
   function updateServiceCatalogPanel(panel: ServiceCatalogPanel) {
     setServiceCatalogPanel(panel);
@@ -247,6 +294,22 @@ export default function ServicesTab({
       return;
     }
 
+    if (businessReferralSnapshot?.campaign.is_active && !businessReferralDraft.is_active) {
+      openConfirm({
+        title: 'Deactivate business referral campaign?',
+        description:
+          'This immediately stops the homepage welcome popup, signup page auto-fill, public campaign signup link, and new campaign redemptions. Existing signups and pending rewards keep their saved amounts.',
+        confirmLabel: 'Deactivate campaign',
+        confirmVariant: 'warning',
+        onConfirm: () => executeBusinessReferralCampaignSave(referralCode, rewardInr),
+      });
+      return;
+    }
+
+    executeBusinessReferralCampaignSave(referralCode, rewardInr);
+  }
+
+  function executeBusinessReferralCampaignSave(referralCode: string, rewardInr: number) {
     startTransition(async () => {
       try {
         const response = await adminRequest<BusinessReferralCampaignSnapshot>('/api/admin/referrals/business', {
@@ -269,7 +332,7 @@ export default function ServicesTab({
   }
 
   async function copyBusinessReferralLink() {
-    if (!businessReferralSnapshot?.signup_link) {
+    if (!businessReferralSnapshot?.campaign.is_active || !businessReferralSnapshot.signup_link) {
       showToast('Business referral link is not available yet.', 'error');
       return;
     }
@@ -280,6 +343,24 @@ export default function ServicesTab({
     } catch {
       showToast('Unable to copy link. Please copy manually.', 'error');
     }
+  }
+
+  function previewBusinessReferralSignupPage() {
+    if (!businessReferralSnapshot?.campaign.is_active || !businessReferralSnapshot.signup_link) {
+      showToast('Activate the campaign before previewing the signup link.', 'error');
+      return;
+    }
+
+    window.open(businessReferralSnapshot.signup_link, '_blank', 'noopener,noreferrer');
+  }
+
+  function previewBusinessReferralPopup() {
+    if (!businessReferralSnapshot?.campaign.is_active) {
+      showToast('Activate the campaign before previewing the homepage popup.', 'error');
+      return;
+    }
+
+    window.open('/?preview-offer=true', '_blank', 'noopener,noreferrer');
   }
 
   useEffect(() => {
@@ -481,21 +562,34 @@ export default function ServicesTab({
 
   return (
     <>
+      <AdminSectionCollapseToolbar
+        title="Services Sections"
+        description="Open the area you need, or minimize everything for a shorter page."
+        areAllExpanded={areAllServicesSectionsExpanded}
+        areAllMinimized={areAllServicesSectionsMinimized}
+        onExpandAll={() => setAllServicesSectionsExpanded(true)}
+        onMinimizeAll={() => setAllServicesSectionsExpanded(false)}
+      />
+
       {/* Services catalog view (service types + catalog manager) */}
       <AdminServicesView
         serviceCatalogPanel={serviceCatalogPanel}
         onPanelChange={updateServiceCatalogPanel}
         initialServiceCategories={initialServiceCategories}
         initialCatalogServices={initialCatalogServices}
+        catalogBuilderExpanded={expandedServicesSections.catalogBuilders}
+        onCatalogBuilderToggle={() => toggleServicesSection('catalogBuilders')}
       />
 
       {/* Service Catalog Control panel (service summary + global rollout) */}
-      <section className="rounded-2xl bg-white p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-xl font-semibold text-neutral-950">Service Catalog Management</h2>
-        </div>
-        <p className="mt-1 text-xs text-neutral-600">Control service availability and rollout new services across the platform.</p>
-
+      <CollapsibleAdminSection
+        id="admin-services-catalog-management"
+        title="Service Catalog Management"
+        description="Control service availability and rollout new services across the platform."
+        isExpanded={expandedServicesSections.catalogManagement}
+        onToggle={() => toggleServicesSection('catalogManagement')}
+        summary={`${serviceSummary.length} services`}
+      >
         <div className="mt-4 rounded-xl bg-neutral-50/60 p-3">
           <p className="text-xs font-semibold text-neutral-950">Service Catalog Control</p>
           {serviceSummary.length === 0 ? (
@@ -597,16 +691,16 @@ export default function ServicesTab({
             </div>
           </div>
         </div>
-      </section>
+      </CollapsibleAdminSection>
 
-      <section className="rounded-2xl bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-ink">Business Referral Campaign</h2>
-            <p className="mt-1 text-xs text-[#6b6b6b]">
-              This campaign does not auto-expire. Control activation and reward amounts from here.
-            </p>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-services-business-referral"
+        title="Business Referral Campaign"
+        description="This campaign does not auto-expire. Control activation and reward amounts from here."
+        isExpanded={expandedServicesSections.businessReferral}
+        onToggle={() => toggleServicesSection('businessReferral')}
+        summary={businessReferralSnapshot?.campaign.is_active ? 'Active' : 'Inactive'}
+        actions={(
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -619,11 +713,38 @@ export default function ServicesTab({
             <button
               type="button"
               onClick={copyBusinessReferralLink}
-              disabled={isPending || businessReferralLoading || !businessReferralSnapshot?.signup_link}
+              disabled={isPending || businessReferralLoading || !businessReferralSnapshot?.campaign.is_active || !businessReferralSnapshot?.signup_link}
               className="rounded-full border border-[#f2dfcf] bg-[#fff7f0] px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-[#ffefe0] disabled:opacity-60"
             >
               Copy Signup Link
             </button>
+            <button
+              type="button"
+              onClick={previewBusinessReferralSignupPage}
+              disabled={isPending || businessReferralLoading || !businessReferralSnapshot?.campaign.is_active || !businessReferralSnapshot?.signup_link}
+              className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-neutral-50 disabled:opacity-60"
+            >
+              Preview Signup
+            </button>
+            <button
+              type="button"
+              onClick={previewBusinessReferralPopup}
+              disabled={isPending || businessReferralLoading || !businessReferralSnapshot?.campaign.is_active}
+              className="rounded-full border border-neutral-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-neutral-50 disabled:opacity-60"
+            >
+              Preview Popup
+            </button>
+          </div>
+        )}
+      >
+
+        <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs text-blue-900">
+          <p className="font-semibold">One save publishes this campaign to:</p>
+          <div className="mt-1 grid gap-1 text-blue-800 sm:grid-cols-2">
+            <p>Homepage welcome popup</p>
+            <p>Signup page offer copy</p>
+            <p>Signup code auto-fill</p>
+            <p>Referral redemption rewards</p>
           </div>
         </div>
 
@@ -649,7 +770,7 @@ export default function ServicesTab({
         <div className="mt-4 rounded-xl bg-neutral-50/60 p-3 text-xs text-[#6b6b6b]">
           Signup link:{' '}
           <span className="font-semibold text-ink">
-            {businessReferralSnapshot?.signup_link ?? '/auth/sign-in?mode=signup&ref=DOFMQS68G'}
+            {businessReferralSnapshot?.signup_link ?? `/auth/sign-in?mode=signup&ref=${DEFAULT_BUSINESS_REFERRAL_CODE}`}
           </span>
           {businessReferralSnapshot?.stats.last_redemption_at ? (
             <span>
@@ -659,11 +780,25 @@ export default function ServicesTab({
           ) : null}
         </div>
 
+        <div className="mt-3 rounded-xl border border-[#f2dfcf] bg-[#fffaf6] p-3 text-xs text-[#6b6b6b]">
+          <p className="font-semibold text-ink">Draft public preview</p>
+          <p className="mt-1">
+            {businessReferralDraft.is_active
+              ? `Homepage popup and signup page will show: + Get ₹${businessReferralDraft.reward_inr || 0} Free on Signup`
+              : 'Inactive campaigns are hidden from the homepage popup and signup auto-fill.'}
+          </p>
+          <p className="mt-1">
+            Auto-filled signup code:{' '}
+            <span className="font-semibold text-ink">{businessReferralDraft.is_active ? businessReferralDraft.referral_code || DEFAULT_BUSINESS_REFERRAL_CODE : 'None'}</span>
+          </p>
+        </div>
+
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <input
             value={businessReferralDraft.referral_code}
             onChange={(event) => setBusinessReferralDraftField('referral_code', event.target.value.toUpperCase())}
-            placeholder="Business referral code"
+            maxLength={REFERRAL_CODE_MAX_LENGTH}
+            placeholder={DEFAULT_BUSINESS_REFERRAL_CODE}
             className={adminRawFieldClass}
           />
           <label className={cn(
@@ -677,14 +812,17 @@ export default function ServicesTab({
               checked={businessReferralDraft.is_active}
               onChange={(event) => setBusinessReferralDraftField('is_active', event.target.checked)}
             />
-            {businessReferralDraft.is_active ? 'Campaign Active' : 'Campaign Inactive'}
+            {businessReferralDraft.is_active ? 'Campaign Active - visible on public pages' : 'Campaign Inactive - hidden from public pages'}
           </label>
-          <input
-            value={businessReferralDraft.reward_inr}
-            onChange={(event) => setBusinessReferralDraftField('reward_inr', event.target.value)}
-            placeholder="Reward amount (INR)"
-            className={adminRawFieldClass}
-          />
+          <div>
+            <input
+              value={businessReferralDraft.reward_inr}
+              onChange={(event) => setBusinessReferralDraftField('reward_inr', event.target.value)}
+              placeholder="Reward amount (INR)"
+              className={cn('w-full', adminRawFieldClass)}
+            />
+            <p className="mt-1 text-[10px] text-[#6b6b6b]">Applies to new signups only. Existing pending rewards keep their saved amounts.</p>
+          </div>
         </div>
 
         <textarea
@@ -705,15 +843,17 @@ export default function ServicesTab({
             Save Business Campaign
           </button>
         </div>
-      </section>
+      </CollapsibleAdminSection>
 
       {/* Discounts section */}
-      <section className="rounded-2xl bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-semibold text-ink">Offers &amp; Discounts</h2>
-            <p className="mt-1 text-xs text-[#6b6b6b]">Create, manage, and track promotional offers and discount codes.</p>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-services-discounts"
+        title="Offers & Discounts"
+        description="Create, manage, and track promotional offers and discount codes."
+        isExpanded={expandedServicesSections.discounts}
+        onToggle={() => toggleServicesSection('discounts')}
+        summary={`${discountAnalytics.total_active_discounts} active`}
+        actions={(
           <button
             type="button"
             onClick={() => { resetDiscountDraft(); setShowDiscountEditor(true); }}
@@ -721,7 +861,8 @@ export default function ServicesTab({
           >
             Create Discount
           </button>
-        </div>
+        )}
+      >
 
         <div className="mt-4 grid gap-2 sm:grid-cols-4">
           <div className="rounded-xl bg-neutral-50/60 p-3 text-xs">
@@ -778,7 +919,7 @@ export default function ServicesTab({
             </ul>
           )}
         </div>
-      </section>
+      </CollapsibleAdminSection>
 
       {/* Global Rollout Modal */}
       <Modal

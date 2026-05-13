@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import ProviderOnboardingModal from '@/components/dashboard/admin/ProviderOnboardingModal';
 import AdminSectionGuide from '@/components/dashboard/admin/AdminSectionGuide';
+import CollapsibleAdminSection, { AdminSectionCollapseToolbar } from '@/components/dashboard/admin/CollapsibleAdminSection';
 import ImageUploadField from '@/components/ui/ImageUploadField';
 import StorageBackedImage from '@/components/ui/StorageBackedImage';
 import AdminQuickActionRow from '@/components/dashboard/admin/AdminQuickActionRow';
@@ -133,6 +134,15 @@ type ProviderProfileDraft = {
   number_of_doctors: string;
   hospitalization_available: boolean;
   emergency_services_available: boolean;
+};
+
+type ProviderAdminSectionId = 'applications' | 'controlCenter';
+
+const providerAdminSectionIds: ProviderAdminSectionId[] = ['applications', 'controlCenter'];
+
+const defaultExpandedProviderAdminSections: Record<ProviderAdminSectionId, boolean> = {
+  applications: false,
+  controlCenter: true,
 };
 
 // ---------------------------------------------------------------------------
@@ -459,6 +469,11 @@ export default function AdminProvidersView({
     total_revenue_inr: number;
   };
   const [providerMetrics, setProviderMetrics] = useState<Map<number, ProviderMetrics>>(new Map());
+  const serviceRolloutEditorRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [recentlyEditedServiceByProvider, setRecentlyEditedServiceByProvider] = useState<Record<number, string>>({});
+  const [expandedProviderAdminSections, setExpandedProviderAdminSections] = useState<Record<ProviderAdminSectionId, boolean>>(
+    () => defaultExpandedProviderAdminSections,
+  );
   const [deleteServiceDialog, setDeleteServiceDialog] = useState<{
     providerId: number;
     providerName: string;
@@ -466,6 +481,24 @@ export default function AdminProvidersView({
     serviceType: string;
     mappedPincodeCount: number;
   } | null>(null);
+  const areAllProviderAdminSectionsExpanded = providerAdminSectionIds.every((sectionId) => expandedProviderAdminSections[sectionId]);
+  const areAllProviderAdminSectionsMinimized = providerAdminSectionIds.every((sectionId) => !expandedProviderAdminSections[sectionId]);
+
+  function toggleProviderAdminSection(sectionId: ProviderAdminSectionId) {
+    setExpandedProviderAdminSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  }
+
+  function setAllProviderAdminSectionsExpanded(isExpanded: boolean) {
+    setExpandedProviderAdminSections(
+      providerAdminSectionIds.reduce<Record<ProviderAdminSectionId, boolean>>((nextState, sectionId) => {
+        nextState[sectionId] = isExpanded;
+        return nextState;
+      }, {} as Record<ProviderAdminSectionId, boolean>),
+    );
+  }
 
   useEffect(() => {
     fetch('/api/admin/providers/performance')
@@ -480,6 +513,27 @@ export default function AdminProvidersView({
       })
       .catch(() => undefined);
   }, []);
+
+  const handleEditServiceRollout = (providerId: number, service: AdminProviderService) => {
+    copyServiceIntoDraft(providerId, service.id);
+    setRecentlyEditedServiceByProvider((previous) => ({
+      ...previous,
+      [providerId]: service.service_type,
+    }));
+
+    window.requestAnimationFrame(() => {
+      const rolloutEditor = serviceRolloutEditorRefs.current[providerId];
+      if (!rolloutEditor) {
+        return;
+      }
+
+      rolloutEditor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const firstInteractiveField = rolloutEditor.querySelector<HTMLInputElement>(
+        'input[type="checkbox"], input[type="text"]',
+      );
+      firstInteractiveField?.focus();
+    });
+  };
 
   return (
     <>
@@ -513,30 +567,35 @@ export default function AdminProvidersView({
           </div>
         </div>
 
-        <Card>
-          <div className="space-y-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-card-title">Service Provider Applications</h3>
-                <p className="text-muted">Incoming applications from the public provider application page.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-1 text-xs text-neutral-700">
-                  Total: {providerApplications.length}
-                </span>
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-                  New: {providerApplications.filter((application) => application.status === 'pending').length}
-                </span>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void refreshProviderApplications()}
-                  disabled={isPending}
-                >
-                  Refresh Applications
-                </Button>
-              </div>
-            </div>
+        <AdminSectionCollapseToolbar
+          title="Provider Sections"
+          description="Review applications when needed, or focus the page on provider search and schedules."
+          areAllExpanded={areAllProviderAdminSectionsExpanded}
+          areAllMinimized={areAllProviderAdminSectionsMinimized}
+          onExpandAll={() => setAllProviderAdminSectionsExpanded(true)}
+          onMinimizeAll={() => setAllProviderAdminSectionsExpanded(false)}
+        />
+
+        <CollapsibleAdminSection
+          id="admin-providers-applications"
+          title="Service Provider Applications"
+          description="Incoming applications from the public provider application page."
+          isExpanded={expandedProviderAdminSections.applications}
+          onToggle={() => toggleProviderAdminSection('applications')}
+          headingLevel="h3"
+          summary={`New: ${providerApplications.filter((application) => application.status === 'pending').length} / Total: ${providerApplications.length}`}
+          actions={(
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void refreshProviderApplications()}
+              disabled={isPending}
+            >
+              Refresh Applications
+            </Button>
+          )}
+          bodyClassName="mt-5 space-y-5"
+        >
 
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
               <div className="space-y-2">
@@ -684,16 +743,19 @@ export default function AdminProvidersView({
                 })}
               </div>
             )}
-          </div>
-        </Card>
+        </CollapsibleAdminSection>
 
         {/* Search and Filters */}
-        <Card>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <h3 className="text-card-title">Provider Management Control Center</h3>
-              <p className="text-muted">Search providers and inspect their day-wise schedule in one unified workspace.</p>
-            </div>
+        <CollapsibleAdminSection
+          id="admin-providers-control-center"
+          title="Provider Management Control Center"
+          description="Search providers and inspect their day-wise schedule in one unified workspace."
+          isExpanded={expandedProviderAdminSections.controlCenter}
+          onToggle={() => toggleProviderAdminSection('controlCenter')}
+          headingLevel="h3"
+          summary={`${filteredProviders.length} of ${providerRows.length} providers`}
+          bodyClassName="mt-5 space-y-6"
+        >
 
             <div className="space-y-4 rounded-xl bg-neutral-50/60 p-4">
               <Input
@@ -1184,8 +1246,7 @@ export default function AdminProvidersView({
                 </div>
               )}
             </div>
-          </div>
-        </Card>
+        </CollapsibleAdminSection>
 
         <div className="space-y-4">
           {filteredProviders.length === 0 ? (
@@ -1963,7 +2024,7 @@ export default function AdminProvidersView({
                                 </span>
                                 <Button
                                   type="button"
-                                  onClick={() => copyServiceIntoDraft(provider.id, service.id)}
+                                  onClick={() => handleEditServiceRollout(provider.id, service)}
                                   variant="secondary"
                                   size="sm"
                                 >
@@ -2011,8 +2072,18 @@ export default function AdminProvidersView({
                       </ul>
                     )}
 
-                    <div className="mt-4 rounded-lg bg-neutral-100/70 p-3">
+                    <div
+                      ref={(node) => {
+                        serviceRolloutEditorRefs.current[provider.id] = node;
+                      }}
+                      className="mt-4 rounded-lg bg-neutral-100/70 p-3"
+                    >
                       <p className="text-xs font-semibold text-neutral-900">Add / Update Service Rollout</p>
+                      {recentlyEditedServiceByProvider[provider.id] ? (
+                        <p className="mt-1 text-[11px] font-medium text-green-700" role="status" aria-live="polite">
+                          Editing {recentlyEditedServiceByProvider[provider.id]} rollout below.
+                        </p>
+                      ) : null}
                       <div className="mt-3 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="text-xs text-neutral-600">Tick services to rollout for this provider.</p>

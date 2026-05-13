@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getISTDateString } from '@/lib/utils/date';
+import { REFERRAL_CODE_INPUT_PATTERN, REFERRAL_CODE_MAX_LENGTH } from '@/lib/referrals/business-campaign-config';
 
 const noHtmlChars = (val: string) => !/<|>|&lt;|&gt;|javascript:/i.test(val);
 
@@ -42,8 +43,8 @@ export const authSignupSchema = z.object({
   referralCode: z
     .string()
     .trim()
-    .max(12)
-    .regex(/^[A-Z0-9]+$/, 'Invalid referral code format')
+    .max(REFERRAL_CODE_MAX_LENGTH)
+    .regex(REFERRAL_CODE_INPUT_PATTERN, 'Invalid referral code format')
     .optional()
     .nullable(),
 });
@@ -73,6 +74,13 @@ const bookingBaseSchema = z.object({
     .optional(),
   bookingUserId: z.string().uuid().optional(),
   discountCode: z.string().trim().max(40).optional(),
+  manualDiscountAmountInr: z.number().int().min(0).max(500_000).optional(),
+  manualDiscountReason: z
+    .string()
+    .trim()
+    .max(300)
+    .refine((v) => !v || noHtmlChars(v), { message: 'Manual discount reason must not contain HTML or script characters' })
+    .optional(),
   addOns: z
     .array(
       z.object({
@@ -81,12 +89,20 @@ const bookingBaseSchema = z.object({
       }),
     )
     .optional(),
+  bundleProviderServiceIds: z.array(z.string().uuid()).max(20).optional(),
   useSubscriptionCredit: z.boolean().optional(),
   walletCreditsAppliedInr: z.number().int().min(0).max(100_000).optional(),
   paymentMode: z.enum(['direct_to_provider', 'platform', 'mixed']).optional(),
   pincode: z.string().trim().regex(/^[1-9]\d{5}$/, 'Invalid 6-digit Indian pincode').optional(),
   boardingEndDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   allowPastBooking: z.boolean().optional(),
+  bundleEstimatedTotalInr: z.number().int().positive().max(1_000_000).optional(),
+  bundleSummary: z
+    .string()
+    .trim()
+    .max(4000)
+    .refine((v) => !v || noHtmlChars(v), { message: 'Bundle summary must not contain HTML or script characters' })
+    .optional(),
 });
 
 export const serviceBookingCreateSchema = bookingBaseSchema

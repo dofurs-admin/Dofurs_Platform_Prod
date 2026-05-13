@@ -2,8 +2,17 @@ import type { Metadata } from 'next';
 import ContentPageLayout from '@/components/ContentPageLayout';
 
 export const metadata: Metadata = {
-  title: 'Terms & Conditions — Dofurs',
-  description: 'Read the Dofurs terms and conditions governing use of our platform and services.',
+  title: 'Terms & Conditions',
+  description:
+    'Terms and conditions governing your use of the Dofurs pet services platform — bookings, payments, cancellations, provider relationships, and user responsibilities.',
+  alternates: { canonical: 'https://dofurs.in/terms-conditions' },
+  openGraph: {
+    title: 'Terms & Conditions | Dofurs',
+    description: 'Legally binding terms governing access to and use of the Dofurs platform.',
+    url: 'https://dofurs.in/terms-conditions',
+    type: 'website',
+  },
+  robots: { index: true, follow: true },
 };
 
 export default function TermsConditionsPage() {

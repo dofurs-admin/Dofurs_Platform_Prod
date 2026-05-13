@@ -30,6 +30,7 @@ export const footerPolicyLinks = [
 // Navigation dropdown items — explicit hrefs to service landing pages
 export const navServiceItems = [
   { title: 'Grooming', href: '/services/grooming', badge: 'Active' },
+  { title: 'Fur Makeover', href: '/services/grooming#fur-makeover', badge: null },
   { title: 'Pet Birthday', href: '/services/pet-birthday', badge: null },
   { title: 'Pet Boarding', href: '/services/pet-boarding', badge: null },
   { title: 'Vet Visits', href: '/services/vet-visits', badge: null },
@@ -41,6 +42,11 @@ export const services = [
   {
     title: 'Grooming',
     description: 'Professional grooming sessions that keep coats healthy, clean, and camera-ready.',
+    icon: Bath,
+  },
+  {
+    title: 'Fur Makeover',
+    description: 'A great-deal grooming refresh with hair trimming, paw hair trimming, and nail clipping.',
     icon: Bath,
   },
   {

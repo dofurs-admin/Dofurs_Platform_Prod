@@ -53,7 +53,11 @@ export type BookingRecord = {
   cancellation_reason: string | null;
   cancellation_by: 'user' | 'provider' | 'admin' | null;
   price_at_booking: number;
+  discount_amount?: number | null;
+  final_price?: number | null;
   admin_price_reference: number;
+  amount?: number | null;
+  status?: BookingStatus | null;
   provider_notes: string | null;
   internal_notes: string | null;
   payment_mode: 'direct_to_provider' | 'platform' | 'mixed' | string;
@@ -78,6 +82,7 @@ export type CreateBookingInput = {
   providerNotes?: string | null;
   discountCode?: string;
   addOns?: Array<{ id: string; quantity: number }>;
+  bundleProviderServiceIds?: string[];
   useSubscriptionCredit?: boolean;
   paymentMode?: 'direct_to_provider' | 'platform' | 'mixed' | string;
   allowPastBooking?: boolean;

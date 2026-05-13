@@ -4,6 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'In-Home Pet Sitting in Bangalore — Trusted Daily Care | Dofurs',
@@ -36,10 +37,28 @@ const WHAT_IS_INCLUDED = [
   { icon: '🏠', title: 'Home Environment', desc: 'Your pet stays in their own home — familiar smells, sounds, and surroundings.' },
 ];
 
+const sittingServiceSchema = buildServiceSchema({
+  name: 'In-Home Pet Sitting in Bangalore',
+  description:
+    'Verified in-home pet sitters in Bangalore — feeding, walks, play, companionship, and daily updates while you travel or work. Your pet stays in their own home.',
+  url: 'https://dofurs.in/services/pet-sitting',
+  serviceType: 'Pet Sitting',
+  category: 'Pet Care',
+});
+
+const sittingBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Pet Sitting', url: '/services/pet-sitting' },
+]);
+
 export default function PetSittingPage() {
   const notifyCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(sittingServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(sittingBreadcrumbSchema)} />
     <ContentPageLayout
       title="Trusted In-Home Pet Sitting"
       description="Reliable, verified pet sitters who care for your pet in the comfort of their own home — feeding, walks, play, and companionship while you travel or work."
@@ -137,20 +156,7 @@ export default function PetSittingPage() {
         ))}
       </div>
 
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Pet Sitting',
-            provider: { '@type': 'LocalBusiness', name: 'Dofurs', url: 'https://dofurs.in', areaServed: 'Bangalore' },
-            description: 'In-home pet sitting in Bangalore by verified, background-checked sitters. Feeding, walks, play, and companionship.',
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

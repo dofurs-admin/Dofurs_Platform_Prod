@@ -88,11 +88,11 @@ export async function hasRedeemedReferral(supabase: SupabaseClient, refereeUserI
  *  2. Ensures referee hasn't already redeemed
  *  3. Enforces monthly cap (max 5 new referrals per referrer per month)
  *  4. Creates referral_redemptions row with status `pending_first_booking`
- *  5. Grants ₹500 to referee immediately (welcome credit)
- *  6. Increments referrer's total_referrals count
+ *  5. Grants the configured reward to referee immediately (welcome credit)
+ *  6. Increments referrer's total_referrals count for standard referrals
  *  7. Notifies referee
  *
- * Referrer receives ₹500 only after the referee completes their FIRST booking
+ * Referrer receives the configured reward only after the referee completes their FIRST booking
  * (triggered via processReferrerRewardOnFirstBooking, called from the booking
  * completion flow).
  *
@@ -106,13 +106,16 @@ export async function redeemReferralCode(
   const admin = getSupabaseAdminClient();
   const code = rawCode.trim().toUpperCase();
 
-  // 1. Resolve code → referrer
+  const activeBusinessCampaign = await getActiveBusinessReferralCampaignByCode(admin, code);
+
+  // 1. Resolve code → referrer. Business campaigns are attributed to the admin/staff
+  // user who last saved the campaign, so they do not need to overwrite a personal code.
   const codeRow = await resolveReferralCode(admin, code);
-  if (!codeRow) {
+  const referrerUserId = activeBusinessCampaign?.updated_by ?? codeRow?.user_id;
+
+  if (!referrerUserId) {
     return { success: false, message: 'Invalid referral code.' };
   }
-
-  const referrerUserId = codeRow.user_id;
 
   // 2. Block self-referral
   if (referrerUserId === refereeUserId) {
@@ -124,8 +127,6 @@ export async function redeemReferralCode(
   if (alreadyRedeemed) {
     return { success: false, message: 'Referral code already used.' };
   }
-
-  const activeBusinessCampaign = await getActiveBusinessReferralCampaignByCode(admin, code);
 
   // 4. Monthly cap applies to standard referral codes only.
   if (!activeBusinessCampaign) {
@@ -167,7 +168,7 @@ export async function redeemReferralCode(
     .single<{ id: string }>();
   if (redemptionError) throw redemptionError;
 
-  // 6. Grant ₹500 to referee immediately as a welcome credit
+  // 6. Grant welcome credit to referee immediately
   await grantCredits(
     refereeUserId,
     refereeRewardInr,
@@ -176,8 +177,10 @@ export async function redeemReferralCode(
     `Welcome credit from referral code ${code}`,
   );
 
-  // 7. Atomically increment referrer's total_referrals (tracks code uses, not payouts)
-  await admin.rpc('increment_referral_count', { p_user_id: referrerUserId });
+  // 7. Atomically increment standard referrer's total_referrals (tracks code uses, not payouts)
+  if (!activeBusinessCampaign) {
+    await admin.rpc('increment_referral_count', { p_user_id: referrerUserId });
+  }
 
   // 8. Notify referee (fire-and-forget)
   void (async () => {
@@ -202,7 +205,7 @@ export async function redeemReferralCode(
 // ---------------------------------------------------------------------------
 
 /**
- * Grants ₹500 to a referrer when the referee completes their first booking.
+ * Grants the configured reward to a referrer when the referee completes their first booking.
  *
  * Uses an atomic UPDATE (WHERE status = 'pending_first_booking') so that only
  * one concurrent call wins — preventing double-credit if two bookings complete
@@ -236,7 +239,7 @@ export async function processReferrerRewardOnFirstBooking(
 
   const referrerRewardInr = redemption.referrer_reward_inr ?? REFERRAL_REWARD_INR;
 
-  // Grant ₹500 to referrer
+  // Grant configured reward to referrer
   await grantCredits(
     redemption.referrer_user_id,
     referrerRewardInr,

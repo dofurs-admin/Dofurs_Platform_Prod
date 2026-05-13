@@ -5,8 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import AsyncState from '@/components/ui/AsyncState';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
+import AvailabilityCalendar from '@/components/ui/AvailabilityCalendar';
 import { apiRequest } from '@/lib/api/client';
 import { useToast } from '@/components/ui/ToastProvider';
+import { formatSavedAddress } from '@/lib/utils/address';
+import { MAX_PET_AGE_YEARS } from '@/lib/utils/date';
 
 const LocationPinMap = dynamic(() => import('./LocationPinMap'), { ssr: false });
 
@@ -14,6 +17,7 @@ type BookableUser = {
   id: string;
   name: string | null;
   email: string | null;
+  phone: string | null;
 };
 
 type Pet = {
@@ -61,6 +65,18 @@ type CatalogDiscount = {
   applies_to_service_type: string | null;
   first_booking_only: boolean;
   valid_until: string | null;
+};
+
+type ServiceAddonOption = {
+  id: string;
+  addonTemplateId?: string;
+  name: string;
+  description: string | null;
+  price: number;
+  minQuantity: number;
+  maxQuantity: number;
+  defaultQuantity: number;
+  isRequired: boolean;
 };
 
 type DiscountPreview = {
@@ -176,6 +192,7 @@ type CreditWalletResponse = {
 };
 
 type CatalogResponse = {
+  actorRole?: 'user' | 'provider' | 'admin' | 'staff' | null;
   canBookForUsers: boolean;
   bookableUsers: BookableUser[];
   selectedUserId: string | null;
@@ -185,7 +202,27 @@ type CatalogResponse = {
   discounts: CatalogDiscount[];
 };
 
+type QuickCustomerResponse = {
+  success: boolean;
+  user: BookableUser;
+  isNewUser: boolean;
+  inviteSent: boolean;
+};
+
+type QuickPetResponse = {
+  success: boolean;
+  pet: Pet;
+};
+
 type BookingMode = 'home_visit' | 'clinic_visit' | 'teleconsult';
+
+type MultiDayAvailabilityResponse = {
+  availability?: Array<{
+    date: string;
+    is_blocked: boolean;
+    slots: Array<{ is_available: boolean }>;
+  }>;
+};
 
 const STEPS = [
   { id: 1, title: 'User & Address' },
@@ -197,19 +234,6 @@ const STEPS = [
 
 const ADD_ADDRESS_OPTION_VALUE = '__add_new_address__';
 
-function formatAddress(address: SavedAddress) {
-  return [
-    address.address_line_1,
-    address.address_line_2,
-    address.city,
-    address.state,
-    address.pincode,
-    address.country,
-  ]
-    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-    .join(', ');
-}
-
 function resolveBookingMode(value: string | null | undefined): BookingMode {
   if (value === 'clinic_visit' || value === 'teleconsult' || value === 'home_visit') {
     return value;
@@ -218,7 +242,11 @@ function resolveBookingMode(value: string | null | undefined): BookingMode {
   return 'home_visit';
 }
 
-export default function AdminBookingFlow() {
+type AdminBookingFlowProps = {
+  defaultMinimized?: boolean;
+};
+
+export default function AdminBookingFlow({ defaultMinimized = false }: AdminBookingFlowProps) {
   const { showToast } = useToast();
 
   const searchParams = useSearchParams();
@@ -239,6 +267,7 @@ export default function AdminBookingFlow() {
   const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null);
 
   const [bookableUsers, setBookableUsers] = useState<BookableUser[]>([]);
+  const [actorRole, setActorRole] = useState<'user' | 'provider' | 'admin' | 'staff' | null>(null);
   const [pets, setPets] = useState<Pet[]>([]);
   const [catalogServices, setCatalogServices] = useState<CatalogService[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
@@ -249,9 +278,24 @@ export default function AdminBookingFlow() {
   const [hasSearchedUsers, setHasSearchedUsers] = useState(false);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
 
+  const [customerEntryMode, setCustomerEntryMode] = useState<'search' | 'create'>('search');
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [newCustomerNoEmailInvite, setNewCustomerNoEmailInvite] = useState(true);
+  const [newCustomerError, setNewCustomerError] = useState<string | null>(null);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+
   const [selectedBookingUserId, setSelectedBookingUserId] = useState<string | null>(null);
   const [selectedPetIds, setSelectedPetIds] = useState<number[]>([]);
   const [petServiceSelections, setPetServiceSelections] = useState<Record<number, PetServiceSelection>>({});
+  const [isQuickPetFormOpen, setIsQuickPetFormOpen] = useState(false);
+  const [quickPetName, setQuickPetName] = useState('');
+  const [quickPetBreed, setQuickPetBreed] = useState('');
+  const [quickPetAge, setQuickPetAge] = useState('');
+  const [quickPetGender, setQuickPetGender] = useState<'' | 'male' | 'female'>('');
+  const [quickPetError, setQuickPetError] = useState<string | null>(null);
+  const [isSavingQuickPet, setIsSavingQuickPet] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [isSavingAddress, setIsSavingAddress] = useState(false);
@@ -270,6 +314,12 @@ export default function AdminBookingFlow() {
   const [serviceType, setServiceType] = useState<string>('');
   const [discountCode, setDiscountCode] = useState('');
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
+  const [manualDiscountAmountInr, setManualDiscountAmountInr] = useState('');
+  const [manualDiscountReason, setManualDiscountReason] = useState('');
+  const [serviceAddOns, setServiceAddOns] = useState<ServiceAddonOption[]>([]);
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
+  const [isLoadingAddOns, setIsLoadingAddOns] = useState(false);
+  const [isAddOnDropdownOpen, setIsAddOnDropdownOpen] = useState(false);
   const [paymentChoice, setPaymentChoice] = useState<'cash' | 'subscription_credit'>('cash');
   const [walletBalanceInr, setWalletBalanceInr] = useState(0);
   const [walletCreditsToApply, setWalletCreditsToApply] = useState(0);
@@ -282,6 +332,8 @@ export default function AdminBookingFlow() {
   const [slotStartTime, setSlotStartTime] = useState('');
   const [slotEndTime, setSlotEndTime] = useState('');
   const [allowPastSlots, setAllowPastSlots] = useState(false);
+  const [availableDateOptions, setAvailableDateOptions] = useState<string[]>([]);
+  const [isLoadingAvailableDateOptions, setIsLoadingAvailableDateOptions] = useState(false);
 
   const [providerServiceId, setProviderServiceId] = useState<string | null>(null);
   const [providerNotes, setProviderNotes] = useState('');
@@ -293,12 +345,32 @@ export default function AdminBookingFlow() {
     recommendedSlotStartTime: null,
     recommendedProviderServiceId: null,
   });
+  const [serviceOptions, setServiceOptions] = useState<AvailabilityServiceSummary[]>([]);
   const availabilityRequestSeqRef = useRef(0);
 
   const selectedUser = useMemo(
     () => bookableUsers.find((item) => item.id === selectedBookingUserId) ?? null,
     [bookableUsers, selectedBookingUserId],
   );
+
+  const canQuickCreateCustomers = (actorRole === 'admin' || actorRole === 'staff') && !isRescheduleMode;
+
+  const resetNewCustomerForm = useCallback(() => {
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setNewCustomerEmail('');
+    setNewCustomerNoEmailInvite(true);
+    setNewCustomerError(null);
+  }, []);
+
+  const resetQuickPetForm = useCallback(() => {
+    setIsQuickPetFormOpen(false);
+    setQuickPetName('');
+    setQuickPetBreed('');
+    setQuickPetAge('');
+    setQuickPetGender('');
+    setQuickPetError(null);
+  }, []);
 
   const resetStepTwoToFive = useCallback(() => {
     setServiceType('');
@@ -310,6 +382,11 @@ export default function AdminBookingFlow() {
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
+    setServiceAddOns([]);
+    setSelectedAddOns({});
+    setIsAddOnDropdownOpen(false);
     setPaymentChoice('cash');
     setWalletCreditsToApply(0);
     setCreditEligibility(null);
@@ -322,8 +399,24 @@ export default function AdminBookingFlow() {
       recommendedSlotStartTime: null,
       recommendedProviderServiceId: null,
     });
+    setServiceOptions([]);
+    setAvailableDateOptions([]);
     setBookingConfirmation(null);
     setStep(1);
+  }, []);
+
+  const prepareAddAddressModal = useCallback(() => {
+    setNewAddressLabel('Other');
+    setNewAddressLine1('');
+    setNewAddressLine2('');
+    setNewAddressCity('');
+    setNewAddressState('');
+    setNewAddressPincode('');
+    setNewAddressCountry('India');
+    setNewAddressLatitude('');
+    setNewAddressLongitude('');
+    setNewAddressError(null);
+    setShowAddAddressModal(true);
   }, []);
 
   const selectedAddress = useMemo(
@@ -399,19 +492,45 @@ export default function AdminBookingFlow() {
       return 'Not selected';
     }
 
-    return formatAddress(selectedAddress);
+    return formatSavedAddress(selectedAddress);
   }, [selectedAddress]);
 
   const pincode = selectedAddress?.pincode?.trim() ?? '';
   const isFlowCompleted = bookingConfirmation !== null;
+  const [isOrchestratorMinimized, setIsOrchestratorMinimized] = useState(() => defaultMinimized && !isRescheduleMode);
 
   const stepProgress = isFlowCompleted ? 100 : (step / STEPS.length) * 100;
   const availabilityDebug = availability.debug ?? null;
 
   const summaryBaseAmount = (selectedProvider?.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
-  const summaryDiscount = totalSelectedServices > 1 ? 0 : discountPreview?.discountAmount ?? 0;
-  const summaryTotal = discountPreview?.finalAmount ?? summaryBaseAmount;
+  const summaryAddOnAmount = useMemo(
+    () =>
+      serviceAddOns.reduce((sum, addOn) => {
+        const quantity = selectedAddOns[addOn.id] ?? 0;
+        return sum + quantity * addOn.price;
+      }, 0),
+    [selectedAddOns, serviceAddOns],
+  );
+  const canApplyManualDiscount = actorRole === 'admin' || actorRole === 'staff';
+  const promoDiscountAmount = totalSelectedServices > 1 ? 0 : discountPreview?.discountAmount ?? 0;
+  const summarySubtotal = summaryBaseAmount + summaryAddOnAmount;
+  const manualDiscountCap = Math.max(0, summarySubtotal - promoDiscountAmount);
+  const enteredManualDiscountAmount = Number(manualDiscountAmountInr);
+  const manualDiscountAmount = canApplyManualDiscount && Number.isFinite(enteredManualDiscountAmount)
+    ? Math.min(Math.max(0, Math.floor(enteredManualDiscountAmount)), manualDiscountCap)
+    : 0;
+  const summaryDiscount = promoDiscountAmount + manualDiscountAmount;
+  const summaryTotal = Math.max(0, summarySubtotal - summaryDiscount);
   const summaryPayableAfterWallet = Math.max(0, summaryTotal - walletCreditsToApply);
+  const minBookableDate = useMemo(
+    () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
+    [],
+  );
+  const maxBookableDate = useMemo(() => {
+    const now = new Date();
+    now.setDate(now.getDate() + 30);
+    return now.toISOString().split('T')[0];
+  }, []);
 
   const resetAddressDependentState = useCallback(() => {
     setPetServiceSelections({});
@@ -423,10 +542,19 @@ export default function AdminBookingFlow() {
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
+    setServiceAddOns([]);
+    setSelectedAddOns({});
+    setIsAddOnDropdownOpen(false);
     setPaymentChoice('cash');
     setWalletCreditsToApply(0);
     setCreditEligibility(null);
     setSubscriptionCreditUnavailableReason(null);
+    setServiceAddOns([]);
+    setSelectedAddOns({});
+    setIsAddOnDropdownOpen(false);
+    setAvailableDateOptions([]);
     if (step > 1) {
       setStep(1);
     }
@@ -580,18 +708,8 @@ export default function AdminBookingFlow() {
       return;
     }
 
-    setNewAddressLabel('Other');
-    setNewAddressLine1('');
-    setNewAddressLine2('');
-    setNewAddressCity('');
-    setNewAddressState('');
-    setNewAddressPincode('');
-    setNewAddressCountry('India');
-    setNewAddressLatitude('');
-    setNewAddressLongitude('');
-    setNewAddressError(null);
-    setShowAddAddressModal(true);
-  }, [selectedBookingUserId, showToast]);
+    prepareAddAddressModal();
+  }, [prepareAddAddressModal, selectedBookingUserId, showToast]);
 
   const closeAddAddressModal = useCallback(() => {
     setShowAddAddressModal(false);
@@ -744,6 +862,8 @@ export default function AdminBookingFlow() {
     setSlotEndTime('');
     setProviderServiceId(null);
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
   }, []);
 
   const handlePetQuantityChange = useCallback((selectedPetId: number, quantity: number) => {
@@ -783,6 +903,8 @@ export default function AdminBookingFlow() {
       setSlotEndTime('');
       setProviderServiceId(null);
       setDiscountPreview(null);
+      setManualDiscountAmountInr('');
+      setManualDiscountReason('');
     },
     [selectedPetIds, showToast],
   );
@@ -812,8 +934,114 @@ export default function AdminBookingFlow() {
       return availability.providers;
     }
 
-    return availability.providers.filter((provider) => provider.availableForSelectedSlot);
+    const providersForSelectedSlot = availability.providers.filter((provider) => provider.availableForSelectedSlot);
+    return providersForSelectedSlot.length > 0 ? providersForSelectedSlot : availability.providers;
   }, [allowPastSlots, availability.providers, bookingDate, slotStartTime]);
+
+  const hasProviderForSelectedSlot = useMemo(
+    () => availability.providers.some((provider) => provider.availableForSelectedSlot),
+    [availability.providers],
+  );
+
+  const loadAvailableDateOptions = useCallback(async () => {
+    if (allowPastSlots || !pincode || !serviceType || step !== 3) {
+      setAvailableDateOptions([]);
+      setIsLoadingAvailableDateOptions(false);
+      return;
+    }
+
+    setIsLoadingAvailableDateOptions(true);
+
+    try {
+      let providerIds = Array.from(new Set(availability.providers.map((provider) => provider.providerId))).slice(0, 10);
+
+      if (providerIds.length === 0) {
+        const params = new URLSearchParams({ pincode, serviceType });
+
+        if (selectedServiceTypesForBundle.length > 0) {
+          params.set('serviceTypes', selectedServiceTypesForBundle.join(','));
+        }
+
+        const providerSnapshot = await apiRequest<AdminFlowAvailabilityResponse>(
+          `/api/bookings/admin-flow-availability?${params.toString()}`,
+        );
+
+        providerIds = Array.from(new Set((providerSnapshot.providers ?? []).map((provider) => provider.providerId))).slice(0, 10);
+      }
+
+      if (providerIds.length === 0) {
+        setAvailableDateOptions([]);
+        return;
+      }
+
+      const dateAvailabilityResponses = await Promise.all(
+        providerIds.map(async (providerId) => {
+          const params = new URLSearchParams({
+            providerId: String(providerId),
+            fromDate: minBookableDate,
+            toDate: maxBookableDate,
+          });
+
+          try {
+            return await apiRequest<MultiDayAvailabilityResponse>(`/api/bookings/availability-calendar?${params.toString()}`);
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      const availableDateSet = new Set<string>();
+
+      for (const response of dateAvailabilityResponses) {
+        if (!response?.availability) {
+          continue;
+        }
+
+        for (const day of response.availability) {
+          if (day.is_blocked) {
+            continue;
+          }
+
+          const hasAvailableSlots = (day.slots ?? []).some((slot) => slot.is_available);
+          if (hasAvailableSlots) {
+            availableDateSet.add(day.date);
+          }
+        }
+      }
+
+      const sortedAvailableDates = Array.from(availableDateSet)
+        .filter((date) => date >= minBookableDate && date <= maxBookableDate)
+        .sort((left, right) => left.localeCompare(right));
+
+      setAvailableDateOptions(sortedAvailableDates);
+
+      if (sortedAvailableDates.length === 0) {
+        return;
+      }
+
+      if (!bookingDate || !sortedAvailableDates.includes(bookingDate)) {
+        setBookingDate(sortedAvailableDates[0]);
+        setSlotStartTime('');
+        setSlotEndTime('');
+      }
+    } finally {
+      setIsLoadingAvailableDateOptions(false);
+    }
+  }, [
+    allowPastSlots,
+    availability.providers,
+    bookingDate,
+    maxBookableDate,
+    minBookableDate,
+    pincode,
+    selectedServiceTypesForBundle,
+    serviceType,
+    step,
+  ]);
+
+  useEffect(() => {
+    void loadAvailableDateOptions();
+  }, [loadAvailableDateOptions]);
 
   const loadCatalog = useCallback(async (nextUserId: string | null) => {
     const searchParams = new URLSearchParams();
@@ -826,6 +1054,7 @@ export default function AdminBookingFlow() {
       `/api/bookings/catalog${searchParams.toString() ? `?${searchParams.toString()}` : ''}`,
     );
 
+    setActorRole(payload.actorRole ?? null);
     setBookableUsers(payload.bookableUsers ?? []);
     setPets(payload.pets ?? []);
     setCatalogServices(payload.services ?? []);
@@ -847,7 +1076,10 @@ export default function AdminBookingFlow() {
 
     // Reset downstream choices when user context changes.
     resetStepTwoToFive();
-  }, [resetStepTwoToFive]);
+    resetQuickPetForm();
+
+    return payload;
+  }, [resetQuickPetForm, resetStepTwoToFive]);
 
   useEffect(() => {
     let isMounted = true;
@@ -984,6 +1216,8 @@ export default function AdminBookingFlow() {
         setProviderServiceId(null);
         setDiscountCode('');
         setDiscountPreview(null);
+        setManualDiscountAmountInr('');
+        setManualDiscountReason('');
         setProviderNotes('');
 
         // Jump to date & slot step so admin can pick new schedule
@@ -1068,6 +1302,7 @@ export default function AdminBookingFlow() {
           recommendedSlotStartTime: null,
           recommendedProviderServiceId: null,
         });
+        setServiceOptions([]);
         return;
       }
 
@@ -1106,6 +1341,12 @@ export default function AdminBookingFlow() {
 
       if (availabilityDebugEnabled && payload.debug && (payload.services.length === 0 || payload.slotOptions.length === 0)) {
         console.info('[AdminBookingFlow] availability-debug', payload.debug);
+      }
+
+      if (!targetServiceType && (!targetServiceTypes || targetServiceTypes.length === 0)) {
+        setServiceOptions(payload.services);
+      } else if ((payload.services?.length ?? 0) > 0) {
+        setServiceOptions((previous) => (previous.length > 0 ? previous : payload.services));
       }
 
       setAvailability(payload);
@@ -1180,6 +1421,81 @@ export default function AdminBookingFlow() {
   }, [allowPastSlots, bookingDate, pincode, refreshAvailability, selectedServiceTypesForBundle, serviceType, slotStartTime, showToast]);
 
   useEffect(() => {
+    if (totalSelectedServices > 1 || !serviceType) {
+      setServiceAddOns([]);
+      setSelectedAddOns({});
+      return;
+    }
+
+    const normalizedServiceType = serviceType.trim().toLowerCase();
+    const serviceLookupId =
+      providerServiceId ??
+      availability.providers.find(
+        (provider) => provider.serviceType.trim().toLowerCase() === normalizedServiceType,
+      )?.providerServiceId ??
+      null;
+
+    if (!serviceLookupId) {
+      setServiceAddOns([]);
+      setSelectedAddOns({});
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadServiceAddOns() {
+      setIsLoadingAddOns(true);
+
+      try {
+        const payload = await apiRequest<{ success: boolean; data: ServiceAddonOption[] }>(
+          `/api/services/addons-v2/${serviceLookupId}`,
+        );
+
+        if (!isMounted) {
+          return;
+        }
+
+        const nextOptions = payload.data ?? [];
+        setServiceAddOns(nextOptions);
+
+        setSelectedAddOns((previous) => {
+          const next: Record<string, number> = {};
+
+          for (const addOn of nextOptions) {
+            const minQty = addOn.isRequired ? Math.max(1, addOn.minQuantity) : Math.max(0, addOn.minQuantity);
+            const maxQty = Math.max(minQty, addOn.maxQuantity);
+            const defaultQty = Math.max(minQty, Math.min(maxQty, addOn.defaultQuantity));
+            const previousQty = previous[addOn.id] ?? 0;
+
+            if (addOn.isRequired) {
+              next[addOn.id] = Math.max(defaultQty, previousQty, 1);
+            } else if (previousQty > 0) {
+              next[addOn.id] = Math.max(minQty, Math.min(maxQty, previousQty));
+            }
+          }
+
+          return next;
+        });
+      } catch {
+        if (isMounted) {
+          setServiceAddOns([]);
+          setSelectedAddOns({});
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingAddOns(false);
+        }
+      }
+    }
+
+    void loadServiceAddOns();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [availability.providers, providerServiceId, serviceType, totalSelectedServices]);
+
+  useEffect(() => {
     if (!serviceType) {
       return;
     }
@@ -1210,6 +1526,8 @@ export default function AdminBookingFlow() {
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
 
     if (pincode) {
       startTransition(async () => {
@@ -1292,6 +1610,120 @@ export default function AdminBookingFlow() {
       showToast('User search failed.', 'error');
     } finally {
       setIsSearchingUsers(false);
+    }
+  }
+
+  async function createQuickCustomer() {
+    if (!canQuickCreateCustomers) {
+      showToast('Only admin or staff can create customers from this flow.', 'error');
+      return;
+    }
+
+    const name = newCustomerName.trim();
+    const phone = newCustomerPhone.trim();
+    const email = newCustomerEmail.trim().toLowerCase();
+
+    if (name.length < 2) {
+      setNewCustomerError('Customer name should be at least 2 characters.');
+      return;
+    }
+
+    if (phone.replace(/\D/g, '').length < 10) {
+      setNewCustomerError('Enter a valid Indian phone number.');
+      return;
+    }
+
+    if (!newCustomerNoEmailInvite && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setNewCustomerError('Enter a valid email address or keep phone-only profile selected.');
+      return;
+    }
+
+    setIsCreatingCustomer(true);
+    setNewCustomerError(null);
+
+    try {
+      const payload = await apiRequest<QuickCustomerResponse>('/api/bookings/customers/quick-create', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          phone,
+          email: newCustomerNoEmailInvite ? '' : email,
+          noEmailInvite: newCustomerNoEmailInvite,
+        }),
+      });
+
+      const catalogPayload = await loadCatalog(payload.user.id);
+      setBookingUserSearch(payload.user.phone ?? payload.user.email ?? payload.user.name ?? '');
+      setCustomerEntryMode('search');
+      resetNewCustomerForm();
+      showToast(
+        payload.isNewUser ? 'Customer created and selected.' : 'Existing customer selected for this booking.',
+        'success',
+      );
+
+      if ((catalogPayload.addresses ?? []).length === 0) {
+        prepareAddAddressModal();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to create customer.';
+      setNewCustomerError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsCreatingCustomer(false);
+    }
+  }
+
+  async function createQuickPet() {
+    if (!selectedBookingUserId) {
+      setQuickPetError('Select a customer first.');
+      return;
+    }
+
+    const name = quickPetName.trim();
+    const age = quickPetAge.trim() ? Number.parseInt(quickPetAge.trim(), 10) : null;
+
+    if (!name) {
+      setQuickPetError('Pet name is required.');
+      return;
+    }
+
+    if (age !== null && (!Number.isFinite(age) || age < 0 || age > MAX_PET_AGE_YEARS)) {
+      setQuickPetError(`Pet age must be between 0 and ${MAX_PET_AGE_YEARS}.`);
+      return;
+    }
+
+    setIsSavingQuickPet(true);
+    setQuickPetError(null);
+
+    try {
+      const payload = await apiRequest<QuickPetResponse>(
+        `/api/bookings/user-pets?userId=${encodeURIComponent(selectedBookingUserId)}`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            breed: quickPetBreed.trim() || null,
+            age,
+            gender: quickPetGender || null,
+          }),
+        },
+      );
+
+      resetAddressDependentState();
+      setPets((previous) => [payload.pet, ...previous.filter((pet) => pet.id !== payload.pet.id)]);
+      setSelectedPetIds((previous) => Array.from(new Set([...previous, payload.pet.id])));
+      setPetServiceSelections((previous) => ({
+        ...previous,
+        [payload.pet.id]: previous[payload.pet.id] ?? { serviceType: null, quantity: 1 },
+      }));
+      resetQuickPetForm();
+      showToast('Pet added for customer.', 'success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to add pet.';
+      setQuickPetError(message);
+      showToast(message, 'error');
+    } finally {
+      setIsSavingQuickPet(false);
     }
   }
 
@@ -1486,61 +1918,67 @@ export default function AdminBookingFlow() {
       return;
     }
 
-    const addMinutesToTime = (time: string, minutesToAdd: number) => {
-      const [hours, minutes] = time.split(':').map((value) => Number(value));
-      const base = new Date();
-      base.setHours(Number.isFinite(hours) ? hours : 0, Number.isFinite(minutes) ? minutes : 0, 0, 0);
-      base.setMinutes(base.getMinutes() + minutesToAdd);
-      return `${String(base.getHours()).padStart(2, '0')}:${String(base.getMinutes()).padStart(2, '0')}`;
-    };
+    const normalizedAddOns = Object.entries(selectedAddOns)
+      .filter(([, quantity]) => quantity > 0)
+      .map(([id, quantity]) => ({ id, quantity }));
+
+    const bundleSummary =
+      bundleEntries.length > 1
+        ? [
+            `Bundled services (${bundleEntries.length})`,
+            ...bundleEntries.map((entry, index) => `${index + 1}. Pet ${entry.petId} | Service ${entry.providerServiceId}`),
+          ].join('\n')
+        : null;
+
+    const mergedProviderNotes = [bundleSummary, providerNotes.trim()]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join('\n\n');
 
     startTransition(async () => {
       try {
-        let elapsedMinutes = 0;
-        let firstCreatedBookingId: number | undefined;
-        const createdBookingIds: number[] = [];
+        const useSubscriptionCredit = paymentChoice === 'subscription_credit';
+        const totalBundleAmount = summaryBaseAmount + summaryAddOnAmount;
+        const firstEntry = bundleEntries[0];
 
-        for (const [index, entry] of bundleEntries.entries()) {
-          const useSubscriptionCredit = paymentChoice === 'subscription_credit';
-          const walletCreditsForEntry = useSubscriptionCredit ? 0 : index === 0 ? walletCreditsToApply : 0;
+        const result = await apiRequest<BookingCreateResponse>('/api/bookings/create', {
+          method: 'POST',
+          body: JSON.stringify({
+            petId: firstEntry.petId,
+            providerId: selectedProvider.providerId,
+            providerServiceId: firstEntry.providerServiceId,
+            bookingDate,
+            startTime: slotStartTime,
+            endTime: allowPastSlots && bundleEntries.length === 1 ? slotEndTime : undefined,
+            bookingMode,
+            locationAddress: bookingMode === 'home_visit' ? formatSavedAddress(selectedAddress) : null,
+            latitude: bookingMode === 'home_visit' ? selectedAddress.latitude : null,
+            longitude: bookingMode === 'home_visit' ? selectedAddress.longitude : null,
+            providerNotes: mergedProviderNotes || null,
+            bookingUserId: selectedBookingUserId,
+            discountCode: bundleEntries.length === 1 && discountCode.trim() ? discountCode.trim().toUpperCase() : undefined,
+            manualDiscountAmountInr: manualDiscountAmount > 0 ? manualDiscountAmount : undefined,
+            manualDiscountReason: manualDiscountAmount > 0 && manualDiscountReason.trim()
+              ? manualDiscountReason.trim()
+              : undefined,
+            addOns: normalizedAddOns.length > 0 ? normalizedAddOns : undefined,
+            useSubscriptionCredit,
+            walletCreditsAppliedInr: !useSubscriptionCredit && walletCreditsToApply > 0 ? walletCreditsToApply : undefined,
+            paymentMode: useSubscriptionCredit ? 'platform' : 'direct_to_provider',
+            allowPastBooking: allowPastSlots,
+            bundleEstimatedTotalInr: bundleEntries.length > 1 ? Math.max(1, Math.round(totalBundleAmount)) : undefined,
+            bundleSummary: bundleEntries.length > 1 ? bundleSummary ?? undefined : undefined,
+            bundleProviderServiceIds:
+              bundleEntries.length > 1
+                ? Array.from(new Set(bundleEntries.map((entry) => entry.providerServiceId)))
+                : undefined,
+          }),
+        });
 
-          const result = await apiRequest<BookingCreateResponse>('/api/bookings/create', {
-            method: 'POST',
-            body: JSON.stringify({
-              petId: entry.petId,
-              providerId: selectedProvider.providerId,
-              providerServiceId: entry.providerServiceId,
-              bookingDate,
-              startTime: addMinutesToTime(slotStartTime, elapsedMinutes),
-              endTime: allowPastSlots && bundleEntries.length === 1 ? slotEndTime : undefined,
-              bookingMode,
-              locationAddress: bookingMode === 'home_visit' ? formatAddress(selectedAddress) : null,
-              latitude: bookingMode === 'home_visit' ? selectedAddress.latitude : null,
-              longitude: bookingMode === 'home_visit' ? selectedAddress.longitude : null,
-              providerNotes: providerNotes.trim() || null,
-              bookingUserId: selectedBookingUserId,
-              discountCode: bundleEntries.length === 1 && index === 0 && discountCode.trim() ? discountCode.trim().toUpperCase() : undefined,
-              useSubscriptionCredit,
-              walletCreditsAppliedInr: walletCreditsForEntry > 0 ? walletCreditsForEntry : undefined,
-              paymentMode: useSubscriptionCredit ? 'platform' : 'direct_to_provider',
-              allowPastBooking: allowPastSlots,
-            }),
-          });
-
-          if (index === 0 && result.booking?.id) {
-            firstCreatedBookingId = result.booking.id;
-          }
-
-          if (result.booking?.id) {
-            createdBookingIds.push(result.booking.id);
-          }
-
-          elapsedMinutes += entry.durationMinutes;
-        }
+        const createdBookingIds = result.booking?.id ? [result.booking.id] : [];
 
         // In reschedule mode, cancel the original booking after new one is created
         if (isRescheduleMode) {
-          await cancelOriginalBookingAfterReschedule(firstCreatedBookingId);
+          await cancelOriginalBookingAfterReschedule(result.booking?.id);
           showToast(
             `Booking rescheduled successfully. Old booking #${rescheduleBookingId} cancelled.`,
             'success',
@@ -1556,9 +1994,9 @@ export default function AdminBookingFlow() {
           bookingDate,
           startTime: slotStartTime,
           endTime: slotEndTime,
-          address: formatAddress(selectedAddress),
+          address: formatSavedAddress(selectedAddress),
           paymentMode: paymentChoice,
-          totalAmount: summaryBaseAmount,
+          totalAmount: summaryBaseAmount + summaryAddOnAmount,
           discountAmount: summaryDiscount,
           netAmount: summaryPayableAfterWallet,
           offlineMode: allowPastSlots,
@@ -1579,18 +2017,30 @@ export default function AdminBookingFlow() {
     >
       <div className="space-y-5" data-flow-state={isPending ? 'working' : 'ready'}>
         <div className="space-y-3">
-          <div>
-            <h3 className="text-lg font-semibold text-neutral-900 sm:text-xl">
-              {isRescheduleMode ? `Reschedule Booking #${rescheduleBookingId}` : 'Admin Booking Orchestrator'}
-            </h3>
-            <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
-              {isRescheduleMode
-                ? 'Pick a new date, time slot, and provider for this booking.'
-                : 'Structured 5-step flow with pincode-aware service, slot, and provider matching.'}
-            </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-neutral-900 sm:text-xl">
+                {isRescheduleMode ? `Reschedule Booking #${rescheduleBookingId}` : 'Admin Booking Orchestrator'}
+              </h3>
+              <p className="mt-1 text-xs text-neutral-600 sm:text-sm">
+                {isRescheduleMode
+                  ? 'Pick a new date, time slot, and provider for this booking.'
+                  : 'Structured 5-step flow with pincode-aware service, slot, and provider matching.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsOrchestratorMinimized((previous) => !previous)}
+              className="rounded-lg border border-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 hover:border-neutral-300"
+              aria-expanded={!isOrchestratorMinimized}
+            >
+              {isOrchestratorMinimized ? 'Expand' : 'Minimize'}
+            </button>
           </div>
 
-          <div className="pb-1">
+          {!isOrchestratorMinimized ? (
+            <>
+              <div className="pb-1">
             <div className="flex flex-wrap items-center gap-2 sm:inline-flex sm:min-w-max sm:gap-2">
               {STEPS.map((item, index) => {
                 const isActive = !isFlowCompleted && item.id === step;
@@ -1773,72 +2223,274 @@ export default function AdminBookingFlow() {
               </div>
             </details>
           ) : null}
+            </>
+          ) : (
+            <p className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-600">
+              Orchestrator is minimized. Click Expand to continue creating or rescheduling bookings.
+            </p>
+          )}
         </div>
 
-        {!isFlowCompleted && step === 1 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 1 ? (
           <section className="space-y-4">
             <h4 className="text-sm font-semibold text-neutral-900 sm:text-base">Step 1. Select User, Pet, Address</h4>
             <p className="mt-1 text-xs text-neutral-600 sm:text-sm">Search customer, then choose pet and exact service address.</p>
 
-            <form
-              className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void searchUsers();
-              }}
-            >
-              <input
-                value={bookingUserSearch}
-                onChange={(event) => setBookingUserSearch(event.target.value)}
-                placeholder="Search customer"
-                className="h-10 w-full rounded-xl border border-neutral-200 px-3 text-sm sm:h-11"
-              />
-              <button
-                type="submit"
-                disabled={isSearchingUsers}
-                className="h-10 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold hover:border-coral/60 sm:h-11 sm:w-auto"
-              >
-                {isSearchingUsers ? 'Searching...' : 'Search'}
-              </button>
-            </form>
+            {canQuickCreateCustomers ? (
+              <div className="mt-3 grid gap-2 rounded-xl border border-neutral-200 bg-neutral-50 p-2 sm:mt-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerEntryMode('search');
+                    setNewCustomerError(null);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${
+                    customerEntryMode === 'search' ? 'border-coral bg-white text-neutral-900' : 'border-transparent text-neutral-600 hover:bg-white'
+                  }`}
+                >
+                  Search existing customer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomerEntryMode('create');
+                    setHasSearchedUsers(false);
+                    setSearchResults([]);
+                  }}
+                  className={`rounded-lg border px-3 py-2 text-left text-sm font-semibold transition ${
+                    customerEntryMode === 'create' ? 'border-coral bg-white text-neutral-900' : 'border-transparent text-neutral-600 hover:bg-white'
+                  }`}
+                >
+                  Create new customer
+                </button>
+              </div>
+            ) : null}
 
-            <div className="mt-2 max-h-44 space-y-2 overflow-auto rounded-xl border border-neutral-200 p-2 sm:mt-3 sm:max-h-48">
-              {isSearchingUsers ? <p className="text-xs text-neutral-500">Searching users...</p> : null}
-              {!isSearchingUsers && !hasSearchedUsers ? <p className="text-xs text-neutral-500">Search for a customer to begin.</p> : null}
-              {!isSearchingUsers && hasSearchedUsers && searchResults.length === 0 ? (
-                <p className="text-xs text-neutral-500">No matching users.</p>
-              ) : null}
-              {searchResults.map((item) => {
-                const selected = selectedBookingUserId === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      startTransition(async () => {
-                        await loadCatalog(item.id);
-                      });
+            {customerEntryMode === 'create' && canQuickCreateCustomers ? (
+              <form
+                className="mt-3 rounded-xl border border-coral/30 bg-orange-50/70 p-3 sm:mt-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void createQuickCustomer();
+                }}
+              >
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Customer name
+                    <input
+                      value={newCustomerName}
+                      onChange={(event) => setNewCustomerName(event.target.value)}
+                      placeholder="Customer full name"
+                      className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Phone
+                    <input
+                      value={newCustomerPhone}
+                      onChange={(event) => setNewCustomerPhone(event.target.value)}
+                      placeholder="9876543210 or +919876543210"
+                      className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                </div>
+
+                <label className="mt-3 inline-flex items-start gap-2 rounded-xl bg-white/80 px-3 py-2 text-xs text-neutral-700">
+                  <input
+                    type="checkbox"
+                    checked={newCustomerNoEmailInvite}
+                    onChange={(event) => {
+                      setNewCustomerNoEmailInvite(event.target.checked);
+                      if (event.target.checked) {
+                        setNewCustomerEmail('');
+                      }
                     }}
-                    className={`flex w-full flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between ${
-                      selected ? 'border-coral bg-orange-50' : 'border-neutral-200 bg-white hover:border-coral/50'
-                    }`}
+                    className="mt-0.5"
+                  />
+                  <span>Create phone-only profile without email invite.</span>
+                </label>
+
+                {!newCustomerNoEmailInvite ? (
+                  <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Email
+                    <input
+                      type="email"
+                      value={newCustomerEmail}
+                      onChange={(event) => setNewCustomerEmail(event.target.value)}
+                      placeholder="customer@example.com"
+                      className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                ) : null}
+
+                {newCustomerError ? <p className="mt-3 text-xs font-medium text-red-600">{newCustomerError}</p> : null}
+
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={resetNewCustomerForm}
+                    disabled={isCreatingCustomer}
+                    className="h-10 rounded-xl border border-neutral-200 bg-white px-4 text-sm font-semibold text-neutral-700 disabled:opacity-60"
                   >
-                    <span className="font-medium text-neutral-900">{item.name?.trim() || item.email || item.id}</span>
-                    {item.email ? <span className="text-xs text-neutral-500">{item.email}</span> : null}
+                    Clear
                   </button>
-                );
-              })}
-            </div>
+                  <button
+                    type="submit"
+                    disabled={isCreatingCustomer}
+                    className="h-10 rounded-xl bg-coral px-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {isCreatingCustomer ? 'Creating...' : 'Create & select'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <form
+                  className="mt-3 flex flex-col gap-2 sm:mt-4 sm:flex-row"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void searchUsers();
+                  }}
+                >
+                  <input
+                    value={bookingUserSearch}
+                    onChange={(event) => setBookingUserSearch(event.target.value)}
+                    placeholder="Search customer by name, phone, or email"
+                    className="h-10 w-full rounded-xl border border-neutral-200 px-3 text-sm sm:h-11"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSearchingUsers}
+                    className="h-10 w-full rounded-xl border border-neutral-200 px-4 text-sm font-semibold hover:border-coral/60 sm:h-11 sm:w-auto"
+                  >
+                    {isSearchingUsers ? 'Searching...' : 'Search'}
+                  </button>
+                </form>
+
+                <div className="mt-2 max-h-44 space-y-2 overflow-auto rounded-xl border border-neutral-200 p-2 sm:mt-3 sm:max-h-48">
+                  {isSearchingUsers ? <p className="text-xs text-neutral-500">Searching users...</p> : null}
+                  {!isSearchingUsers && !hasSearchedUsers ? <p className="text-xs text-neutral-500">Search for a customer to begin.</p> : null}
+                  {!isSearchingUsers && hasSearchedUsers && searchResults.length === 0 ? (
+                    <p className="text-xs text-neutral-500">No matching users.</p>
+                  ) : null}
+                  {searchResults.map((item) => {
+                    const selected = selectedBookingUserId === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          startTransition(async () => {
+                            await loadCatalog(item.id);
+                          });
+                        }}
+                        className={`flex w-full flex-col items-start gap-1 rounded-lg border px-3 py-2 text-left text-sm sm:flex-row sm:items-center sm:justify-between ${
+                          selected ? 'border-coral bg-orange-50' : 'border-neutral-200 bg-white hover:border-coral/50'
+                        }`}
+                      >
+                        <span className="font-medium text-neutral-900">{item.name?.trim() || item.email || item.phone || item.id}</span>
+                        <span className="flex flex-wrap gap-2 text-xs text-neutral-500">
+                          {item.phone ? <span>{item.phone}</span> : null}
+                          {item.email ? <span>{item.email}</span> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
 
             {selectedUser ? (
               <div className="mt-4 rounded-xl border border-coral/30 bg-orange-50 px-3 py-2 text-sm text-neutral-700">
-                <p className="font-semibold text-neutral-900">Selected customer: {selectedUser.name?.trim() || selectedUser.email || selectedUser.id}</p>
+                <p className="font-semibold text-neutral-900">Selected customer: {selectedUser.name?.trim() || selectedUser.email || selectedUser.phone || selectedUser.id}</p>
+                <p className="mt-1 flex flex-wrap gap-2 text-xs text-neutral-600">
+                  {selectedUser.phone ? <span>{selectedUser.phone}</span> : null}
+                  {selectedUser.email ? <span>{selectedUser.email}</span> : null}
+                </p>
               </div>
             ) : null}
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Pets</label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-neutral-500">Pets</label>
+                  {canQuickCreateCustomers && selectedUser ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsQuickPetFormOpen((current) => !current);
+                        setQuickPetError(null);
+                      }}
+                      className="rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-semibold text-neutral-700 hover:border-coral/50"
+                    >
+                      {isQuickPetFormOpen ? 'Close' : 'Quick add pet'}
+                    </button>
+                  ) : null}
+                </div>
+                {isQuickPetFormOpen ? (
+                  <div className="mb-2 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Pet name
+                        <input
+                          value={quickPetName}
+                          onChange={(event) => setQuickPetName(event.target.value)}
+                          placeholder="Pet name"
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Breed
+                        <input
+                          value={quickPetBreed}
+                          onChange={(event) => setQuickPetBreed(event.target.value)}
+                          placeholder="Optional"
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Age
+                        <input
+                          value={quickPetAge}
+                          onChange={(event) => setQuickPetAge(event.target.value.replace(/\D/g, '').slice(0, 2))}
+                          placeholder="Optional"
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        />
+                      </label>
+                      <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                        Gender
+                        <select
+                          value={quickPetGender}
+                          onChange={(event) => setQuickPetGender(event.target.value as '' | 'male' | 'female')}
+                          className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                        >
+                          <option value="">Optional</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                        </select>
+                      </label>
+                    </div>
+                    {quickPetError ? <p className="mt-2 text-xs font-medium text-red-600">{quickPetError}</p> : null}
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={resetQuickPetForm}
+                        disabled={isSavingQuickPet}
+                        className="h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void createQuickPet()}
+                        disabled={isSavingQuickPet}
+                        className="h-9 rounded-xl bg-coral px-3 text-xs font-semibold text-white disabled:opacity-60"
+                      >
+                        {isSavingQuickPet ? 'Adding...' : 'Add pet'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="max-h-44 space-y-2 overflow-auto rounded-xl border border-neutral-200 p-2">
                   {pets.length === 0 ? <p className="text-xs text-neutral-500">No pets available</p> : null}
                   {pets.map((pet) => {
@@ -1885,7 +2537,7 @@ export default function AdminBookingFlow() {
                   ))}
                   <option value={ADD_ADDRESS_OPTION_VALUE}>+ Add new address</option>
                 </select>
-                <p className="mt-1 text-xs text-neutral-500">Tip: choose `+ Add new address` to create and save a fresh address for this customer.</p>
+                <p className="mt-1 text-xs text-neutral-500">Tip: choose + Add new address to create and save a fresh address for this customer.</p>
               </div>
             </div>
 
@@ -2057,7 +2709,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 2 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 2 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 2. Select Service & Apply Discounts</h4>
             <p className="mt-1 text-sm text-neutral-600">Services are filtered by selected address pincode.</p>
@@ -2074,7 +2726,7 @@ export default function AdminBookingFlow() {
                 <p className="text-xs font-semibold text-neutral-700">{totalSelectedServices} services selected</p>
               </div>
 
-              {availability.services.length === 0 ? (
+              {serviceOptions.length === 0 ? (
                 <p className="text-sm text-neutral-500">No active services are currently available for pincode {pincode || 'N/A'}.</p>
               ) : selectedPetIds.length === 0 ? (
                 <p className="text-sm text-neutral-500">Select at least one pet in Step 1.</p>
@@ -2117,7 +2769,7 @@ export default function AdminBookingFlow() {
                         </div>
 
                         <div className="grid gap-2 md:grid-cols-2">
-                          {availability.services.map((item) => {
+                          {serviceOptions.map((item) => {
                             const selected = selection.serviceType === item.serviceType;
                             return (
                               <button
@@ -2138,6 +2790,89 @@ export default function AdminBookingFlow() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 rounded-xl bg-neutral-50/80 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Add-ons (Optional)</p>
+              {totalSelectedServices > 1 ? (
+                <p className="mt-2 text-sm text-amber-700">
+                  Add-ons are currently available for single-service bookings only in admin flow.
+                </p>
+              ) : !serviceType ? (
+                <p className="mt-2 text-sm text-neutral-500">Select a service to view available add-ons.</p>
+              ) : isLoadingAddOns ? (
+                <p className="mt-2 text-sm text-neutral-500">Loading add-ons...</p>
+              ) : serviceAddOns.length === 0 ? (
+                <p className="mt-2 text-sm text-neutral-500">No add-ons configured for this service.</p>
+              ) : (
+                <div className="relative mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddOnDropdownOpen((previous) => !previous)}
+                    className="flex h-11 w-full items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 text-left text-sm text-neutral-900"
+                  >
+                    <span>
+                      {Object.values(selectedAddOns).filter((quantity) => quantity > 0).length > 0
+                        ? `${Object.values(selectedAddOns).filter((quantity) => quantity > 0).length} add-on(s) selected`
+                        : 'Select add-ons'}
+                    </span>
+                    <span className="text-xs text-neutral-500">{isAddOnDropdownOpen ? 'Hide' : 'Show'}</span>
+                  </button>
+
+                  {isAddOnDropdownOpen ? (
+                    <div className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-xl border border-neutral-200 bg-white p-2 shadow-lg">
+                      {serviceAddOns.map((addOn) => {
+                        const minQty = addOn.isRequired ? Math.max(1, addOn.minQuantity) : Math.max(0, addOn.minQuantity);
+                        const maxQty = Math.max(minQty, addOn.maxQuantity);
+                        const defaultQty = Math.max(minQty, Math.min(maxQty, addOn.defaultQuantity));
+                        const isChecked = (selectedAddOns[addOn.id] ?? 0) > 0;
+
+                        const toggleAddOnSelection = () => {
+                          if (addOn.isRequired) {
+                            return;
+                          }
+
+                          setSelectedAddOns((previous) => {
+                            const next = { ...previous };
+                            const currentlySelected = (previous[addOn.id] ?? 0) > 0;
+
+                            if (currentlySelected) {
+                              delete next[addOn.id];
+                            } else {
+                              next[addOn.id] = Math.max(defaultQty, 1);
+                            }
+
+                            return next;
+                          });
+                        };
+
+                        return (
+                          <button
+                            key={addOn.id}
+                            type="button"
+                            onClick={toggleAddOnSelection}
+                            disabled={addOn.isRequired}
+                            aria-pressed={isChecked}
+                            className="flex w-full items-start gap-2 rounded-lg px-2 py-2 text-left hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              readOnly
+                              tabIndex={-1}
+                              className="pointer-events-none mt-0.5 h-4 w-4 accent-coral"
+                            />
+                            <span className="text-sm text-neutral-800">
+                              {addOn.name} - Rs.{addOn.price}
+                              {addOn.isRequired ? ' (required)' : ''}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -2191,10 +2926,42 @@ export default function AdminBookingFlow() {
                 </div>
               ) : null}
 
+              {canApplyManualDiscount ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Manual discount (Rs.)
+                    <input
+                      inputMode="numeric"
+                      value={manualDiscountAmountInr}
+                      onBlur={() => {
+                        if (manualDiscountAmountInr && manualDiscountAmount !== enteredManualDiscountAmount) {
+                          setManualDiscountAmountInr(manualDiscountAmount > 0 ? String(manualDiscountAmount) : '');
+                        }
+                      }}
+                      onChange={(event) => setManualDiscountAmountInr(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="0"
+                      className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Manual discount reason
+                    <input
+                      value={manualDiscountReason}
+                      onChange={(event) => setManualDiscountReason(event.target.value.slice(0, 300))}
+                      placeholder="Optional"
+                      className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                </div>
+              ) : null}
+
               <div className="mt-3 text-xs text-neutral-600">
                 {totalSelectedServices > 1 ? <p className="text-amber-700">Discounts are available for single-service plans only.</p> : null}
                 <p>Base amount: Rs.{summaryBaseAmount}</p>
-                <p>Discount: Rs.{summaryDiscount}</p>
+                <p>Add-ons: Rs.{summaryAddOnAmount}</p>
+                <p>Code discount: Rs.{promoDiscountAmount}</p>
+                {canApplyManualDiscount ? <p>Manual discount: Rs.{manualDiscountAmount}</p> : null}
+                <p>Total discount: Rs.{summaryDiscount}</p>
                 <p className="font-semibold text-neutral-900">Payable estimate: Rs.{summaryTotal}</p>
               </div>
             </div>
@@ -2218,23 +2985,48 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 3 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 3 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 3. Select Date & Time Window</h4>
-            <p className="mt-1 text-sm text-neutral-600">Set start and end time manually for booking creation.</p>
+            <p className="mt-1 text-sm text-neutral-600">Choose from suggested availability or enter a manual start/end slot.</p>
 
-            <div className="mt-4 max-w-xs">
+            {!allowPastSlots ? (
+              <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                Green dates have available slots. Suggested slots are based on current provider availability.
+              </p>
+            ) : null}
+
+            <div className="mt-4 max-w-md">
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-neutral-500">Booking Date</label>
-              <input
-                type="date"
-                value={bookingDate}
-                onChange={(event) => {
-                  setBookingDate(event.target.value);
-                  setSlotStartTime('');
-                  setSlotEndTime('');
-                }}
-                className="h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm"
-              />
+              {allowPastSlots ? (
+                <input
+                  type="date"
+                  value={bookingDate}
+                  onChange={(event) => {
+                    setBookingDate(event.target.value);
+                    setSlotStartTime('');
+                    setSlotEndTime('');
+                  }}
+                  className="h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm"
+                />
+              ) : (
+                <AvailabilityCalendar
+                  value={bookingDate}
+                  onChange={(date) => {
+                    setBookingDate(date);
+                    setSlotStartTime('');
+                    setSlotEndTime('');
+                  }}
+                  minDate={minBookableDate}
+                  maxDate={maxBookableDate}
+                  availableDates={availableDateOptions}
+                  disableUnavailableDates={availableDateOptions.length > 0}
+                />
+              )}
+
+              {!allowPastSlots && isLoadingAvailableDateOptions ? (
+                <p className="mt-2 text-xs text-neutral-600">Checking available dates...</p>
+              ) : null}
             </div>
 
             <label className="mt-2 inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-700">
@@ -2252,25 +3044,60 @@ export default function AdminBookingFlow() {
             </label>
 
             {bookingDate ? (
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  Start Time
-                  <input
-                    type="time"
-                    value={slotStartTime}
-                    onChange={(event) => setSlotStartTime(event.target.value)}
-                    className="mt-1 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
-                  />
-                </label>
-                <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
-                  End Time
-                  <input
-                    type="time"
-                    value={slotEndTime}
-                    onChange={(event) => setSlotEndTime(event.target.value)}
-                    className="mt-1 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
-                  />
-                </label>
+              <div className="mt-4 space-y-3">
+                {!allowPastSlots ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Suggested Slots</p>
+                    <div className="flex flex-wrap gap-2">
+                      {availability.slotOptions.length === 0 ? (
+                        <p className="text-sm text-neutral-500">No suggested slots available for this date.</p>
+                      ) : (
+                        availability.slotOptions.map((slot) => (
+                          <button
+                            key={`${slot.startTime}-${slot.endTime}`}
+                            type="button"
+                            onClick={() => {
+                              setSlotStartTime(slot.startTime);
+                              setSlotEndTime(slot.endTime);
+                            }}
+                            className={`rounded-lg border px-3 py-2 text-xs transition-colors ${
+                              slotStartTime === slot.startTime && slotEndTime === slot.endTime
+                                ? 'border-coral bg-orange-50 text-coral'
+                                : 'border-neutral-200 bg-white text-neutral-700 hover:border-coral/60'
+                            }`}
+                          >
+                            <span className="block font-semibold">{slot.startTime} - {slot.endTime}</span>
+                            <span className="block text-[11px] text-neutral-500">{slot.availableProviderCount} providers</span>
+                            {slot.recommended ? <span className="text-[10px] font-semibold text-coral">Recommended</span> : null}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Manual Slot Override</p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Start Time
+                    <input
+                      type="time"
+                      value={slotStartTime}
+                      onChange={(event) => setSlotStartTime(event.target.value)}
+                      className="mt-1 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    End Time
+                    <input
+                      type="time"
+                      value={slotEndTime}
+                      onChange={(event) => setSlotEndTime(event.target.value)}
+                      className="mt-1 h-11 w-full rounded-xl border border-neutral-200 px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                </div>
               </div>
             ) : null}
 
@@ -2293,10 +3120,16 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 4 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 4 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 4. Provider Selection</h4>
             <p className="mt-1 text-sm text-neutral-600">Auto-assigned best match is preselected. Click any other provider to override.</p>
+
+            {!allowPastSlots && bookingDate && slotStartTime && availability.providers.length > 0 && !hasProviderForSelectedSlot ? (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                No providers are available at the exact selected start time. Showing nearest provider options; adjust slot time for available matches.
+              </p>
+            ) : null}
 
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {availableProviderCards.length === 0 ? (
@@ -2358,7 +3191,7 @@ export default function AdminBookingFlow() {
           </section>
         ) : null}
 
-        {!isFlowCompleted && step === 5 ? (
+        {!isOrchestratorMinimized && !isFlowCompleted && step === 5 ? (
           <section className="space-y-4">
             <h4 className="text-base font-semibold text-neutral-900">Step 5. Final Booking Summary</h4>
             <p className="mt-1 text-sm text-neutral-600">Review all selections and create booking.</p>
@@ -2396,11 +3229,29 @@ export default function AdminBookingFlow() {
               <p className="text-xs uppercase tracking-wide text-neutral-500">Pricing</p>
               <div className="mt-2 space-y-1 text-sm text-neutral-700">
                 <p>Base amount: Rs.{summaryBaseAmount}</p>
-                <p>Discount: -Rs.{summaryDiscount}</p>
+                <p>Add-ons: Rs.{summaryAddOnAmount}</p>
+                <p>Code discount: -Rs.{promoDiscountAmount}</p>
+                {canApplyManualDiscount ? <p>Manual discount: -Rs.{manualDiscountAmount}</p> : null}
+                <p>Total discount: -Rs.{summaryDiscount}</p>
                 <p>Wallet/Referral credits: -Rs.{walletCreditsToApply}</p>
                 <p className="font-semibold text-neutral-900">Total payable: Rs.{paymentChoice === 'subscription_credit' ? 0 : summaryPayableAfterWallet}</p>
               </div>
             </div>
+
+            {Object.values(selectedAddOns).some((quantity) => quantity > 0) ? (
+              <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+                <p className="text-xs uppercase tracking-wide text-neutral-500">Selected Add-ons</p>
+                <div className="mt-2 space-y-1 text-sm text-neutral-700">
+                  {serviceAddOns
+                    .filter((addOn) => (selectedAddOns[addOn.id] ?? 0) > 0)
+                    .map((addOn) => (
+                      <p key={`summary-addon-${addOn.id}`}>
+                        {addOn.name} x{selectedAddOns[addOn.id]} (Rs.{addOn.price} each)
+                      </p>
+                    ))}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 rounded-xl border border-neutral-200 bg-neutral-50 p-3">
               <p className="text-xs uppercase tracking-wide text-neutral-500">Payment</p>

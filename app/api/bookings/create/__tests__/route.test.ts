@@ -20,6 +20,15 @@ vi.mock('@/lib/bookings/state-transition-guard', () => ({
 
 vi.mock('@/lib/bookings/service', () => ({
   createBooking: vi.fn(),
+  updateBookingStatus: vi.fn(),
+}));
+
+vi.mock('@/lib/addons/service', () => ({
+  recalculateBookingAddonTotals: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/lib/bookings/engines/pricingEngine', () => ({
+  calculateBookingPriceWithSupabase: vi.fn(),
 }));
 
 vi.mock('@/lib/notifications/service', () => ({
@@ -46,6 +55,7 @@ vi.mock('@/lib/utils/geo-distance', () => ({
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { createBooking } from '@/lib/bookings/service';
+import { calculateBookingPriceWithSupabase } from '@/lib/bookings/engines/pricingEngine';
 import { POST } from '@/app/api/bookings/create/route';
 
 const FUTURE_BOOKING_DATE = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -53,6 +63,7 @@ const FUTURE_BOOKING_DATE = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISO
 function makeAdminSupabase(options?: {
   petOwnership?: { data: { id: number } | null; error: null | { message?: string } };
   sharedAccess?: { data: { id: string; role: string; status: string; accepted_at: string | null; revoked_at: string | null } | null; error: null | { message?: string } };
+  bookingRefresh?: { data: Record<string, unknown> | null; error: null | { message?: string } };
 }) {
   const petsQuery = {
     select: vi.fn().mockReturnThis(),
@@ -101,7 +112,16 @@ function makeAdminSupabase(options?: {
     }),
   };
 
+  const bookingsQuery = {
+    update: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue(options?.bookingRefresh ?? { data: null, error: null }),
+    single: vi.fn().mockResolvedValue(options?.bookingRefresh ?? { data: null, error: null }),
+  };
+
   return {
+    __queries: { bookings: bookingsQuery },
     from: vi.fn((table: string) => {
       if (table === 'pets') return petsQuery;
       if (table === 'pet_shares') return petSharesQuery;
@@ -110,6 +130,7 @@ function makeAdminSupabase(options?: {
       if (table === 'provider_services') return providerServicesQuery;
       if (table === 'booking_subscription_credit_links') return creditLinksQuery;
       if (table === 'user_service_credits') return userServiceCreditsQuery;
+      if (table === 'bookings') return bookingsQuery;
       throw new Error(`Unexpected table: ${table}`);
     }),
   };
@@ -255,5 +276,81 @@ describe('POST /api/bookings/create', () => {
 
     const payload = await response.json();
     expect(payload.creditReservation?.reserved).toBe(true);
+  });
+
+  it('allows admin to apply a manual discount to the created booking', async () => {
+    const patchedBooking = {
+      id: 904,
+      service_type: 'grooming',
+      booking_date: FUTURE_BOOKING_DATE,
+      provider_notes: null,
+      internal_notes: 'Manual admin discount: Rs.150 - Retention adjustment',
+      price_at_booking: 1200,
+      final_price: 1050,
+      amount: 1050,
+    };
+    const adminSupabase = makeAdminSupabase({ bookingRefresh: { data: patchedBooking, error: null } });
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+    vi.mocked(calculateBookingPriceWithSupabase).mockResolvedValue({
+      base_total: 1000,
+      addon_total: 200,
+      discount_amount: 0,
+      final_total: 1200,
+      breakdown: [],
+    });
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: '550e8400-e29b-41d4-a716-446655440001' },
+        role: 'admin',
+        supabase: {},
+      },
+    } as never);
+
+    vi.mocked(createBooking).mockResolvedValue({
+      id: 904,
+      service_type: 'grooming',
+      booking_date: FUTURE_BOOKING_DATE,
+      provider_notes: null,
+      internal_notes: null,
+      price_at_booking: 1200,
+      final_price: 1200,
+      amount: 1200,
+    } as never);
+
+    const request = new Request('http://localhost/api/bookings/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        petId: 5,
+        providerId: 12,
+        providerServiceId: '550e8400-e29b-41d4-a716-446655440000',
+        bookingDate: FUTURE_BOOKING_DATE,
+        startTime: '10:00',
+        bookingMode: 'home_visit',
+        locationAddress: 'Indiranagar',
+        latitude: 12.97,
+        longitude: 77.64,
+        bookingUserId: '550e8400-e29b-41d4-a716-446655440002',
+        manualDiscountAmountInr: 150,
+        manualDiscountReason: 'Retention adjustment',
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(calculateBookingPriceWithSupabase).toHaveBeenCalledWith(
+      adminSupabase,
+      expect.objectContaining({ providerId: 12, serviceId: '550e8400-e29b-41d4-a716-446655440000' }),
+    );
+    expect(adminSupabase.__queries.bookings.update).toHaveBeenCalledWith(expect.objectContaining({
+      discount_amount: 150,
+      final_price: 1050,
+      internal_notes: 'Manual admin discount: Rs.150 - Retention adjustment',
+    }));
+
+    const payload = await response.json();
+    expect(payload.booking.final_price).toBe(1050);
   });
 });

@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1300 440" preserveAspectRatio="xMidYMid meet" role="img" aria-labelledby="dofursTitle dofursDesc">
+  <title id="dofursTitle">Dofurs — Where Pets Come First</title>
+  <desc id="dofursDesc">Animated wordmark for Dofurs. Letters fade up in sequence, a coral paw print scales in with a medical-cross badge, followed by the tagline. A continuous gentle breathing loop keeps the mark alive.</desc>
+
+  <defs>
+    <style><![CDATA[
+      @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&display=swap');
+
+      .word {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-weight: 800;
+        fill: #e39a5d;
+      }
+      .tagline {
+        font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-weight: 600;
+        fill: #e39a5d;
+        letter-spacing: 1px;
+      }
+
+      .letter, .paw-reveal, .plus-reveal, .tag-reveal { opacity: 0; }
+      .letter      { transform: translateY(22px); }
+      .paw-reveal  { transform: scale(0.9); transform-box: fill-box; transform-origin: center; }
+      .plus-reveal { transform: scale(0) rotate(-55deg); transform-box: fill-box; transform-origin: center; }
+      .tag-reveal  { transform: translateY(10px); }
+
+      @keyframes letterIn   { 0% { opacity: 0; transform: translateY(22px); } 100% { opacity: 1; transform: translateY(0); } }
+      @keyframes pawIn      { 0% { opacity: 0; transform: scale(0.9); }       100% { opacity: 1; transform: scale(1.0); } }
+      @keyframes plusIn     { 0% { opacity: 0; transform: scale(0) rotate(-55deg); } 55% { opacity: 1; transform: scale(1.15) rotate(8deg); } 100% { opacity: 1; transform: scale(1.0) rotate(0); } }
+      @keyframes tagIn      { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 0.9; transform: translateY(0); } }
+      @keyframes pawBreathe { 0%, 100% { transform: scale(1.0); } 50% { transform: scale(1.022); } }
+      @keyframes plusPulse  { 0%, 100% { opacity: 1; } 50% { opacity: 0.65; } }
+
+      .l-d         { animation: letterIn 0.75s cubic-bezier(0.22,1,0.36,1) 0.00s forwards; }
+      .paw-reveal  { animation: pawIn    0.80s cubic-bezier(0.22,1,0.36,1) 0.25s forwards; }
+      .l-f         { animation: letterIn 0.75s cubic-bezier(0.22,1,0.36,1) 0.55s forwards; }
+      .l-u         { animation: letterIn 0.75s cubic-bezier(0.22,1,0.36,1) 0.68s forwards; }
+      .l-r         { animation: letterIn 0.75s cubic-bezier(0.22,1,0.36,1) 0.81s forwards; }
+      .l-s         { animation: letterIn 0.75s cubic-bezier(0.22,1,0.36,1) 0.94s forwards; }
+      .plus-reveal { animation: plusIn   0.85s cubic-bezier(0.34,1.55,0.64,1) 0.55s forwards; }
+      .tag-reveal  { animation: tagIn    1.00s cubic-bezier(0.22,1,0.36,1) 1.55s forwards; }
+
+      .paw-loop  { transform-box: fill-box; transform-origin: center; animation: pawBreathe 4.6s ease-in-out 2.8s infinite; }
+      .plus-loop { animation: plusPulse 2.8s ease-in-out 2.8s infinite; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .letter, .paw-reveal, .plus-reveal, .tag-reveal { opacity: 1; transform: none; animation: none; }
+        .tag-reveal { opacity: 0.9; }
+        .paw-loop, .plus-loop { animation: none; }
+      }
+    ]]></style>
+
+    <mask id="pawCutout" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="1300" height="440" fill="white"/>
+      <circle cx="538" cy="322" r="55" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- D -->
+  <g class="letter l-d">
+    <text class="word" x="55" y="285" font-size="300">D</text>
+  </g>
+
+  <!-- Paw (with medical-cross badge) -->
+  <g class="paw-loop">
+    <g class="paw-reveal">
+      <g mask="url(#pawCutout)" fill="#e39a5d">
+        <!-- Main pad: wide rounded top, tapering to a soft rounded bottom (shield/teardrop) -->
+        <path d="M 275 180
+                 C 275 138, 330 122, 400 122
+                 C 470 122, 525 138, 525 180
+                 C 525 210, 520 240, 505 268
+                 C 483 305, 440 328, 410 335
+                 C 405 336, 395 336, 390 335
+                 C 360 328, 317 305, 295 268
+                 C 280 240, 275 210, 275 180 Z"/>
+        <!-- Toe beans: 4 tilted almond ovals arranged in an arc -->
+        <ellipse cx="303" cy="96"  rx="28" ry="45" transform="rotate(-24 303 96)"/>
+        <ellipse cx="368" cy="65"  rx="28" ry="48" transform="rotate(-8 368 65)"/>
+        <ellipse cx="432" cy="65"  rx="28" ry="48" transform="rotate(8 432 65)"/>
+        <ellipse cx="497" cy="96"  rx="28" ry="45" transform="rotate(24 497 96)"/>
+      </g>
+    </g>
+    <g class="plus-loop">
+      <g class="plus-reveal">
+        <circle cx="538" cy="322" r="42" fill="none" stroke="#e39a5d" stroke-width="10"/>
+        <line x1="538" y1="298" x2="538" y2="346" stroke="#e39a5d" stroke-width="10" stroke-linecap="round"/>
+        <line x1="514" y1="322" x2="562" y2="322" stroke="#e39a5d" stroke-width="10" stroke-linecap="round"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- furs -->
+  <g class="letter l-f"><text class="word" x="615" y="285" font-size="300">f</text></g>
+  <g class="letter l-u"><text class="word" x="715" y="285" font-size="300">u</text></g>
+  <g class="letter l-r"><text class="word" x="900" y="285" font-size="300">r</text></g>
+  <g class="letter l-s"><text class="word" x="1028" y="285" font-size="300">s</text></g>
+
+  <!-- Tagline -->
+  <g class="tag-reveal">
+    <text class="tagline" x="625" y="405" font-size="58" text-anchor="middle">Where Pets Come First</text>
+  </g>
+</svg>

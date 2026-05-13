@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRef } from 'react';
 import PremiumCard from '@/components/PremiumCard';
+import { GROOMING_PACKAGES } from '@/lib/service-catalog/grooming-packages';
 
 type GroomingPackage = {
   title: string;
@@ -14,52 +15,7 @@ type GroomingPackage = {
   isBookable?: boolean;
 };
 
-const PACKAGES: GroomingPackage[] = [
-  {
-    title: 'Doorstep Pet Grooming',
-    price: 'Starts from 899',
-    features: ['Nail Trimming', 'Paw Hair Trimming', 'Knot Removal & De-shedding', 'Eye & Ear Cleaning'],
-    badge: 'Popular',
-    badgeVariant: 'popular',
-  },
-  {
-    title: 'Summer Bonanza',
-    price: 1199,
-    features: ['Bathing, Drying & Conditioning', 'Shampoo & Conditioner', 'Brushing & De-shedding', 'De-matting', 'Nail Clipping & Paw Hair Trimming'],
-    badge: 'Great Deal',
-    badgeVariant: 'deal',
-  },
-  {
-    title: 'Essential Grooming',
-    price: 1799,
-    features: ['Bathing, Drying & Conditioning', 'Nail Clipping', 'Paw Hair Trimming', 'Sanitary Area Hair Trimming', 'Brushing & De-shedding', 'De-matting', 'Paw Massage', 'Eye Cleaning'],
-    badge: 'Best Value',
-    badgeVariant: 'best-value',
-  },
-  {
-    title: 'Complete Care',
-    price: 2299,
-    features: ['Bathing, Drying & Conditioning', 'Nail Clipping & Grinding', 'Paw Care & Massage', 'Sanitary Area Hair Trimming', 'Brushing & De-shedding', 'De-matting', 'Custom Haircut', 'Face Styling', 'Eye, Ear & Nose Cleaning'],
-    badge: 'Premium',
-    badgeVariant: 'premium',
-  },
-  {
-    title: 'Pet Birthday Package',
-    price: 1999,
-    features: ['Custom Party Setup', 'Treats & Decorations', 'Photoshoots'],
-    badge: 'COMMING SOON',
-    badgeVariant: 'coming-soon',
-    isBookable: false,
-  },
-  {
-    title: 'Pet Boarding',
-    price: 999,
-    features: ['Safe Stay', 'Comfortable Environment', 'Stress-Free Care'],
-    badge: 'COMMING SOON',
-    badgeVariant: 'coming-soon',
-    isBookable: false,
-  },
-];
+const PACKAGES: GroomingPackage[] = GROOMING_PACKAGES;
 
 const badgeStyles: Record<NonNullable<GroomingPackage['badgeVariant']>, string> = {
   popular: 'bg-[#fff4e6] text-[#c7773b] border border-[#f0c89a]',

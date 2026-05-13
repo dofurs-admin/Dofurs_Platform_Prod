@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown, MapPin, Search, ShoppingBag } from 'lucide-react';
+import { ChevronDown, MapPin, Search } from 'lucide-react';
 import { type RefObject } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { theme } from '@/lib/theme';
@@ -22,8 +22,6 @@ interface MobileMenuProps {
   onLocationToggle: () => void;
   onPincodeDraftChange: (value: string) => void;
   onPincodeSave: () => void;
-  // cart
-  serviceCartCount: number;
   // secondary menus
   secondaryMenuOpen: SecondaryMenuKey | null;
   onSecondaryMenuToggle: (key: SecondaryMenuKey) => void;
@@ -49,7 +47,6 @@ export function MobileMenu({
   onLocationToggle,
   onPincodeDraftChange,
   onPincodeSave,
-  serviceCartCount,
   secondaryMenuOpen,
   onSecondaryMenuToggle,
   onSecondaryMenuClose,
@@ -92,7 +89,7 @@ export function MobileMenu({
 
         {/* Quick action row */}
         <div className="sticky top-0 z-20 -mx-1 grid gap-2 bg-[linear-gradient(180deg,rgba(255,247,236,0.98),rgba(255,247,236,0.84)_78%,rgba(255,247,236,0))] px-1 pb-2 pt-1">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2">
             <button
               type="button"
               onClick={onLocationToggle}
@@ -103,17 +100,6 @@ export function MobileMenu({
             >
               <MapPin className="h-4 w-4 text-coral" aria-hidden="true" />
             </button>
-
-            <Link
-              href="/forms/customer-booking#start-your-booking"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-white/88 px-4 text-[13px] font-semibold text-ink transition hover:bg-white"
-              aria-label="View selected services"
-              onClick={onClose}
-            >
-              <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-              Services
-              {serviceCartCount > 0 ? <span className="rounded-full bg-[#1f1a17] px-1.5 py-0.5 text-[10px] text-white">{serviceCartCount > 9 ? '9+' : serviceCartCount}</span> : null}
-            </Link>
           </div>
 
           {locationEditorOpen ? (

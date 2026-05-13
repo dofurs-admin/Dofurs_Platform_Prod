@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
-import StatCard from '../premium/StatCard';
 import BookingCard from '../premium/BookingCard';
 import PetCard from '../premium/PetCard';
 import EmptyState from '../premium/EmptyState';
@@ -13,7 +12,7 @@ import Card from '@/components/ui/Card';
 import SectionCard from '../SectionCard';
 import FormField from '../FormField';
 import type { Booking, Pet, ReminderGroup, ReminderPreferences } from './types';
-import { resolveBookingStatus, resolveProviderName } from './bookingUtils';
+import { resolveBookingPetLabels, resolveBookingServiceLabel, resolveBookingStatus, resolveProviderName } from './bookingUtils';
 import { resolvePetAge } from './petUtils';
 
 type ActivityItem = {
@@ -31,7 +30,6 @@ type Props = {
   pets: Pet[];
   petPhotoUrls: Record<number, string>;
   petCompletionById: Record<number, number>;
-  bookingCounts: { active: number; total: number };
   activityItems: ActivityItem[];
   reminders: ReminderGroup[];
   reminderPreferences: ReminderPreferences;
@@ -53,7 +51,6 @@ export default function HomeTab({
   pets,
   petPhotoUrls,
   petCompletionById,
-  bookingCounts,
   activityItems,
   reminders,
   reminderPreferences,
@@ -69,35 +66,6 @@ export default function HomeTab({
 }: Props) {
   return (
     <>
-      {/* STATS SUMMARY ROW */}
-      <section className="space-y-3 sm:space-y-6">
-        <h2 className="text-section-title">Your Bookings at a Glance</h2>
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
-          <StatCard
-            icon="📊"
-            label="Active Bookings"
-            value={bookingCounts.active}
-            trend={bookingCounts.active > 0 ? 'up' : 'neutral'}
-            highlight={bookingCounts.active > 0}
-          />
-          <StatCard
-            icon="✓"
-            label="Completed"
-            value={bookings.filter((booking) => resolveBookingStatus(booking) === 'completed').length}
-            trend="neutral"
-          />
-          <StatCard
-            icon="⚠"
-            label="No Shows"
-            value={bookings.filter((booking) => resolveBookingStatus(booking) === 'no_show').length}
-            trend={
-              bookings.filter((booking) => resolveBookingStatus(booking) === 'no_show').length > 0 ? 'down' : 'neutral'
-            }
-          />
-          <StatCard icon="📅" label="Total Bookings" value={bookingCounts.total} trend="neutral" />
-        </div>
-      </section>
-
       {/* REFER & EARN BANNER */}
       <Link
         href="/refer-and-earn"
@@ -146,8 +114,8 @@ export default function HomeTab({
                   startTime={booking.start_time ?? undefined}
                   endTime={booking.end_time ?? undefined}
                   bookingStart={booking.booking_start}
-                  serviceName={booking.service_type ?? 'Service'}
-                  petName={booking.pet_id ? pets.find((p) => p.id === booking.pet_id)?.name : undefined}
+                  serviceName={resolveBookingServiceLabel(booking)}
+                  petNames={resolveBookingPetLabels(booking, pets)}
                   providerName={resolveProviderName(booking.providers)}
                   bookingMode={booking.booking_mode ?? undefined}
                   status={resolveBookingStatus(booking)}

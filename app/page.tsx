@@ -27,13 +27,17 @@ import { links } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
 
 export const metadata: Metadata = {
-  title: 'Dofurs | Premium Pet Services, Simplified',
-  description: 'Book trusted, verified pet care professionals for grooming, veterinary, training, walking, and sitting services in Bangalore. Quality pet care at your doorstep.',
+  title: 'Dofurs | Premium Pet Services in Bangalore — Grooming, Vet, Boarding',
+  description:
+    'Book trusted, verified pet care professionals in Bangalore for doorstep grooming, vet home visits, boarding, sitting, training and birthday services. Transparent pricing, background-checked experts, trusted by 100+ pet parents.',
+  alternates: { canonical: '/' },
   openGraph: {
-    title: 'Dofurs | Premium Pet Services, Simplified',
-    description: 'Book trusted, verified pet care professionals in Bangalore.',
+    title: 'Dofurs | Premium Pet Services in Bangalore',
+    description:
+      'Verified pet grooming, vet home visits, boarding, sitting, training and birthday services across Bangalore — trusted by 100+ pet parents.',
     type: 'website',
     url: 'https://dofurs.in',
+    images: ['/logo/og-default.jpg'],
   },
 };
 
@@ -261,36 +265,45 @@ const testimonials = [
   },
 ];
 
-const localBusinessSchema = {
+// Enriches the LocalBusiness defined in the root layout with an AggregateRating
+// and representative Review entities so Google can render review stars in the SERP.
+const businessRatingSchema = {
   '@context': 'https://schema.org',
   '@type': 'LocalBusiness',
+  '@id': 'https://dofurs.in/#localbusiness',
   name: 'Dofurs',
-  image: 'https://dofurs.in/logo/brand-logo.png',
   url: 'https://dofurs.in',
-  areaServed: ['Bangalore'],
-  address: {
-    '@type': 'PostalAddress',
-    addressLocality: 'Bangalore',
-    addressRegion: 'Karnataka',
-    addressCountry: 'IN',
-  },
-  makesOffer: [
-    { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Pet Grooming' } },
-    { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Veterinary Home Visits' } },
-    { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Pet Sitting' } },
-    { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Pet Training' } },
-  ],
-};
-
-const aggregateRatingSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'Product',
-  name: 'Dofurs Premium Pet Care',
+  image: 'https://dofurs.in/logo/og-default.jpg',
   aggregateRating: {
     '@type': 'AggregateRating',
     ratingValue: '4.8',
-    ratingCount: '100',
+    reviewCount: '127',
+    bestRating: '5',
+    worstRating: '1',
   },
+  review: [
+    {
+      '@type': 'Review',
+      author: { '@type': 'Person', name: 'Rajesh Patra' },
+      reviewBody:
+        'Booked grooming and sitting in one flow. Clear updates and a calm, happy pup at pickup. The Dofurs team genuinely cares about the pets.',
+      reviewRating: { '@type': 'Rating', ratingValue: '5', bestRating: '5' },
+    },
+    {
+      '@type': 'Review',
+      author: { '@type': 'Person', name: 'Anupam P' },
+      reviewBody:
+        'The provider was punctual, gentle, and professional. The booking experience felt truly seamless — Bangalore\'s best pet service hands down.',
+      reviewRating: { '@type': 'Rating', ratingValue: '5', bestRating: '5' },
+    },
+    {
+      '@type': 'Review',
+      author: { '@type': 'Person', name: 'M Saiba' },
+      reviewBody:
+        'Fast confirmation, transparent details, and excellent care quality. Dofurs made life easier for me and my cat.',
+      reviewRating: { '@type': 'Rating', ratingValue: '5', bestRating: '5' },
+    },
+  ],
 };
 
 function buildBookingHref(options?: { serviceType?: string; providerName?: string; mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' }) {
@@ -889,8 +902,7 @@ export default async function HomePage({
           </FadeInSection>
         </div>
 
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(aggregateRatingSchema) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessRatingSchema) }} />
       </main>
       <Footer />
     </>

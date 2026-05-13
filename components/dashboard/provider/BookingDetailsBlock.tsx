@@ -1,6 +1,7 @@
 'use client';
 
 import { formatProviderMode } from './providerFormatters';
+import { sanitizeAddressText } from '@/lib/utils/address';
 import {
   BOOKING_CHIP_CLASS,
   BOOKING_LABEL_CLASS,
@@ -46,9 +47,13 @@ export default function BookingDetailsBlock({
   longitude,
   showAcceptedPill = false,
 }: Props) {
+  const sanitizedAddress = sanitizeAddressText(locationAddress);
+  const addressText = (sanitizedAddress ?? locationAddress ?? '').trim();
+  const addressLabel = addressText.length > 0 ? addressText : 'Not available';
+
   const directionsUrl =
     bookingMode === 'home_visit'
-      ? buildDirectionsUrl(latitude, longitude, locationAddress)
+      ? buildDirectionsUrl(latitude, longitude, addressText.length > 0 ? addressText : null)
       : null;
   return (
     <>
@@ -72,8 +77,8 @@ export default function BookingDetailsBlock({
         <p className={BOOKING_META_TEXT_TIGHT_CLASS}>
           <span className={BOOKING_LABEL_CLASS}>Phone:</span> {ownerPhone ?? 'Not available'}
         </p>
-        <p className={BOOKING_META_TEXT_ADDRESS_CLASS} title={locationAddress ?? 'Not available'}>
-          <span className={BOOKING_LABEL_CLASS}>Address:</span> {locationAddress ?? 'Not available'}
+        <p className={BOOKING_META_TEXT_ADDRESS_CLASS} title={addressLabel}>
+          <span className={BOOKING_LABEL_CLASS}>Address:</span> {addressLabel}
         </p>
       </div>
 

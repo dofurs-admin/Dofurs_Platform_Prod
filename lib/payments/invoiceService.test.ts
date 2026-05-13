@@ -30,7 +30,7 @@ function createSupabaseMock(tableConfig: Record<string, TableConfig>): SupabaseC
 
     const b: Record<string, unknown> = {};
 
-    for (const m of ['select', 'eq', 'update', 'upsert']) {
+    for (const m of ['select', 'eq', 'is', 'update', 'upsert']) {
       b[m] = vi.fn().mockReturnValue(b);
     }
 
@@ -268,7 +268,7 @@ describe('createServiceInvoice', () => {
     const supabase = {
       from: vi.fn().mockImplementation((table: string) => {
         const b: Record<string, unknown> = {};
-        for (const m of ['select', 'eq', 'update', 'upsert']) {
+        for (const m of ['select', 'eq', 'is', 'update', 'upsert']) {
           b[m] = vi.fn().mockReturnValue(b);
         }
         b['maybeSingle'] = vi.fn().mockResolvedValue({ data: null, error: null });

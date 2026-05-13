@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef, type MouseEvent as ReactMouseEvent } from 'react';
 import { Bell, X, Clock, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -150,12 +150,16 @@ export default function NotificationDrawer({ isAuthenticated, role }: Props) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [notificationSource, setNotificationSource] = useState<ApiNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
 
   const isOperationsRole = role === 'provider' || role === 'admin' || role === 'staff';
+  const notifications = useMemo(
+    () => deriveNotifications(notificationSource, role ?? null),
+    [notificationSource, role],
+  );
   const urgentCount = notifications.filter((n) => n.isUrgent).length;
   const badgeCount = isOperationsRole ? urgentCount : unreadCount;
 
@@ -169,14 +173,14 @@ export default function NotificationDrawer({ isAuthenticated, role }: Props) {
 
       const data = (await res.json()) as { notifications?: ApiNotification[]; unreadCount?: number };
       const latest = data.notifications ?? [];
-      setNotifications(deriveNotifications(latest, role ?? null));
+      setNotificationSource(latest);
       setUnreadCount(typeof data.unreadCount === 'number' ? data.unreadCount : 0);
     } catch (err) { console.error(err);
       // silently fail
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, role]);
+  }, [isAuthenticated]);
 
   const markNotificationRead = useCallback(async (notificationId: number) => {
     try {
@@ -187,8 +191,10 @@ export default function NotificationDrawer({ isAuthenticated, role }: Props) {
 
       if (!res.ok) return;
 
-      setNotifications((current) =>
-        current.map((item) => (item.id === notificationId ? { ...item, isUnread: false, isUrgent: false } : item)),
+      setNotificationSource((current) =>
+        current.map((item) =>
+          item.id === notificationId ? { ...item, read_at: item.read_at ?? new Date().toISOString() } : item,
+        ),
       );
       setUnreadCount((current) => (current > 0 ? current - 1 : 0));
     } catch {
@@ -209,11 +215,10 @@ export default function NotificationDrawer({ isAuthenticated, role }: Props) {
 
       if (!res.ok) return;
 
-      setNotifications((current) =>
+      setNotificationSource((current) =>
         current.map((item) => ({
           ...item,
-          isUnread: false,
-          isUrgent: false,
+          read_at: item.read_at ?? new Date().toISOString(),
         })),
       );
       setUnreadCount(0);
@@ -225,7 +230,7 @@ export default function NotificationDrawer({ isAuthenticated, role }: Props) {
   // Keep badge count hydrated without requiring the drawer to open first.
   useEffect(() => {
     if (!isAuthenticated) {
-      setNotifications([]);
+      setNotificationSource([]);
       setUnreadCount(0);
       return;
     }

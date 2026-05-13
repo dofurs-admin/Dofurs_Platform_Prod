@@ -9,15 +9,16 @@ import {
   getBusinessReferralCampaignSnapshot,
   upsertBusinessReferralCampaign,
 } from '@/lib/referrals/business-campaign';
+import { REFERRAL_CODE_INPUT_PATTERN, REFERRAL_CODE_MAX_LENGTH } from '@/lib/referrals/business-campaign-config';
 
 const businessReferralCampaignUpsertSchema = z.object({
-  referral_code: z.string().trim().min(4).max(32).regex(/^[A-Za-z0-9]+$/),
+  referral_code: z.string().trim().min(4).max(REFERRAL_CODE_MAX_LENGTH).regex(REFERRAL_CODE_INPUT_PATTERN),
   is_active: z.boolean(),
   reward_inr: z.number().int().positive().max(10000),
   notes: z.string().max(500).optional().nullable(),
 });
 
-async function ensureCampaignReferralCode(admin: ReturnType<typeof getSupabaseAdminClient>, userId: string, referralCode: string) {
+async function assertCampaignReferralCodeAvailable(admin: ReturnType<typeof getSupabaseAdminClient>, userId: string, referralCode: string) {
   const { data: existingCode, error: lookupError } = await admin
     .from('referral_codes')
     .select('user_id')
@@ -30,20 +31,6 @@ async function ensureCampaignReferralCode(admin: ReturnType<typeof getSupabaseAd
 
   if (existingCode && existingCode.user_id !== userId) {
     throw new Error('Referral code is already assigned to another account. Please choose a different code.');
-  }
-
-  const { error: upsertError } = await admin
-    .from('referral_codes')
-    .upsert(
-      {
-        user_id: userId,
-        code: referralCode,
-      },
-      { onConflict: 'user_id' },
-    );
-
-  if (upsertError) {
-    throw upsertError;
   }
 }
 
@@ -90,7 +77,7 @@ export async function POST(request: Request) {
 
   try {
     const admin = getSupabaseAdminClient();
-    await ensureCampaignReferralCode(admin, user.id, referralCode);
+    await assertCampaignReferralCodeAvailable(admin, user.id, referralCode);
 
     const campaign = await upsertBusinessReferralCampaign(admin, user.id, {
       referral_code: referralCode,

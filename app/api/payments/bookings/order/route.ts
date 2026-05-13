@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { requireApiRole, forbidden } from '@/lib/auth/api-auth';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { assertRoleCanCreateBookingForUser } from '@/lib/bookings/state-transition-guard';
@@ -16,6 +17,117 @@ const RATE_LIMIT = {
 };
 
 const BOOKING_ORDER_IDEMPOTENCY_ENDPOINT = 'payments/bookings/order';
+
+const bookingBundleOrderSchema = z.object({
+  entries: z.array(bookingCreateSchema).min(1).max(12),
+});
+
+type BookingOrderEntry = z.infer<typeof bookingCreateSchema>;
+
+type NormalizedOrderRequest = {
+  entries: BookingOrderEntry[];
+  isBundle: boolean;
+};
+
+function normalizeOrderRequest(body: unknown): NormalizedOrderRequest | null {
+  const parsedBundle = bookingBundleOrderSchema.safeParse(body);
+  if (parsedBundle.success) {
+    return {
+      entries: parsedBundle.data.entries,
+      isBundle: true,
+    };
+  }
+
+  const parsedSingle = bookingCreateSchema.safeParse(body);
+  if (parsedSingle.success) {
+    return {
+      entries: [parsedSingle.data],
+      isBundle: false,
+    };
+  }
+
+  return null;
+}
+
+async function hasPetAccessForUser(
+  admin: ReturnType<typeof getSupabaseAdminClient>,
+  targetUserId: string,
+  userEmail: string | null,
+  petId: number,
+) {
+  const { data: petOwnership, error: petOwnershipError } = await admin
+    .from('pets')
+    .select('id')
+    .eq('id', petId)
+    .eq('user_id', targetUserId)
+    .maybeSingle<{ id: number }>();
+
+  let hasPetAccess = !petOwnershipError && Boolean(petOwnership);
+
+  if (!hasPetAccess) {
+    const { data: sharedAccess, error: sharedAccessError } = await admin
+      .from('pet_shares')
+      .select('id, role, status, accepted_at, revoked_at')
+      .eq('pet_id', petId)
+      .eq('shared_with_user_id', targetUserId)
+      .is('revoked_at', null)
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        role: string | null;
+        status: string;
+        accepted_at: string | null;
+        revoked_at: string | null;
+      }>();
+
+    if (!sharedAccessError && sharedAccess) {
+      hasPetAccess =
+        (sharedAccess.status === 'active' ||
+          sharedAccess.status === 'accepted' ||
+          Boolean(sharedAccess.accepted_at)) &&
+        sharedAccess.role === 'manager';
+    }
+  }
+
+  if (!hasPetAccess && userEmail) {
+    const { data: emailSharedAccess, error: emailSharedAccessError } = await admin
+      .from('pet_shares')
+      .select('id, role, status, accepted_at, revoked_at')
+      .eq('pet_id', petId)
+      .ilike('invited_email', userEmail)
+      .is('revoked_at', null)
+      .limit(1)
+      .maybeSingle<{
+        id: string;
+        role: string | null;
+        status: string;
+        accepted_at: string | null;
+        revoked_at: string | null;
+      }>();
+
+    if (!emailSharedAccessError && emailSharedAccess) {
+      hasPetAccess =
+        (emailSharedAccess.status === 'active' ||
+          emailSharedAccess.status === 'accepted' ||
+          Boolean(emailSharedAccess.accepted_at)) &&
+        emailSharedAccess.role === 'manager';
+
+      if (hasPetAccess) {
+        await admin
+          .from('pet_shares')
+          .update({
+            shared_with_user_id: targetUserId,
+            status: 'active',
+            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
+            revoked_at: null,
+          })
+          .eq('id', emailSharedAccess.id);
+      }
+    }
+  }
+
+  return hasPetAccess;
+}
 
 export async function POST(request: Request) {
   const auth = await requireApiRole(['user', 'provider', 'admin', 'staff']);
@@ -56,157 +168,161 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null);
-  const parsed = bookingCreateSchema.safeParse(body);
+  const normalizedRequest = normalizeOrderRequest(body);
 
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid booking payload', details: parsed.error.flatten() }, { status: 400 });
+  if (!normalizedRequest) {
+    return NextResponse.json({ error: 'Invalid booking payload' }, { status: 400 });
   }
 
-  if (parsed.data.useSubscriptionCredit) {
+  const entries = normalizedRequest.entries;
+  const isBundle = normalizedRequest.isBundle || entries.length > 1;
+
+  if (entries.some((entry) => entry.useSubscriptionCredit)) {
     return NextResponse.json(
       { error: 'Subscription credit booking does not require online checkout.' },
       { status: 400 },
     );
   }
 
-  const requestedWalletCredits = Math.max(0, Math.round(parsed.data.walletCreditsAppliedInr ?? 0));
-
-  const targetUserId = parsed.data.bookingUserId ?? user.id;
+  const targetUserId = entries[0].bookingUserId ?? user.id;
+  if (entries.some((entry) => (entry.bookingUserId ?? user.id) !== targetUserId)) {
+    return NextResponse.json(
+      { error: 'All bundled entries must target the same booking user.' },
+      { status: 400 },
+    );
+  }
 
   try {
     assertRoleCanCreateBookingForUser(role as 'user' | 'provider' | 'admin' | 'staff', user.id, targetUserId);
-  } catch (err) { console.error(err);
+  } catch (err) {
+    console.error(err);
     return forbidden();
   }
 
-  if (role === 'provider') {
-    // Providers can book services from any provider as a customer.
-    // Only restrict when a provider tries to book on behalf of another user.
-    if (parsed.data.bookingUserId && parsed.data.bookingUserId !== user.id) {
-      return forbidden();
-    }
+  if (role === 'provider' && targetUserId !== user.id) {
+    return forbidden();
   }
 
-  // Check pet ownership: owned directly OR shared with the user (active share)
-  const { data: petOwnership, error: petOwnershipError } = await admin
-    .from('pets')
-    .select('id')
-    .eq('id', parsed.data.petId)
-    .eq('user_id', targetUserId)
-    .maybeSingle<{ id: number }>();
-
-  let hasPetAccess = !petOwnershipError && Boolean(petOwnership);
-
-  if (!hasPetAccess) {
-    const { data: sharedAccess, error: sharedAccessError } = await admin
-      .from('pet_shares')
-      .select('id, role, status, accepted_at, revoked_at')
-      .eq('pet_id', parsed.data.petId)
-      .eq('shared_with_user_id', targetUserId)
-      .is('revoked_at', null)
-      .limit(1)
-      .maybeSingle<{ id: string; role: string | null; status: string; accepted_at: string | null; revoked_at: string | null }>();
-
-    if (!sharedAccessError && sharedAccess) {
-      hasPetAccess = (
-        (sharedAccess.status === 'active'
-        || sharedAccess.status === 'accepted'
-        || Boolean(sharedAccess.accepted_at))
-        && sharedAccess.role === 'manager'
-      );
-    }
+  const providerIdSet = new Set(entries.map((entry) => entry.providerId));
+  if (providerIdSet.size > 1) {
+    return NextResponse.json(
+      { error: 'Bundled online checkout currently supports a single provider per order.' },
+      { status: 400 },
+    );
   }
 
-  if (!hasPetAccess && targetUserId === user.id && user.email) {
-    const { data: emailSharedAccess, error: emailSharedAccessError } = await admin
-      .from('pet_shares')
-      .select('id, role, status, accepted_at, revoked_at')
-      .eq('pet_id', parsed.data.petId)
-      .ilike('invited_email', user.email)
-      .is('revoked_at', null)
-      .limit(1)
-      .maybeSingle<{ id: string; role: string | null; status: string; accepted_at: string | null; revoked_at: string | null }>();
+  const userEmail = targetUserId === user.id ? user.email ?? null : null;
 
-    if (!emailSharedAccessError && emailSharedAccess) {
-      hasPetAccess = (
-        (emailSharedAccess.status === 'active'
-        || emailSharedAccess.status === 'accepted'
-        || Boolean(emailSharedAccess.accepted_at))
-        && emailSharedAccess.role === 'manager'
-      );
-
-      if (hasPetAccess) {
-        await admin
-          .from('pet_shares')
-          .update({
-            shared_with_user_id: targetUserId,
-            status: 'active',
-            accepted_at: emailSharedAccess.accepted_at ?? getISTTimestamp(),
-            revoked_at: null,
-          })
-          .eq('id', emailSharedAccess.id);
-      }
-    }
-  }
-
-  if (!hasPetAccess) {
-    return NextResponse.json({ error: 'Pet does not belong to this user.' }, { status: 403 });
-  }
-
-  const { data: providerService, error: providerServiceError } = await admin
-    .from('provider_services')
-    .select('id, provider_id, service_type, is_active')
-    .eq('id', parsed.data.providerServiceId)
-    .eq('provider_id', parsed.data.providerId)
-    .eq('is_active', true)
-    .maybeSingle<{ id: string; provider_id: number; service_type: string; is_active: boolean }>();
-
-  if (providerServiceError || !providerService) {
-    return NextResponse.json({ error: 'Selected service is unavailable.' }, { status: 404 });
-  }
-
-  const pricing = await calculateBookingPrice({
-    bookingType: 'service',
-    serviceId: parsed.data.providerServiceId,
-    providerId: parsed.data.providerId,
-    addOns: parsed.data.addOns,
-  });
-
-  // For boarding services, multiply by number of nights
-  const boardingNights =
-    parsed.data.boardingEndDate && parsed.data.bookingDate
-      ? Math.max(
-          1,
-          Math.round(
-            (new Date(`${parsed.data.boardingEndDate}T00:00:00`).getTime() -
-              new Date(`${parsed.data.bookingDate}T00:00:00`).getTime()) /
-              86400000,
-          ),
-        )
-      : 1;
-  const baseAmount = Number(pricing.final_total ?? 0) * boardingNights;
-  if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
-    return NextResponse.json({ error: 'Unable to determine booking amount.' }, { status: 400 });
-  }
-
-  let finalAmount = baseAmount;
+  let aggregatedBaseAmount = 0;
+  let aggregatedFinalBeforeWallet = 0;
   let discountPreview: Awaited<ReturnType<typeof evaluateDiscountForBooking>>['preview'] = null;
+  const bundleServiceTypes = new Set<string>();
+  let bundleDiscountCode: string | null = null;
 
-  if (parsed.data.discountCode?.trim()) {
-    const evaluation = await evaluateDiscountForBooking(supabase, {
-      discountCode: parsed.data.discountCode,
-      userId: targetUserId,
-      serviceType: providerService.service_type,
-      baseAmount,
+  for (const [entryIndex, entry] of entries.entries()) {
+    const hasPetAccess = await hasPetAccessForUser(admin, targetUserId, userEmail, entry.petId);
+    if (!hasPetAccess) {
+      return NextResponse.json({ error: 'Pet does not belong to this user.' }, { status: 403 });
+    }
+
+    const { data: providerService, error: providerServiceError } = await admin
+      .from('provider_services')
+      .select('id, provider_id, service_type, is_active')
+      .eq('id', entry.providerServiceId)
+      .eq('provider_id', entry.providerId)
+      .eq('is_active', true)
+      .maybeSingle<{ id: string; provider_id: number; service_type: string; is_active: boolean }>();
+
+    if (providerServiceError || !providerService) {
+      return NextResponse.json({ error: 'Selected service is unavailable.' }, { status: 404 });
+    }
+
+    bundleServiceTypes.add(providerService.service_type);
+
+    const pricing = await calculateBookingPrice({
+      bookingType: 'service',
+      serviceId: entry.providerServiceId,
+      providerId: entry.providerId,
+      addOns: entry.addOns,
     });
 
-    if (!evaluation.preview) {
-      return NextResponse.json({ error: evaluation.reason ?? 'Discount is not applicable.' }, { status: 400 });
+    const boardingNights =
+      entry.boardingEndDate && entry.bookingDate
+        ? Math.max(
+            1,
+            Math.round(
+              (new Date(`${entry.boardingEndDate}T00:00:00`).getTime() -
+                new Date(`${entry.bookingDate}T00:00:00`).getTime()) /
+                86400000,
+            ),
+          )
+        : 1;
+
+    const baseAmount = Number(pricing.final_total ?? 0) * boardingNights;
+    if (!Number.isFinite(baseAmount) || baseAmount <= 0) {
+      return NextResponse.json({ error: 'Unable to determine booking amount.' }, { status: 400 });
     }
 
-    discountPreview = evaluation.preview;
-    finalAmount = Number(evaluation.preview.finalAmount);
+    aggregatedBaseAmount += baseAmount;
+
+    let entryFinalAmount = baseAmount;
+    if (isBundle) {
+      if (entry.discountCode?.trim()) {
+        const normalizedCode = entry.discountCode.trim().toUpperCase();
+        if (!bundleDiscountCode) {
+          bundleDiscountCode = normalizedCode;
+        } else if (bundleDiscountCode !== normalizedCode) {
+          return NextResponse.json(
+            { error: 'Use a single discount code for bundled online checkout.' },
+            { status: 400 },
+          );
+        }
+      }
+    } else if (entry.discountCode?.trim()) {
+      const evaluation = await evaluateDiscountForBooking(admin, {
+        discountCode: entry.discountCode,
+        userId: targetUserId,
+        serviceType: providerService.service_type,
+        baseAmount,
+      });
+
+      if (!evaluation.preview) {
+        return NextResponse.json({ error: evaluation.reason ?? 'Discount is not applicable.' }, { status: 400 });
+      }
+
+      if (entryIndex === 0) {
+        discountPreview = evaluation.preview;
+      }
+
+      entryFinalAmount = Number(evaluation.preview.finalAmount);
+    }
+
+    aggregatedFinalBeforeWallet += entryFinalAmount;
   }
+
+  if (isBundle && bundleDiscountCode) {
+    const bundleEvaluation = await evaluateDiscountForBooking(admin, {
+      discountCode: bundleDiscountCode,
+      userId: targetUserId,
+      serviceTypes: Array.from(bundleServiceTypes),
+      baseAmount: aggregatedBaseAmount,
+    });
+
+    if (!bundleEvaluation.preview) {
+      return NextResponse.json(
+        { error: bundleEvaluation.reason ?? 'Discount is not applicable.' },
+        { status: 400 },
+      );
+    }
+
+    discountPreview = bundleEvaluation.preview;
+    aggregatedFinalBeforeWallet = Number(bundleEvaluation.preview.finalAmount);
+  }
+
+  const requestedWalletCredits = entries.reduce(
+    (sum, entry) => sum + Math.max(0, Math.round(entry.walletCreditsAppliedInr ?? 0)),
+    0,
+  );
 
   let walletCreditsToApply = 0;
   if (requestedWalletCredits > 0) {
@@ -218,15 +334,18 @@ export async function POST(request: Request) {
     }
 
     if (requestedWalletCredits > availableCredits) {
-      return NextResponse.json({ error: 'Requested credits exceed available wallet balance. Please refresh and try again.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Requested credits exceed available wallet balance. Please refresh and try again.' },
+        { status: 400 },
+      );
     }
 
-    walletCreditsToApply = Math.min(requestedWalletCredits, Math.round(finalAmount));
+    walletCreditsToApply = Math.min(requestedWalletCredits, Math.round(aggregatedFinalBeforeWallet));
   }
 
-  finalAmount = Math.max(0, finalAmount - walletCreditsToApply);
+  const payableAmount = Math.max(0, aggregatedFinalBeforeWallet - walletCreditsToApply);
+  const amountInPaise = Math.round(payableAmount * 100);
 
-  const amountInPaise = Math.round(finalAmount * 100);
   if (!Number.isFinite(amountInPaise) || amountInPaise < 0) {
     return NextResponse.json({ error: 'Invalid payable amount.' }, { status: 400 });
   }
@@ -236,6 +355,9 @@ export async function POST(request: Request) {
   }
 
   const receipt = `svc_${targetUserId.slice(0, 8)}_${Date.now()}`;
+  const providerId = entries[0].providerId;
+  const providerServiceId = entries[0].providerServiceId;
+
   let order: Awaited<ReturnType<typeof createRazorpayOrder>>;
   try {
     order = await createRazorpayOrder({
@@ -244,9 +366,10 @@ export async function POST(request: Request) {
       receipt,
       notes: {
         userId: targetUserId,
-        bookingMode: parsed.data.bookingMode,
-        providerServiceId: parsed.data.providerServiceId,
-        providerId: String(parsed.data.providerId),
+        bookingMode: entries[0].bookingMode,
+        providerServiceId,
+        providerId: String(providerId),
+        bundleCount: String(entries.length),
       },
     });
   } catch (razorpayError) {
@@ -257,32 +380,44 @@ export async function POST(request: Request) {
     );
   }
 
+  const bundleProviderServiceIds = isBundle
+    ? Array.from(new Set(entries.map((entry) => entry.providerServiceId)))
+    : undefined;
+
+  const normalizedEntries = entries.map((entry, index) => ({
+    petId: entry.petId,
+    providerId: entry.providerId,
+    providerServiceId: entry.providerServiceId,
+    bookingDate: entry.bookingDate,
+    startTime: entry.startTime,
+    bookingMode: entry.bookingMode,
+    locationAddress: entry.locationAddress ?? null,
+    latitude: entry.latitude ?? null,
+    longitude: entry.longitude ?? null,
+    providerNotes: entry.providerNotes ?? null,
+    discountCode: isBundle
+      ? (index === 0 ? bundleDiscountCode ?? undefined : undefined)
+      : entry.discountCode ?? undefined,
+    walletCreditsAppliedInr: index === 0 && walletCreditsToApply > 0 ? walletCreditsToApply : undefined,
+    addOns: entry.addOns ?? [],
+    useSubscriptionCredit: false,
+    pincode: entry.pincode,
+    boardingEndDate: entry.boardingEndDate,
+    bundleProviderServiceIds,
+    bundleEstimatedTotalInr: isBundle && index === 0 ? Math.round(aggregatedBaseAmount) : undefined,
+  }));
+
   const metadata = {
     checkout_context: 'booking_prepaid',
     provider_order_id: order.id,
     receipt,
-    booking_payload: {
-      petId: parsed.data.petId,
-      providerId: parsed.data.providerId,
-      providerServiceId: parsed.data.providerServiceId,
-      bookingDate: parsed.data.bookingDate,
-      startTime: parsed.data.startTime,
-      bookingMode: parsed.data.bookingMode,
-      locationAddress: parsed.data.locationAddress ?? null,
-      latitude: parsed.data.latitude ?? null,
-      longitude: parsed.data.longitude ?? null,
-      providerNotes: parsed.data.providerNotes ?? null,
-      // Keep optional fields omitted instead of null so later schema validation passes.
-      discountCode: parsed.data.discountCode ?? undefined,
-      walletCreditsAppliedInr: walletCreditsToApply > 0 ? walletCreditsToApply : undefined,
-      addOns: parsed.data.addOns ?? [],
-      useSubscriptionCredit: false,
-    },
+    booking_payload: isBundle ? undefined : normalizedEntries[0],
+    booking_bundle_payload: isBundle ? normalizedEntries : undefined,
     price_breakdown: {
-      baseAmount,
-      finalAmount,
+      baseAmount: aggregatedBaseAmount,
+      finalAmount: payableAmount,
       walletCreditsAppliedInr: walletCreditsToApply,
-      payableAmount: finalAmount,
+      payableAmount,
       discountCode: discountPreview?.code ?? null,
       discountId: discountPreview?.discountId ?? null,
       discountAmount: discountPreview?.discountAmount ?? 0,
@@ -296,7 +431,7 @@ export async function POST(request: Request) {
       provider: 'razorpay',
       transaction_type: 'service_collection',
       status: 'initiated',
-      amount_inr: finalAmount,
+      amount_inr: payableAmount,
       currency: order.currency,
       metadata,
     })
@@ -315,13 +450,14 @@ export async function POST(request: Request) {
       currency: order.currency,
       orderId: order.id,
       name: 'Dofurs',
-      description: 'Pet Service Booking',
+      description: isBundle ? 'Pet Service Bundle Booking' : 'Pet Service Booking',
       prefill: {
         email: user.email,
       },
       notes: {
-        providerServiceId: parsed.data.providerServiceId,
-        providerId: String(parsed.data.providerId),
+        providerServiceId,
+        providerId: String(providerId),
+        bundleCount: String(entries.length),
       },
     },
   };

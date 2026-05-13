@@ -22,6 +22,7 @@ type Provider = {
 };
 type PricingBreakdown = {
   base_total: number;
+  addon_total: number;
   discount_amount: number;
   final_total: number;
 };
@@ -95,13 +96,16 @@ export default function BookingSummarySidebar({
 
   const orderedSteps: BookingStep[] = ['pet-service', 'datetime', 'review'];
 
-  const totalPrice = discountPreview?.finalAmount ?? priceCalculation?.final_total ?? 0;
-  const basePrice = discountPreview?.baseAmount ?? priceCalculation?.base_total ?? 0;
+  const basePrice = priceCalculation?.base_total ?? discountPreview?.baseAmount ?? 0;
   const discountAmount = discountPreview?.discountAmount ?? priceCalculation?.discount_amount ?? 0;
 
   const selectedAddOnsTotal = addOns
     .filter((addon) => selectedAddOns[addon.id] > 0)
     .reduce((sum, addon) => sum + addon.price * selectedAddOns[addon.id], 0);
+
+  const addOnsTotal = priceCalculation?.addon_total ?? selectedAddOnsTotal;
+  const subtotalBeforeDiscount = basePrice + addOnsTotal;
+  const totalPrice = Math.max(0, subtotalBeforeDiscount - discountAmount);
 
   return (
     <div className="premium-fade-up h-full">
@@ -222,7 +226,7 @@ export default function BookingSummarySidebar({
           </div>
 
           {/* Divider */}
-          {(basePrice > 0 || selectedAddOnsTotal > 0) && (
+          {(basePrice > 0 || addOnsTotal > 0) && (
             <>
               <div className="my-4 h-px bg-gradient-to-r from-[#d9bda4] via-[#eddccc] to-transparent" />
 
@@ -233,12 +237,17 @@ export default function BookingSummarySidebar({
                   <span className="font-semibold text-neutral-950">₹{basePrice}</span>
                 </div>
 
-                {selectedAddOnsTotal > 0 && (
+                {addOnsTotal > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-neutral-600">Add-ons</span>
-                    <span className="font-semibold text-neutral-950">₹{selectedAddOnsTotal}</span>
+                    <span className="font-semibold text-neutral-950">₹{addOnsTotal}</span>
                   </div>
                 )}
+
+                <div className="flex justify-between text-sm">
+                  <span className="text-neutral-600">Subtotal</span>
+                  <span className="font-semibold text-neutral-950">₹{subtotalBeforeDiscount}</span>
+                  </div>
 
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-sm">

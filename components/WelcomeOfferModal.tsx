@@ -2,15 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { BellRing, Scissors, ShieldPlus, Stethoscope, X } from 'lucide-react';
+import { DEFAULT_BUSINESS_REFEREE_REWARD_INR } from '@/lib/referrals/business-campaign-config';
 
 const WELCOME_MODAL_STORAGE_KEY = 'dofurs.welcome-offer-modal.v1.seen';
 const WELCOME_MODAL_DELAY_MS = 3000;
-const WELCOME_REFERRAL_LINK = '/auth/sign-in?mode=signup&ref=DOFMQS68G';
 const SHOULD_PERSIST_MODAL_SEEN_STATE = process.env.NODE_ENV === 'production';
 
 type WelcomeOfferModalProps = {
   signupHref?: string;
   onSignup?: () => void;
+};
+
+type BusinessSignupOffer = {
+  signupHref: string;
+  rewardInr: number;
 };
 
 const benefits = [
@@ -32,36 +37,73 @@ const benefits = [
   },
 ] as const;
 
-export default function WelcomeOfferModal({
-  signupHref = WELCOME_REFERRAL_LINK,
-  onSignup,
-}: WelcomeOfferModalProps) {
+export default function WelcomeOfferModal({ signupHref, onSignup }: WelcomeOfferModalProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [offerTimerSeconds, setOfferTimerSeconds] = useState<number | null>(null);
-  const [resolvedSignupHref, setResolvedSignupHref] = useState(signupHref);
+  const [businessSignupOffer, setBusinessSignupOffer] = useState<BusinessSignupOffer | null>(null);
+  const [hasResolvedBusinessSignupOffer, setHasResolvedBusinessSignupOffer] = useState(false);
+  const rewardLabel = businessSignupOffer ? `₹${businessSignupOffer.rewardInr}` : '';
 
   useEffect(() => {
-    setResolvedSignupHref(signupHref);
-  }, [signupHref]);
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     let isCancelled = false;
+
+    function applyExplicitSignupFallback() {
+      setBusinessSignupOffer(
+        signupHref
+          ? {
+              signupHref,
+              rewardInr: DEFAULT_BUSINESS_REFEREE_REWARD_INR,
+            }
+          : null,
+      );
+    }
 
     async function hydrateBusinessSignupLink() {
       try {
         const response = await fetch('/api/referrals/business-signup-link', { cache: 'no-store' });
         if (!response.ok) {
+          if (!isCancelled) {
+            applyExplicitSignupFallback();
+          }
           return;
         }
 
-        const payload = (await response.json()) as { signup_link?: string | null; is_active?: boolean };
-        if (!isCancelled && payload.is_active && payload.signup_link) {
-          setResolvedSignupHref(payload.signup_link);
+        const payload = (await response.json()) as {
+          signup_link?: string | null;
+          is_active?: boolean;
+          referee_reward_inr?: number | null;
+        };
+
+        if (isCancelled) {
+          return;
         }
+
+        if (payload.is_active && payload.signup_link) {
+          setBusinessSignupOffer({
+            signupHref: payload.signup_link,
+            rewardInr:
+              typeof payload.referee_reward_inr === 'number' && payload.referee_reward_inr > 0
+                ? payload.referee_reward_inr
+                : DEFAULT_BUSINESS_REFEREE_REWARD_INR,
+          });
+          return;
+        }
+
+        setBusinessSignupOffer(null);
       } catch {
-        // Fall back to provided signupHref if the live lookup fails.
+        if (!isCancelled) {
+          applyExplicitSignupFallback();
+        }
+      } finally {
+        if (!isCancelled) {
+          setHasResolvedBusinessSignupOffer(true);
+        }
       }
     }
 
@@ -70,12 +112,20 @@ export default function WelcomeOfferModal({
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [signupHref]);
 
   useEffect(() => {
-    setIsMounted(true);
+    if (!isMounted || !hasResolvedBusinessSignupOffer || !businessSignupOffer) {
+      if (hasResolvedBusinessSignupOffer && !businessSignupOffer) {
+        setIsVisible(false);
+      }
+      return;
+    }
 
+    const previewParams = new URLSearchParams(window.location.search);
+    const shouldForcePreview = previewParams.get('preview-offer') === 'true';
     const hasSeenModal =
+      !shouldForcePreview &&
       SHOULD_PERSIST_MODAL_SEEN_STATE &&
       window.localStorage.getItem(WELCOME_MODAL_STORAGE_KEY) === '1';
     if (hasSeenModal) {
@@ -84,7 +134,7 @@ export default function WelcomeOfferModal({
 
     const timer = window.setTimeout(() => {
       setIsVisible(true);
-      if (SHOULD_PERSIST_MODAL_SEEN_STATE) {
+      if (!shouldForcePreview && SHOULD_PERSIST_MODAL_SEEN_STATE) {
         window.localStorage.setItem(WELCOME_MODAL_STORAGE_KEY, '1');
       }
     }, WELCOME_MODAL_DELAY_MS);
@@ -92,7 +142,7 @@ export default function WelcomeOfferModal({
     return () => {
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [businessSignupOffer, hasResolvedBusinessSignupOffer, isMounted]);
 
   useEffect(() => {
     if (isVisible) {
@@ -153,8 +203,12 @@ export default function WelcomeOfferModal({
   }, [isVisible]);
 
   function handleSignup() {
+    if (!businessSignupOffer) {
+      return;
+    }
+
     onSignup?.();
-    window.location.assign(resolvedSignupHref);
+    window.location.assign(businessSignupOffer.signupHref);
   }
 
   function formatOfferTimer(totalSeconds: number | null): string {
@@ -167,7 +221,7 @@ export default function WelcomeOfferModal({
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
-  if (!isMounted || !isVisible) {
+  if (!isMounted || !hasResolvedBusinessSignupOffer || !businessSignupOffer || !isVisible) {
     return null;
   }
 
@@ -208,7 +262,7 @@ export default function WelcomeOfferModal({
             🎉 Add 2+ Years to Your Pet&apos;s Life 🐾
           </h2>
           <p className="mt-2 inline-flex rounded-full border border-[#efc9a7] bg-[#ffe9d5] px-3 py-1 text-lg font-bold text-[#af5118] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:mt-3">
-            + Get ₹500 Free on Signup
+            + Get {rewardLabel} Free on Signup
           </p>
           <p id="welcome-offer-description" className="mt-3 text-sm leading-relaxed text-[#5b3f2b] sm:text-[15px]">
             Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
@@ -232,7 +286,7 @@ export default function WelcomeOfferModal({
               onClick={handleSignup}
               className="inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[linear-gradient(135deg,#f7a645_0%,#db6c20_100%)] px-5 text-sm font-bold text-white shadow-[0_12px_24px_rgba(221,119,40,0.35)] transition hover:brightness-105"
             >
-              Claim ₹500
+              Claim {rewardLabel}
             </button>
             <button
               type="button"

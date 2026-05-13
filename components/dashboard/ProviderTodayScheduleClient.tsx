@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { normalizeDisplayImageUrl } from '@/components/dashboard/user/petUtils';
 import {
+  buildIncludedServicesLabel,
+  resolveIncludedServicesForBooking,
+} from '@/lib/bookings/included-services';
+import {
   BOOKING_CARD_SURFACE_CLASS,
   BOOKING_CHIP_CLASS,
   BOOKING_PET_AVATAR_CLASS,
@@ -16,13 +20,17 @@ export type TodayBooking = {
   start_time: string;
   end_time: string;
   service_type: string | null;
+  provider_service_id?: string | null;
+  included_services?: string[] | null;
   booking_mode: string;
   location_address: string | null;
   latitude: number | null;
   longitude: number | null;
   booking_status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   price_at_booking: number;
+  admin_price_reference?: number | null;
   provider_notes: string | null;
+  internal_notes?: string | null;
   pet_name: string;
   pet_breed: string | null;
   pet_photo_url?: string | null;
@@ -234,6 +242,16 @@ function BookingCard({
   const swipeRatio = Math.abs(offsetX) / SWIPE_MAX;
   const isSwipingRight = offsetX > 0;
   const isSwipingLeft = offsetX < 0;
+  const includedServices = resolveIncludedServicesForBooking({
+    included_services: booking.included_services,
+    service_type: booking.service_type,
+    provider_service_id: booking.provider_service_id,
+    provider_notes: booking.provider_notes,
+    internal_notes: booking.internal_notes,
+    admin_price_reference: booking.admin_price_reference,
+    price_at_booking: booking.price_at_booking,
+  });
+  const serviceLabel = buildIncludedServicesLabel(includedServices, booking.service_type);
   const petPhotoUrl = normalizeDisplayImageUrl(booking.pet_photo_url);
   const ownerPhotoUrl = normalizeDisplayImageUrl(booking.owner_photo_url);
 
@@ -291,11 +309,7 @@ function BookingCard({
           </div>
 
           <div className="mb-3 flex flex-wrap gap-2">
-            <span className={BOOKING_CHIP_CLASS}>
-              {booking.service_type
-                ? (SERVICE_LABELS[booking.service_type] ?? booking.service_type)
-                : 'Service'}
-            </span>
+            <span className={BOOKING_CHIP_CLASS}>{SERVICE_LABELS[serviceLabel] ?? serviceLabel}</span>
             <span className={BOOKING_CHIP_CLASS}>
               {MODE_LABELS[booking.booking_mode] ?? booking.booking_mode}
             </span>

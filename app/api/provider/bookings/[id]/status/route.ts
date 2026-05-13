@@ -9,6 +9,7 @@ import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { restoreCredits } from '@/lib/credits/wallet';
 import { processReferrerRewardOnFirstBooking } from '@/lib/referrals/service';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 
 type CompletionTaskStatusRow = {
   task_status: 'pending' | 'completed' | null;
@@ -84,27 +85,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         );
       }
 
-      // Cash payment gate: direct_to_provider bookings require cash to be marked received
-      const { data: bookingPaymentCheck } = await writeSupabase
-        .from('bookings')
-        .select('payment_mode')
-        .eq('id', bookingId)
-        .single<{ payment_mode: string | null }>();
+      const payableSummary = await getBookingOutstandingSummary(writeSupabase, bookingId);
 
-      if (bookingPaymentCheck?.payment_mode === 'direct_to_provider') {
-        const { data: cashCollection } = await writeSupabase
-          .from('booking_payment_collections')
-          .select('id')
-          .eq('booking_id', bookingId)
-          .eq('status', 'paid')
-          .maybeSingle();
-
-        if (!cashCollection) {
-          return NextResponse.json(
-            { error: 'Cash payment must be marked as received before completing this booking.' },
-            { status: 400 },
-          );
-        }
+      if (payableSummary.outstandingInr > 0) {
+        return NextResponse.json(
+          { error: 'Pending payable amount must be collected or paid online before completing this booking.' },
+          { status: 400 },
+        );
       }
 
       const booking = await completeBooking(writeSupabase, user.id, bookingId, parsed.data.providerNotes);

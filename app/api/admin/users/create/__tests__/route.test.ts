@@ -99,18 +99,42 @@ describe('POST /api/admin/users/create', () => {
   it('succeeds with a phone-only profile', async () => {
     vi.mocked(requireApiRole).mockResolvedValue(makeAuthContext() as never);
 
-    const noUserFound = {
+    const usersBuilder = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       ilike: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-      single: vi.fn().mockResolvedValue({ data: { id: 'role-uuid' }, error: null }),
       insert: vi.fn().mockResolvedValue({ error: null }),
     };
 
+    const rolesBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: { id: 'role-uuid' }, error: null }),
+    };
+
+    const ownerProfileBuilder = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const from = vi.fn((table: string) => {
+      if (table === 'roles') {
+        return rolesBuilder;
+      }
+
+      if (table === 'profiles') {
+        return ownerProfileBuilder;
+      }
+
+      return usersBuilder;
+    });
+
     vi.mocked(getSupabaseAdminClient).mockReturnValue({
-      from: vi.fn().mockReturnValue(noUserFound),
+      from,
       auth: {
         admin: {
           createUser: vi.fn().mockResolvedValue({
@@ -135,5 +159,13 @@ describe('POST /api/admin/users/create', () => {
     expect(json.success).toBe(true);
     expect(json.user.id).toBe('new-auth-user-id');
     expect(json.inviteSent).toBe(false);
+    expect(ownerProfileBuilder.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'new-auth-user-id',
+        full_name: 'Alice Smith',
+        phone_number: '+919876543210',
+      }),
+      { onConflict: 'id' },
+    );
   });
 });

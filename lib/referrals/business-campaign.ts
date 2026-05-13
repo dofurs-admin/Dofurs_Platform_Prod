@@ -1,9 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  BUSINESS_REFERRAL_CAMPAIGN_KEY,
+  DEFAULT_BUSINESS_REFEREE_REWARD_INR,
+  DEFAULT_BUSINESS_REFERRAL_CODE,
+  DEFAULT_BUSINESS_REFERRER_REWARD_INR,
+} from '@/lib/referrals/business-campaign-config';
 
-export const BUSINESS_REFERRAL_CAMPAIGN_KEY = 'welcome_offer';
-export const DEFAULT_BUSINESS_REFERRAL_CODE = 'DOFMQS68G';
-export const DEFAULT_BUSINESS_REFEREE_REWARD_INR = 500;
-export const DEFAULT_BUSINESS_REFERRER_REWARD_INR = 500;
+export {
+  BUSINESS_REFERRAL_CAMPAIGN_KEY,
+  DEFAULT_BUSINESS_REFEREE_REWARD_INR,
+  DEFAULT_BUSINESS_REFERRAL_CODE,
+  DEFAULT_BUSINESS_REFERRER_REWARD_INR,
+} from '@/lib/referrals/business-campaign-config';
 
 export type BusinessReferralCampaign = {
   key: string;

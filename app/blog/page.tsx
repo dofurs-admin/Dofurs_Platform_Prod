@@ -3,15 +3,80 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import Link from 'next/link';
 import { blogPosts } from '@/lib/blog-posts';
 
+const SITE_URL = 'https://dofurs.in';
+
+const blogListingSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Blog',
+  '@id': `${SITE_URL}/blog#blog`,
+  name: 'Dofurs Blog',
+  description:
+    'Expert guides on pet grooming, vet care, training, boarding and monsoon pet care for Bangalore pet parents.',
+  url: `${SITE_URL}/blog`,
+  inLanguage: 'en-IN',
+  publisher: { '@id': `${SITE_URL}/#organization` },
+  blogPost: blogPosts.map((post) => ({
+    '@type': 'BlogPosting',
+    headline: post.title,
+    description: post.excerpt,
+    url: `${SITE_URL}/blog/${post.slug}`,
+    image: post.heroImageSrc.startsWith('http')
+      ? post.heroImageSrc
+      : `${SITE_URL}${post.heroImageSrc}`,
+    datePublished: post.datePublished ?? post.publishedOn,
+    dateModified: post.dateModified ?? post.datePublished ?? post.publishedOn,
+    author: {
+      '@type': 'Organization',
+      name: post.author ?? 'Dofurs Editorial',
+    },
+    keywords: post.tags,
+    articleSection: post.category,
+  })),
+};
+
+const blogBreadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
+    { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+  ],
+};
+
 export const metadata: Metadata = {
-  title: 'Blog — Dofurs',
-  description: 'Tips, guides, and stories about pet care, grooming, training, and more from the Dofurs team.',
-  openGraph: { title: 'Blog — Dofurs', description: 'Pet care tips, guides, and stories.' },
+  title: 'Pet Care Blog — Grooming, Vet, Boarding & Training Guides for Bangalore Pet Parents | Dofurs',
+  description:
+    'Expert guides on pet grooming, vet care, training, boarding and monsoon pet care — written for Bangalore pet parents by the Dofurs team. Evidence-backed tips, cost guides, and decision checklists.',
+  alternates: { canonical: '/blog' },
+  openGraph: {
+    title: 'Dofurs Blog — Pet Care Guides for Bangalore Pet Parents',
+    description:
+      'Expert guides on grooming, vet care, training, boarding and seasonal pet care for Bangalore pet parents.',
+    url: 'https://dofurs.in/blog',
+    images: ['/logo/og-default.jpg'],
+  },
+  keywords: [
+    'pet care blog Bangalore',
+    'pet grooming tips',
+    'dog vaccination guide',
+    'pet boarding tips',
+    'pet care Bangalore',
+    'monsoon pet care',
+  ],
 };
 
 export default function BlogPage() {
   const [featured, ...rest] = blogPosts;
   return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogListingSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(blogBreadcrumbSchema) }}
+      />
     <ContentPageLayout
       title="Blog"
       description="Expert guides, care tips, and practical advice that help pet parents make confident care decisions."
@@ -61,5 +126,6 @@ export default function BlogPage() {
         ))}
       </div>
     </ContentPageLayout>
+    </>
   );
 }

@@ -4,15 +4,16 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
 import { links, whatsappLinks } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
 
 export const metadata: Metadata = {
   title: 'Professional Pet Grooming in Bangalore — Doorstep & Salon | Dofurs',
   description:
-    'Book expert pet grooming in Bangalore — doorstep bath, haircut, nail trimming, de-shedding, and full spa packages. Verified groomers, pet-safe products, and transparent pricing from ₹899.',
+    'Book expert pet grooming in Bangalore — doorstep bath, Fur Makeover trims, nail trimming, de-shedding, and full spa packages. Verified groomers, pet-safe products, and transparent pricing from ₹899.',
   openGraph: {
     title: 'Pet Grooming in Bangalore | Dofurs',
     description:
-      'Professional doorstep pet grooming in Bangalore. Choose from Essential, Complete Care, and Summer Bonanza packages. Verified groomers, safe products.',
+      'Professional doorstep pet grooming in Bangalore. Choose from Fur Makeover, Essential, Complete Care, and Summer Bonanza packages. Verified groomers, safe products.',
     type: 'website',
     url: 'https://dofurs.in/services/grooming',
   },
@@ -37,7 +38,7 @@ const GROOMING_PACKAGES = [
     badge: 'Popular',
     badgeColor: 'bg-[#fff4e6] text-[#c7773b] border border-[#f0c89a]',
     features: [
-      'Nail Trimming',
+      'Nail clipping',
       'Paw Hair Trimming',
       'Knot Removal & De-shedding',
       'Eye & Ear Cleaning',
@@ -57,6 +58,15 @@ const GROOMING_PACKAGES = [
       'Nail Clipping & Paw Hair Trimming',
     ],
     description: 'Perfect for the summer months — a full bath and coat refresh.',
+  },
+  {
+    title: 'Fur Makeover',
+    price: '₹1,199',
+    badge: 'Great Deal',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    features: ['Hair Trimming', 'Paw Hair Trimming', 'Nail Clipping'],
+    description: 'A trim-focused refresh for coat shape, paws, and nails.',
+    anchorId: 'fur-makeover',
   },
   {
     title: 'Essential Grooming',
@@ -143,11 +153,36 @@ const FAQS = [
   },
 ];
 
+const groomingServiceSchema = buildServiceSchema({
+  name: 'Professional Pet Grooming in Bangalore',
+  description:
+    'Doorstep and salon pet grooming by verified specialists across Bangalore — bath, haircut, nail trimming, de-shedding, and full spa packages.',
+  url: 'https://dofurs.in/services/grooming',
+  serviceType: 'Pet Grooming',
+  category: 'Pet Care',
+  offers: [
+    { name: 'Doorstep Pet Grooming', priceFrom: 899, description: 'Nail trim, paw hair, knot removal, eye and ear cleaning.' },
+    { name: 'Summer Bonanza Bath', priceFrom: 1199, description: 'Bath, dry, shampoo, conditioner, brushing, de-matting and nail clipping.' },
+    { name: 'Fur Makeover', priceFrom: 1199, description: 'Hair trimming, paw hair trimming, and nail clipping.' },
+    { name: 'Essential Grooming', priceFrom: 1799, description: 'Comprehensive grooming: bath, nail clipping, paw trim, sanitary trim, brushing, paw massage, eye cleaning.' },
+    { name: 'Complete Care', priceFrom: 2499, description: 'Full spa grooming with custom haircut and face styling.' },
+  ],
+});
+
+const groomingBreadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Services', url: '/services' },
+  { name: 'Grooming', url: '/services/grooming' },
+]);
+
 export default function GroomingPage() {
   const primaryCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
   const secondaryCtaClass = premiumSecondaryCtaClass('h-11 px-6 text-sm font-semibold tracking-[0.01em]');
 
   return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(groomingServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(groomingBreadcrumbSchema)} />
     <ContentPageLayout
       title="Professional Pet Grooming"
       description="Doorstep grooming by verified specialists — gentle handling, pet-safe products, and transparent pricing across Bangalore."
@@ -204,6 +239,7 @@ export default function GroomingPage() {
         {GROOMING_PACKAGES.map((pkg) => (
           <div
             key={pkg.title}
+            id={pkg.anchorId}
             className={`relative flex flex-col rounded-2xl border p-5 transition-shadow hover:shadow-md ${
               pkg.highlight
                 ? 'border-[#e4973f] bg-[linear-gradient(160deg,#fffcf8,#fff8f0)]'
@@ -282,31 +318,7 @@ export default function GroomingPage() {
         ))}
       </div>
 
-      {/* Schema */}
-      <script
-        type="application/ld+json"
-        suppressHydrationWarning
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Service',
-            name: 'Pet Grooming',
-            provider: {
-              '@type': 'LocalBusiness',
-              name: 'Dofurs',
-              url: 'https://dofurs.in',
-              areaServed: 'Bangalore',
-            },
-            description: 'Professional doorstep and in-salon pet grooming in Bangalore. Verified groomers, pet-safe products, transparent pricing.',
-            offers: [
-              { '@type': 'Offer', name: 'Doorstep Pet Grooming', price: '899', priceCurrency: 'INR' },
-              { '@type': 'Offer', name: 'Essential Grooming', price: '1799', priceCurrency: 'INR' },
-              { '@type': 'Offer', name: 'Complete Care', price: '2299', priceCurrency: 'INR' },
-            ],
-            areaServed: 'Bangalore',
-          }),
-        }}
-      />
     </ContentPageLayout>
+    </>
   );
 }

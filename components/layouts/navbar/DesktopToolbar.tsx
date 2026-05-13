@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MapPin, ShoppingBag } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { type RefObject } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { IconTooltip } from './IconTooltip';
@@ -28,8 +28,6 @@ interface DesktopToolbarProps {
   onLocationToggle: () => void;
   onPincodeDraftChange: (value: string) => void;
   onPincodeSave: () => void;
-  // cart
-  serviceCartCount: number;
   // auth
   isAuthResolved: boolean;
   authUser: User | null;
@@ -74,7 +72,6 @@ export function DesktopToolbar({
   onLocationToggle,
   onPincodeDraftChange,
   onPincodeSave,
-  serviceCartCount,
   isAuthResolved,
   authUser,
   profilePhotoUrl,
@@ -139,22 +136,6 @@ export function DesktopToolbar({
             />
           ) : null}
         </div>
-
-        {/* Cart */}
-        <IconTooltip label="Cart">
-          <Link
-            href="/forms/customer-booking#start-your-booking"
-            className="relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent bg-transparent text-ink transition hover:-translate-y-0.5 hover:bg-white/70"
-            aria-label="View selected services"
-          >
-            <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-            {serviceCartCount > 0 ? (
-              <span className="absolute -right-1 -top-1 inline-flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#1f1a17] px-1 text-[10px] font-semibold text-white">
-                {serviceCartCount > 9 ? '9+' : serviceCartCount}
-              </span>
-            ) : null}
-          </Link>
-        </IconTooltip>
 
         {/* Notifications */}
         <IconTooltip label="Notifications">

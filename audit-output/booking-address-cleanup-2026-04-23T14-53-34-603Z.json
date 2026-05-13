@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-04-23T14:53:34.604Z",
+  "mode": "dry-run",
+  "limits": {
+    "scan_limit": 200,
+    "batch_size": 100,
+    "start_id": 0,
+    "max_apply": 0
+  },
+  "summary": {
+    "scanned_rows": 5,
+    "candidate_rows": 2,
+    "updated_rows": 0,
+    "failed_rows": 0,
+    "capped_by_max_apply": false,
+    "last_scanned_id": 217
+  },
+  "sample_changes": [
+    {
+      "booking_id": 161,
+      "before": "254,1st main road byatarayanapura Bangalore new airport road Bangalore, Byatarayanapura, BENGALURU, Karnataka, 560092, India",
+      "after": "254, 1st main road byatarayanapura Bangalore new airport road Bangalore, Byatarayanapura, BENGALURU, Karnataka, 560092, India"
+    },
+    {
+      "booking_id": 217,
+      "before": "Smondo 3, E City, Bengaluru, Karnataka, 560100, India, E City, Bengaluru, Karnataka, 560100, India, E City, Bengaluru, Karnataka, 560100, India",
+      "after": "Smondo 3, E City, Bengaluru, Karnataka, 560100, India"
+    }
+  ],
+  "failures": []
+}

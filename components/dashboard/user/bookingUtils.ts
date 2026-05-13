@@ -1,4 +1,7 @@
-import type { Booking } from './types';
+import type { Booking, Pet } from './types';
+import { extractBundledPetIdsFromNotes } from '@/lib/bookings/included-services';
+import { resolveIncludedServicesForBooking } from '@/lib/bookings/included-services';
+import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
 
 export function resolveBookingStatus(booking: Booking): Booking['status'] {
   return booking.booking_status ?? booking.status;
@@ -16,18 +19,16 @@ export function userDisplayStatus(status: Booking['status']): Booking['status'] 
 
 export function normalizeBookingRecord(booking: Booking): Booking {
   const effectiveStatus = booking.booking_status ?? booking.status ?? 'pending';
-  const walletCreditsAppliedInr = Number(booking.wallet_credits_applied_inr ?? 0);
   const rawAmount = Number(booking.amount ?? 0);
-  const fallbackAmount = Number((booking as Booking & { price_at_booking?: number | null }).price_at_booking ?? 0);
-  const effectiveAmountSource =
-    Number.isFinite(rawAmount) && rawAmount >= 0
-      ? rawAmount
-      : Number.isFinite(fallbackAmount) && fallbackAmount >= 0
-        ? fallbackAmount
-        : NaN;
+  const finalAmount = Number(booking.final_price ?? 0);
+  const fallbackAmount = Number(booking.price_at_booking ?? 0);
+  const amountCandidates = [rawAmount, finalAmount, fallbackAmount].filter(
+    (value) => Number.isFinite(value) && value >= 0,
+  );
+  const effectiveAmountSource = amountCandidates.find((value) => value > 0) ?? amountCandidates[0] ?? NaN;
   const normalizedAmount =
     Number.isFinite(effectiveAmountSource)
-      ? Math.max(0, effectiveAmountSource - (Number.isFinite(walletCreditsAppliedInr) ? walletCreditsAppliedInr : 0))
+      ? Math.max(0, effectiveAmountSource)
       : booking.amount;
 
   return {
@@ -42,6 +43,46 @@ export function resolveProviderName(providers: Booking['providers']): string | u
   if (!providers) return undefined;
   if (Array.isArray(providers)) return providers[0]?.name;
   return providers.name;
+}
+
+export function extractBookedServices(booking: Booking): string[] {
+  return resolveIncludedServicesForBooking(booking);
+}
+
+export function resolveBookingServiceLabel(booking: Booking): string {
+  const bookedServices = extractBookedServices(booking);
+  return buildIncludedServicesLabel(bookedServices, booking.service_type);
+}
+
+export function extractBookedPetIds(booking: Booking): number[] {
+  const petIds = new Set<number>([
+    ...extractBundledPetIdsFromNotes(booking.provider_notes),
+    ...extractBundledPetIdsFromNotes(booking.internal_notes),
+  ]);
+
+  if (petIds.size === 0 && booking.pet_id) {
+    petIds.add(booking.pet_id);
+  }
+
+  return Array.from(petIds);
+}
+
+export function resolveBookingPetLabels(booking: Booking, pets: Pet[]): string[] {
+  const petIds = extractBookedPetIds(booking);
+  const names = petIds
+    .map((id) => pets.find((pet) => pet.id === id)?.name)
+    .filter((name): name is string => Boolean(name && name.trim().length > 0));
+
+  if (names.length > 0) {
+    return names;
+  }
+
+  if (booking.pet_id) {
+    const fallback = pets.find((pet) => pet.id === booking.pet_id)?.name;
+    return fallback ? [fallback] : [];
+  }
+
+  return [];
 }
 
 export function bookingStatusMeta(status: Booking['status']) {

@@ -20,11 +20,24 @@ type StorageBackedImageProps = {
   onError?: ComponentProps<typeof Image>['onError'];
 };
 
-const resolvedUrlCache = new Map<string, string>();
+const SIGNED_URL_EXPIRES_IN_SECONDS = 3600;
+const SIGNED_URL_CACHE_TTL_MS = Math.max(0, (SIGNED_URL_EXPIRES_IN_SECONDS - 60) * 1000);
+
+type ResolvedUrlCacheEntry = {
+  url: string;
+  expiresAt: number | null;
+};
+
+const resolvedUrlCache = new Map<string, ResolvedUrlCacheEntry>();
+const pendingSignedUrlRequests = new Map<string, Promise<string>>();
 const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '') ?? '';
 
 function isDirectHttpOrStorageUrl(value: string) {
   return /^https?:\/\//i.test(value) || value.startsWith('/storage/v1/');
+}
+
+function isStorageObjectUrl(value: string) {
+  return value.includes('/storage/v1/object/');
 }
 
 function isPublicStorageObjectUrl(value: string) {
@@ -50,8 +63,8 @@ function getInitialResolvedUrl(value: string) {
     return '';
   }
 
-  if (isLikelyStorageObjectPath(trimmed)) {
-    // Raw object paths (e.g. "<uid>/<file>.jpg") must be signed first.
+  if (isLikelyStorageObjectPath(trimmed) || (isStorageObjectUrl(trimmed) && !isPublicStorageObjectUrl(trimmed))) {
+    // Raw paths and non-public storage object URLs must be signed first.
     return '';
   }
 
@@ -151,6 +164,55 @@ function getSafeFallbackUrl(raw: string) {
   return absolutizeStorageUrl(raw);
 }
 
+function getCachedResolvedUrl(cacheKey: string) {
+  const entry = resolvedUrlCache.get(cacheKey);
+
+  if (!entry) {
+    return '';
+  }
+
+  if (entry.expiresAt !== null && Date.now() >= entry.expiresAt) {
+    resolvedUrlCache.delete(cacheKey);
+    return '';
+  }
+
+  return entry.url;
+}
+
+function setCachedResolvedUrl(cacheKey: string, url: string, expiresAt: number | null = null) {
+  if (!url) {
+    return;
+  }
+
+  resolvedUrlCache.set(cacheKey, { url, expiresAt });
+}
+
+async function createSignedReadUrl(bucket: BucketName, path: string) {
+  const requestKey = `${bucket}::${path}`;
+  const pendingRequest = pendingSignedUrlRequests.get(requestKey);
+
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = apiRequest<{ signedUrl: string }>('/api/storage/signed-read-url', {
+    method: 'POST',
+    body: JSON.stringify({
+      bucket,
+      path,
+      expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS,
+    }),
+  }).then((payload) => absolutizeStorageUrl(payload.signedUrl));
+
+  pendingSignedUrlRequests.set(requestKey, request);
+
+  try {
+    return await request;
+  } finally {
+    pendingSignedUrlRequests.delete(requestKey);
+  }
+}
+
 export default function StorageBackedImage({
   value,
   alt,
@@ -186,7 +248,7 @@ export default function StorageBackedImage({
         return;
       }
 
-      const cached = resolvedUrlCache.get(cacheKey);
+      const cached = getCachedResolvedUrl(cacheKey);
       if (cached) {
         if (active) {
           setResolvedUrl(cached);
@@ -198,12 +260,12 @@ export default function StorageBackedImage({
       const isStoragePath = raw.startsWith('/storage/v1/object/');
 
       if (isHttpLike || isStoragePath) {
-        if (isPublicStorageObjectUrl(raw) || isAlreadySignedStorageObjectUrl(raw)) {
+        if (isPublicStorageObjectUrl(raw)) {
           const directStorageUrl = absolutizeStorageUrl(raw);
           if (active) {
             setResolvedUrl(directStorageUrl);
           }
-          resolvedUrlCache.set(cacheKey, directStorageUrl);
+          setCachedResolvedUrl(cacheKey, directStorageUrl);
           return;
         }
 
@@ -214,33 +276,27 @@ export default function StorageBackedImage({
           if (active) {
             setResolvedUrl(fallbackUrl);
           }
-          resolvedUrlCache.set(cacheKey, fallbackUrl);
+          setCachedResolvedUrl(cacheKey, fallbackUrl);
           return;
         }
 
         try {
-          const payload = await apiRequest<{ signedUrl: string }>('/api/storage/signed-read-url', {
-            method: 'POST',
-            body: JSON.stringify({
-              bucket: signedTarget.bucket,
-              path: signedTarget.path,
-              expiresIn: 3600,
-            }),
-          });
-
-          const signedUrl = absolutizeStorageUrl(payload.signedUrl);
+          const signedUrl = await createSignedReadUrl(signedTarget.bucket, signedTarget.path);
           if (active) {
             setResolvedUrl(signedUrl);
           }
 
-          resolvedUrlCache.set(cacheKey, signedUrl);
+          setCachedResolvedUrl(cacheKey, signedUrl, Date.now() + SIGNED_URL_CACHE_TTL_MS);
           return;
         } catch (err) { console.error(err);
           const fallbackUrl = getSafeFallbackUrl(raw);
           if (active) {
             setResolvedUrl(fallbackUrl);
           }
-          resolvedUrlCache.set(cacheKey, fallbackUrl);
+
+          if (!isAlreadySignedStorageObjectUrl(raw)) {
+            setCachedResolvedUrl(cacheKey, fallbackUrl);
+          }
           return;
         }
       }
@@ -248,27 +304,21 @@ export default function StorageBackedImage({
       const path = normalizePath(raw, bucket);
 
       try {
-        const payload = await apiRequest<{ signedUrl: string }>('/api/storage/signed-read-url', {
-          method: 'POST',
-          body: JSON.stringify({
-            bucket,
-            path,
-            expiresIn: 3600,
-          }),
-        });
-
-        const signedUrl = absolutizeStorageUrl(payload.signedUrl);
+        const signedUrl = await createSignedReadUrl(bucket, path);
         if (active) {
           setResolvedUrl(signedUrl);
         }
 
-        resolvedUrlCache.set(cacheKey, signedUrl);
+        setCachedResolvedUrl(cacheKey, signedUrl, Date.now() + SIGNED_URL_CACHE_TTL_MS);
       } catch (err) { console.error(err);
         const fallbackUrl = getSafeFallbackUrl(raw);
         if (active) {
           setResolvedUrl(fallbackUrl);
         }
-        resolvedUrlCache.set(cacheKey, fallbackUrl);
+
+        if (!isLikelyStorageObjectPath(raw)) {
+          setCachedResolvedUrl(cacheKey, fallbackUrl);
+        }
       }
     }
 
@@ -283,7 +333,10 @@ export default function StorageBackedImage({
     return null;
   }
 
-  const fallbackRawUrl = isLikelyStorageObjectPath(rawValue) ? '' : absolutizeStorageUrl(rawValue);
+  const fallbackRawUrl =
+    isLikelyStorageObjectPath(rawValue) || (isStorageObjectUrl(rawValue) && !isPublicStorageObjectUrl(rawValue))
+      ? ''
+      : absolutizeStorageUrl(rawValue);
 
   return (
     <Image

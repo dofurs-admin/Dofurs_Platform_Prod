@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { AuthChangeEvent } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
+import { CalendarClock, HeartPulse, Loader2, Mail, ShieldCheck, Sparkles } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 import { useToast } from '@/components/ui/ToastProvider';
 import SignUpAuthPanel from '@/components/auth/SignUpAuthPanel';
@@ -434,23 +434,66 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_1fr]">
-      <section className="hidden rounded-3xl border border-[#f2dfcf] bg-[linear-gradient(135deg,_#fff8f2_0%,_#fdf2e8_100%)] p-8 shadow-soft-md lg:block">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[#f1decf] bg-white/80 px-3 py-1 text-xs font-semibold text-[#a05a2c]">
-          <ShieldCheck className="h-4 w-4" />
-          Verified Email Login
+      <section className="relative hidden min-h-[470px] overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-5 shadow-soft-md lg:block">
+        <div className="pointer-events-none absolute -left-14 -top-16 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(253,196,146,0.55)_0%,rgba(253,196,146,0)_72%)]" aria-hidden="true" />
+        <div className="pointer-events-none absolute -right-32 bottom-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(228,145,76,0.3)_0%,rgba(228,145,76,0)_72%)]" aria-hidden="true" />
+
+        <div className="relative mx-auto w-full max-w-[430px]">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#ecd1b8] bg-white/80 px-3 py-1 text-xs font-semibold text-[#8e5630] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+            <Sparkles className="h-3.5 w-3.5" />
+            Trusted Pet Care Platform
+          </div>
+
+          <h2 className="mt-3 text-[1.48rem] font-bold leading-tight text-ink">Manage every pet-care moment from one premium dashboard.</h2>
+
+          <p className="mt-2 text-sm leading-relaxed text-[#67584a]">
+            From grooming and vet bookings to reminders and updates, Dofurs keeps your pet&apos;s care journey simple, secure, and always in sync.
+          </p>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#6d4a2f]">
+            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Home & clinic visits</div>
+            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Live booking timeline</div>
+            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Smart care reminders</div>
+            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Verified providers</div>
+          </div>
+
+          <ul className="mt-3 space-y-2 text-sm text-[#45372b]">
+            <li className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-1.5 shadow-[0_6px_14px_rgba(147,90,47,0.1)]">
+              <span className="inline-flex items-center gap-2.5 text-[0.92rem] font-medium">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
+                  <CalendarClock className="h-3 w-3" />
+                </span>
+                Book grooming, vet, and training in minutes
+              </span>
+            </li>
+            <li className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-1.5 shadow-[0_6px_14px_rgba(147,90,47,0.1)]">
+              <span className="inline-flex items-center gap-2.5 text-[0.92rem] font-medium">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
+                  <HeartPulse className="h-3 w-3" />
+                </span>
+                Keep care history and health context in one place
+              </span>
+            </li>
+            <li className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-1.5 shadow-[0_6px_14px_rgba(147,90,47,0.1)]">
+              <span className="inline-flex items-center gap-2.5 text-[0.92rem] font-medium">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
+                  <CalendarClock className="h-3 w-3" />
+                </span>
+                Track upcoming appointments and reminders in one timeline
+              </span>
+            </li>
+          </ul>
+
+          <div className="mt-3 rounded-xl border border-[#e5c7ab] bg-[#fff6ec] px-4 py-1.5 text-sm text-[#6b4a2f]">
+            <p className="inline-flex items-center gap-2 font-semibold">
+              <ShieldCheck className="h-4 w-4 text-[#bc6a34]" />
+              Secure passwordless email login
+            </p>
+          </div>
         </div>
-        <h2 className="mt-5 text-3xl font-bold leading-tight text-ink">Welcome back to your Dofurs dashboard.</h2>
-        <p className="mt-3 text-sm leading-relaxed text-[#6b6b6b]">
-          We send a secure 6-digit OTP to your email. Once verified, your profile is loaded automatically and redirected to your dashboard.
-        </p>
-        <ul className="mt-6 grid gap-3 text-sm text-[#4b4b4b]">
-          <li className="rounded-xl border border-[#f2dfcf] bg-white p-3">✔ Passwordless login with one-time secure email OTP</li>
-          <li className="rounded-xl border border-[#f2dfcf] bg-white p-3">✔ Session is validated server-side before dashboard access</li>
-          <li className="rounded-xl border border-[#f2dfcf] bg-white p-3">✔ Rate-limited OTP flow for safer account protection</li>
-        </ul>
       </section>
 
-      <section className="rounded-3xl border border-[#f2dfcf] bg-white p-6 shadow-soft-md sm:p-8">
+      <section className="flex flex-col rounded-3xl border border-[#f2dfcf] bg-white p-5 shadow-soft-md sm:p-6">
         <div className="inline-flex items-center gap-2 rounded-full border border-[#f1decf] bg-[#fffaf6] px-3 py-1 text-xs font-semibold text-[#a05a2c]">
           <Sparkles className="h-3.5 w-3.5" />
           Secure Member Access
@@ -469,7 +512,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         )}
 
         {flowState !== 'success' && needsProfileSetup && (
-          <form onSubmit={handleCompleteProfile} className="mt-6 space-y-4">
+          <form onSubmit={handleCompleteProfile} className="mt-5 space-y-3.5">
             <div className="rounded-xl border border-[#f2dfcf] bg-[#fffaf6] px-3 py-2 text-xs text-[#6b6b6b]">
               Complete your profile to finish sign-in.
             </div>
@@ -539,7 +582,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         )}
 
         {flowState !== 'success' && !needsProfileSetup && step === 'collect' && (
-          <form onSubmit={handleSendOtp} className="mt-6 space-y-4">
+          <form onSubmit={handleSendOtp} className="mt-5 space-y-3.5">
             <div>
               <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink">
                 Email Address
@@ -569,7 +612,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         )}
 
         {flowState !== 'success' && !needsProfileSetup && step === 'verify' && (
-          <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
+          <form onSubmit={handleVerifyOtp} className="mt-5 space-y-3.5">
             <div className="rounded-xl border border-[#f2dfcf] bg-[#fffaf6] px-3 py-2 text-xs text-[#6b6b6b]">
               OTP sent to: <span className="font-semibold text-ink">{email}</span>
             </div>
@@ -637,7 +680,18 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
             {error}
           </p>
         )}
-        <p className="mt-5 text-center text-sm text-[#6b6b6b]">
+
+        {flowState !== 'success' && !needsProfileSetup && step === 'collect' && (
+          <div className="mt-4 rounded-2xl border border-[#f0ddcc] bg-[linear-gradient(180deg,#fffaf5_0%,#fff7f0_100%)] p-3">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9b633a]">Quick Login Benefits</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] font-medium text-[#6b4a2f]">
+              <span className="rounded-lg border border-[#edd8c5] bg-white/85 px-2.5 py-1.5">No password to remember</span>
+              <span className="rounded-lg border border-[#edd8c5] bg-white/85 px-2.5 py-1.5">OTP-based secure access</span>
+            </div>
+          </div>
+        )}
+
+        <p className="mt-auto pt-5 text-center text-sm text-[#6b6b6b]">
           New to Dofurs?{' '}
           <Link href={signUpHref} className="font-semibold text-coral hover:underline">
             Create an account
@@ -685,23 +739,23 @@ function UnifiedAuthPageContent() {
 
   if (!isModeReady) {
     return (
-      <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8">
+      <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 pt-9 pb-6 sm:pt-10 sm:pb-7">
         <div
           className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_14%_6%,rgba(228,153,90,0.15),transparent_52%),radial-gradient(circle_at_84%_12%,rgba(154,122,87,0.1),transparent_48%)]"
           aria-hidden="true"
         />
-        <div className="relative mx-auto mb-5 h-12 w-full max-w-5xl animate-pulse rounded-full border border-[#e8ccb3] bg-white/95" />
+        <div className="relative mx-auto mt-2 mb-4 h-12 w-full max-w-5xl animate-pulse rounded-full border border-[#e8ccb3] bg-white/95" />
       </main>
     );
   }
 
   return (
-    <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8">
+    <main className="relative overflow-hidden bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 pt-9 pb-6 sm:pt-10 sm:pb-7">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[360px] bg-[radial-gradient(circle_at_14%_6%,rgba(228,153,90,0.15),transparent_52%),radial-gradient(circle_at_84%_12%,rgba(154,122,87,0.1),transparent_48%)]"
         aria-hidden="true"
       />
-      <div className="relative mx-auto mb-5 flex w-full max-w-5xl items-center justify-center gap-2 rounded-full border border-[#e8ccb3] bg-white/95 p-1 shadow-premium">
+      <div className="relative mx-auto mt-2 mb-4 flex w-full max-w-5xl items-center justify-center gap-2 rounded-full border border-[#e8ccb3] bg-white/95 p-1 shadow-premium">
         <Link
           href={signInHref}
           className={`inline-flex flex-1 items-center justify-center rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -731,7 +785,7 @@ function UnifiedAuthPageContent() {
 
 export default function SignInPage() {
   return (
-    <Suspense fallback={<main className="bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 py-8" />}>
+    <Suspense fallback={<main className="bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_46%,#fffcf9_100%)] px-4 pt-9 pb-6 sm:pt-10 sm:pb-7" />}>
       <UnifiedAuthPageContent />
     </Suspense>
   );
