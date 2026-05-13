@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-05-13T16:17:16.540Z",
+  "duration_ms": 353,
+  "scanned_row_count": 25,
+  "max_rows_limit": 50000,
+  "reached_max_rows_limit": false,
+  "summary": {
+    "template_rows": 7,
+    "provider_rows": 18,
+    "template_unique_keys": 7,
+    "provider_unique_keys": 18,
+    "duplicate_template_groups": 0,
+    "duplicate_template_rows": 0,
+    "duplicate_provider_groups": 0,
+    "duplicate_provider_rows": 0
+  },
+  "duplicate_template_groups": [],
+  "duplicate_provider_groups": [],
+  "samples": {
+    "duplicate_template_groups": [],
+    "duplicate_provider_groups": []
+  }
+}

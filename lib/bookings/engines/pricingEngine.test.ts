@@ -5,7 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 type PricingMockConfig = {
   serviceRow?: { base_price: number | null; service_type: string } | null;
   serviceRowError?: Error | null;
-  serviceTypes?: Array<{ id: string; service_type: string | null }>;
+  serviceTypes?: Array<{ id: string; service_type: string | null; provider_id?: number | null }>;
   serviceTypesError?: Error | null;
   mappingRows?: Array<{
     id: string;
@@ -188,8 +188,8 @@ describe('pricingEngine', () => {
       const supabase = createPricingMockSupabase({
         serviceRow: { base_price: 500, service_type: 'grooming_session' },
         serviceTypes: [
-          { id: 'service-selected', service_type: 'grooming_session' },
-          { id: 'service-vet-catalog', service_type: 'vet_consultation' },
+          { id: 'service-selected', service_type: 'grooming_session', provider_id: 123 },
+          { id: 'service-vet-catalog', service_type: 'vet_consultation', provider_id: 456 },
         ],
         mappingRows: [
           {

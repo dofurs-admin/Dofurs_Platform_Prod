@@ -4,6 +4,8 @@
 **Last updated:** 21 April 2026
 **Prepared for:** Himansu (petcare@dofurs.in)
 
+> **Recheck note — 13 May 2026:** A fresh owner-side execution manual now lives in `DOFURS_SEO_OWNER_MANUAL.md`. The SEO implementation works locally, but production at `https://dofurs.in` was still returning 404 for `/sitemap.xml`, `/robots.txt`, `/manifest.webmanifest`, `/locations/indiranagar`, and the new SEO blog URL during recheck. The active Next.js manifest URL is `/manifest.webmanifest`, not `/site.webmanifest`.
+
 This document was refreshed after a full pre-launch audit that closed 9 additional gaps on top of the original work. Everything below reflects the current state of the codebase.
 
 ---
