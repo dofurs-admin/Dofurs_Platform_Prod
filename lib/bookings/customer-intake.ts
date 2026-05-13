@@ -12,6 +12,17 @@ type CustomerIntakeUserRow = {
   roles?: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
+type CustomerOwnerProfileSourceRow = {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  photo_url?: string | null;
+  gender?: string | null;
+};
+
+type CustomerOwnerProfileSeed = Omit<CustomerOwnerProfileSourceRow, 'id'>;
+
 export type CustomerIntakeUser = {
   id: string;
   name: string | null;
@@ -75,6 +86,91 @@ function normalizeExistingUser(row: CustomerIntakeUserRow | null | undefined) {
 
 function isPrivilegedRole(role: ExistingUserRole) {
   return role === 'admin' || role === 'staff' || role === 'provider';
+}
+
+function firstTrimmedString(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return '';
+}
+
+function normalizeOwnerProfileGender(value: string | null | undefined) {
+  return value === 'male' || value === 'female' || value === 'other' ? value : null;
+}
+
+function resolveOwnerProfileName(seed: CustomerOwnerProfileSeed, userRow: CustomerOwnerProfileSourceRow | null) {
+  const explicitName = firstTrimmedString(seed.name, userRow?.name);
+  if (explicitName) {
+    return explicitName;
+  }
+
+  const email = firstTrimmedString(seed.email, userRow?.email);
+  const emailName = email.split('@')[0]?.trim();
+
+  return emailName || 'Pet Owner';
+}
+
+export async function ensureOwnerProfileForBookingCustomer(
+  adminClient: SupabaseClient,
+  userId: string,
+  seed: CustomerOwnerProfileSeed = {},
+) {
+  const { data: existingOwnerProfile, error: existingOwnerProfileError } = await adminClient
+    .from('profiles')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle<{ id: string }>();
+
+  if (existingOwnerProfileError) {
+    throw new CustomerIntakeError('Unable to verify customer profile right now.', 500);
+  }
+
+  if (existingOwnerProfile) {
+    return;
+  }
+
+  let userRow: CustomerOwnerProfileSourceRow | null = null;
+
+  if (!firstTrimmedString(seed.name) || !firstTrimmedString(seed.phone)) {
+    const { data, error } = await adminClient
+      .from('users')
+      .select('id, name, email, phone, photo_url, gender')
+      .eq('id', userId)
+      .maybeSingle<CustomerOwnerProfileSourceRow>();
+
+    if (error) {
+      throw new CustomerIntakeError('Unable to load customer profile details right now.', 500);
+    }
+
+    userRow = data ?? null;
+  }
+
+  const rawPhone = firstTrimmedString(seed.phone, userRow?.phone);
+  const normalizedPhone = rawPhone ? toIndianE164(rawPhone) : '';
+
+  if (!normalizedPhone) {
+    throw new CustomerIntakeError('Customer profile is missing a valid phone number. Add the phone number before saving an address.', 409);
+  }
+
+  const { error: ownerProfileUpsertError } = await adminClient.from('profiles').upsert(
+    {
+      id: userId,
+      full_name: resolveOwnerProfileName(seed, userRow),
+      phone_number: normalizedPhone,
+      profile_photo_url: firstTrimmedString(seed.photo_url, userRow?.photo_url) || null,
+      gender: normalizeOwnerProfileGender(seed.gender ?? userRow?.gender),
+    },
+    { onConflict: 'id' },
+  );
+
+  if (ownerProfileUpsertError) {
+    throw new CustomerIntakeError('Unable to prepare customer profile for address save.', 500);
+  }
 }
 
 export function toFriendlyCreateUserError(message: string) {
@@ -148,6 +244,12 @@ export async function createCustomerProfileForBooking(
     }
 
     if (duplicateMode === 'return-existing') {
+      await ensureOwnerProfileForBookingCustomer(adminClient, existing.user.id, {
+        name: existing.user.name,
+        email: existing.user.email,
+        phone: existing.user.phone,
+      });
+
       return {
         user: existing.user,
         isNewUser: false,
@@ -217,6 +319,20 @@ export async function createCustomerProfileForBooking(
     }
     const mapped = toFriendlyCreateUserError(profileInsertError.message);
     throw new CustomerIntakeError(mapped.error, mapped.status);
+  }
+
+  try {
+    await ensureOwnerProfileForBookingCustomer(adminClient, authUserId, {
+      name,
+      email: createPhoneOnlyProfile ? null : email,
+      phone: normalizedPhone,
+    });
+  } catch (error) {
+    if (authUserId) {
+      await adminClient.auth.admin.deleteUser(authUserId);
+    }
+
+    throw error;
   }
 
   void logAdminAction({

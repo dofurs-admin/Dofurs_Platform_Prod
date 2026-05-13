@@ -314,6 +314,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   const [serviceType, setServiceType] = useState<string>('');
   const [discountCode, setDiscountCode] = useState('');
   const [discountPreview, setDiscountPreview] = useState<DiscountPreview | null>(null);
+  const [manualDiscountAmountInr, setManualDiscountAmountInr] = useState('');
+  const [manualDiscountReason, setManualDiscountReason] = useState('');
   const [serviceAddOns, setServiceAddOns] = useState<ServiceAddonOption[]>([]);
   const [selectedAddOns, setSelectedAddOns] = useState<Record<string, number>>({});
   const [isLoadingAddOns, setIsLoadingAddOns] = useState(false);
@@ -380,6 +382,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
     setServiceAddOns([]);
     setSelectedAddOns({});
     setIsAddOnDropdownOpen(false);
@@ -507,9 +511,16 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
       }, 0),
     [selectedAddOns, serviceAddOns],
   );
-  const summaryDiscount = totalSelectedServices > 1 ? 0 : discountPreview?.discountAmount ?? 0;
-  const summaryServiceAmount = discountPreview?.finalAmount ?? summaryBaseAmount;
-  const summaryTotal = summaryServiceAmount + summaryAddOnAmount;
+  const canApplyManualDiscount = actorRole === 'admin' || actorRole === 'staff';
+  const promoDiscountAmount = totalSelectedServices > 1 ? 0 : discountPreview?.discountAmount ?? 0;
+  const summarySubtotal = summaryBaseAmount + summaryAddOnAmount;
+  const manualDiscountCap = Math.max(0, summarySubtotal - promoDiscountAmount);
+  const enteredManualDiscountAmount = Number(manualDiscountAmountInr);
+  const manualDiscountAmount = canApplyManualDiscount && Number.isFinite(enteredManualDiscountAmount)
+    ? Math.min(Math.max(0, Math.floor(enteredManualDiscountAmount)), manualDiscountCap)
+    : 0;
+  const summaryDiscount = promoDiscountAmount + manualDiscountAmount;
+  const summaryTotal = Math.max(0, summarySubtotal - summaryDiscount);
   const summaryPayableAfterWallet = Math.max(0, summaryTotal - walletCreditsToApply);
   const minBookableDate = useMemo(
     () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }),
@@ -531,6 +542,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
     setServiceAddOns([]);
     setSelectedAddOns({});
     setIsAddOnDropdownOpen(false);
@@ -849,6 +862,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     setSlotEndTime('');
     setProviderServiceId(null);
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
   }, []);
 
   const handlePetQuantityChange = useCallback((selectedPetId: number, quantity: number) => {
@@ -888,6 +903,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
       setSlotEndTime('');
       setProviderServiceId(null);
       setDiscountPreview(null);
+      setManualDiscountAmountInr('');
+      setManualDiscountReason('');
     },
     [selectedPetIds, showToast],
   );
@@ -1199,6 +1216,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
         setProviderServiceId(null);
         setDiscountCode('');
         setDiscountPreview(null);
+        setManualDiscountAmountInr('');
+        setManualDiscountReason('');
         setProviderNotes('');
 
         // Jump to date & slot step so admin can pick new schedule
@@ -1507,6 +1526,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     setProviderServiceId(null);
     setDiscountCode('');
     setDiscountPreview(null);
+    setManualDiscountAmountInr('');
+    setManualDiscountReason('');
 
     if (pincode) {
       startTransition(async () => {
@@ -1935,6 +1956,10 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
             providerNotes: mergedProviderNotes || null,
             bookingUserId: selectedBookingUserId,
             discountCode: bundleEntries.length === 1 && discountCode.trim() ? discountCode.trim().toUpperCase() : undefined,
+            manualDiscountAmountInr: manualDiscountAmount > 0 ? manualDiscountAmount : undefined,
+            manualDiscountReason: manualDiscountAmount > 0 && manualDiscountReason.trim()
+              ? manualDiscountReason.trim()
+              : undefined,
             addOns: normalizedAddOns.length > 0 ? normalizedAddOns : undefined,
             useSubscriptionCredit,
             walletCreditsAppliedInr: !useSubscriptionCredit && walletCreditsToApply > 0 ? walletCreditsToApply : undefined,
@@ -2901,11 +2926,42 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
                 </div>
               ) : null}
 
+              {canApplyManualDiscount ? (
+                <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,14rem)_minmax(0,1fr)]">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Manual discount (Rs.)
+                    <input
+                      inputMode="numeric"
+                      value={manualDiscountAmountInr}
+                      onBlur={() => {
+                        if (manualDiscountAmountInr && manualDiscountAmount !== enteredManualDiscountAmount) {
+                          setManualDiscountAmountInr(manualDiscountAmount > 0 ? String(manualDiscountAmount) : '');
+                        }
+                      }}
+                      onChange={(event) => setManualDiscountAmountInr(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                      placeholder="0"
+                      className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                  <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                    Manual discount reason
+                    <input
+                      value={manualDiscountReason}
+                      onChange={(event) => setManualDiscountReason(event.target.value.slice(0, 300))}
+                      placeholder="Optional"
+                      className="mt-1 h-11 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
+                    />
+                  </label>
+                </div>
+              ) : null}
+
               <div className="mt-3 text-xs text-neutral-600">
                 {totalSelectedServices > 1 ? <p className="text-amber-700">Discounts are available for single-service plans only.</p> : null}
                 <p>Base amount: Rs.{summaryBaseAmount}</p>
                 <p>Add-ons: Rs.{summaryAddOnAmount}</p>
-                <p>Discount: Rs.{summaryDiscount}</p>
+                <p>Code discount: Rs.{promoDiscountAmount}</p>
+                {canApplyManualDiscount ? <p>Manual discount: Rs.{manualDiscountAmount}</p> : null}
+                <p>Total discount: Rs.{summaryDiscount}</p>
                 <p className="font-semibold text-neutral-900">Payable estimate: Rs.{summaryTotal}</p>
               </div>
             </div>
@@ -3174,7 +3230,9 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
               <div className="mt-2 space-y-1 text-sm text-neutral-700">
                 <p>Base amount: Rs.{summaryBaseAmount}</p>
                 <p>Add-ons: Rs.{summaryAddOnAmount}</p>
-                <p>Discount: -Rs.{summaryDiscount}</p>
+                <p>Code discount: -Rs.{promoDiscountAmount}</p>
+                {canApplyManualDiscount ? <p>Manual discount: -Rs.{manualDiscountAmount}</p> : null}
+                <p>Total discount: -Rs.{summaryDiscount}</p>
                 <p>Wallet/Referral credits: -Rs.{walletCreditsToApply}</p>
                 <p className="font-semibold text-neutral-900">Total payable: Rs.{paymentChoice === 'subscription_credit' ? 0 : summaryPayableAfterWallet}</p>
               </div>

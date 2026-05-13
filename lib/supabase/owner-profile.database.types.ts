@@ -56,6 +56,7 @@ export type OwnerProfileDatabase = {
           country: string;
           latitude: number | null;
           longitude: number | null;
+          phone: string | null;
           is_default: boolean;
           created_at: string;
           updated_at: string;

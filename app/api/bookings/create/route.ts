@@ -13,6 +13,7 @@ import { deductCredits } from '@/lib/credits/wallet';
 import { haversineDistanceKm } from '@/lib/utils/geo-distance';
 import { reserveCreditForBooking } from '@/lib/subscriptions/creditTracking';
 import { createDiscountRedemption, evaluateDiscountForBooking } from '@/lib/bookings/discounts';
+import { calculateBookingPriceWithSupabase } from '@/lib/bookings/engines/pricingEngine';
 import { getISTTimestamp } from '@/lib/utils/date';
 import { sanitizeAddressText } from '@/lib/utils/address';
 
@@ -20,6 +21,75 @@ const RATE_LIMIT = {
   windowMs: 60_000,
   maxRequests: 20,
 };
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100;
+}
+
+function appendInternalNote(existing: string | null | undefined, note: string | null) {
+  return [note, existing]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join('\n\n') || null;
+}
+
+async function resolveManualDiscountSubtotal(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  input: {
+    providerId: number;
+    providerServiceId: string;
+    addOns?: Array<{ id: string; quantity: number }>;
+    bundleProviderServiceIds?: string[];
+    bundleEstimatedTotalInr?: number;
+  },
+  isBundledBooking: boolean,
+) {
+  if (isBundledBooking) {
+    const bundleProviderServiceIds = Array.from(
+      new Set([
+        input.providerServiceId,
+        ...(input.bundleProviderServiceIds ?? []),
+      ]),
+    );
+
+    const { data: providerServices, error } = await supabase
+      .from('provider_services')
+      .select('id, base_price')
+      .eq('provider_id', input.providerId)
+      .in('id', bundleProviderServiceIds)
+      .returns<Array<{ id: string; base_price: number }>>();
+
+    if (error || !providerServices || providerServices.length !== bundleProviderServiceIds.length) {
+      throw error ?? new Error('Unable to validate manual discount for the selected services.');
+    }
+
+    const baseFromServices = providerServices.reduce(
+      (sum, service) => sum + Math.max(0, Number(service.base_price ?? 0)),
+      0,
+    );
+    const providedBundleTotal = Math.max(0, Number(input.bundleEstimatedTotalInr ?? 0));
+    const subtotal = Math.max(baseFromServices, providedBundleTotal);
+
+    if (!Number.isFinite(subtotal) || subtotal <= 0) {
+      throw new Error('Unable to determine booking amount for manual discount.');
+    }
+
+    return roundCurrency(subtotal);
+  }
+
+  const pricing = await calculateBookingPriceWithSupabase(supabase, {
+    bookingType: 'service',
+    providerId: input.providerId,
+    serviceId: input.providerServiceId,
+    addOns: input.addOns,
+  });
+  const subtotal = Number(pricing.base_total ?? 0) + Number(pricing.addon_total ?? 0);
+
+  if (!Number.isFinite(subtotal) || subtotal <= 0) {
+    throw new Error('Unable to determine booking amount for manual discount.');
+  }
+
+  return roundCurrency(subtotal);
+}
 
 export async function POST(request: Request) {
   const auth = await requireApiRole(['user', 'provider', 'admin', 'staff']);
@@ -45,9 +115,16 @@ export async function POST(request: Request) {
   const normalizedLocationAddress = sanitizeAddressText(parsed.data.locationAddress);
 
   const targetUserId = parsed.data.bookingUserId ?? user.id;
+  const manualDiscountAmountInr = Math.max(0, parsed.data.manualDiscountAmountInr ?? 0);
+  const manualDiscountReason = parsed.data.manualDiscountReason?.trim() ?? '';
+  const canApplyManualDiscount = role === 'admin' || role === 'staff';
 
   if (parsed.data.allowPastBooking && role !== 'admin' && role !== 'staff') {
     return NextResponse.json({ error: 'Only admin or staff can create offline bookings for past slots.' }, { status: 403 });
+  }
+
+  if (manualDiscountAmountInr > 0 && !canApplyManualDiscount) {
+    return NextResponse.json({ error: 'Only admin or staff can apply manual discounts.' }, { status: 403 });
   }
 
   if (parsed.data.allowPastBooking && !parsed.data.endTime) {
@@ -252,6 +329,7 @@ export async function POST(request: Request) {
       discountAmount: number;
       finalAmount: number;
     } | null = null;
+    let manualDiscountSubtotal: number | null = null;
 
     if (requestedDiscountCode) {
       let discountEvaluation: Awaited<ReturnType<typeof evaluateDiscountForBooking>>;
@@ -330,6 +408,32 @@ export async function POST(request: Request) {
       };
     }
 
+    if (manualDiscountAmountInr > 0) {
+      manualDiscountSubtotal = await resolveManualDiscountSubtotal(admin, {
+        providerId: parsed.data.providerId,
+        providerServiceId: parsed.data.providerServiceId,
+        addOns: parsed.data.addOns,
+        bundleProviderServiceIds: parsed.data.bundleProviderServiceIds,
+        bundleEstimatedTotalInr: parsed.data.bundleEstimatedTotalInr,
+      }, isBundledBooking);
+
+      const couponDiscountAmount = Number(resolvedDiscountPreview?.discountAmount ?? 0);
+      const maxManualDiscount = Math.max(0, roundCurrency(manualDiscountSubtotal - couponDiscountAmount));
+      if (manualDiscountAmountInr > maxManualDiscount) {
+        return NextResponse.json(
+          { error: `Manual discount cannot exceed Rs.${maxManualDiscount}.` },
+          { status: 400 },
+        );
+      }
+    }
+
+    const totalDiscountAmount = roundCurrency(
+      Number(resolvedDiscountPreview?.discountAmount ?? 0) + manualDiscountAmountInr,
+    );
+    const manualDiscountNote = manualDiscountAmountInr > 0
+      ? `Manual admin discount: Rs.${manualDiscountAmountInr}${manualDiscountReason ? ` - ${manualDiscountReason}` : ''}`
+      : null;
+
     // Security: Never trust client-provided finalPrice or discountAmount
     // All pricing calculated server-side in DB RPC
     const bookingInput = {
@@ -358,25 +462,51 @@ export async function POST(request: Request) {
     // `create_booking_atomic` can read auth.uid() from the JWT. The admin
     // client is still used for table queries that need RLS bypass.
     const booking = await createBooking(admin, targetUserId, bookingInput, supabase);
+    let responseBooking = booking;
 
-    if (resolvedDiscountPreview) {
-      await admin
+    if (totalDiscountAmount > 0 || manualDiscountNote) {
+      const finalAmountForPatch = manualDiscountSubtotal !== null
+        ? Math.max(0, roundCurrency(manualDiscountSubtotal - totalDiscountAmount))
+        : resolvedDiscountPreview?.finalAmount;
+
+      const discountPatch: Record<string, unknown> = {
+        discount_code: requestedDiscountCode,
+        discount_amount: totalDiscountAmount,
+        internal_notes: appendInternalNote(booking.internal_notes, manualDiscountNote),
+      };
+
+      if (finalAmountForPatch !== undefined) {
+        discountPatch.final_price = finalAmountForPatch;
+      }
+
+      if (isBundledBooking && finalAmountForPatch !== undefined) {
+        discountPatch.amount = finalAmountForPatch;
+      }
+
+      const { data: discountedBooking, error: discountPatchError } = await admin
         .from('bookings')
-        .update({
-          discount_code: requestedDiscountCode,
-          discount_amount: resolvedDiscountPreview.discountAmount,
-          final_price: resolvedDiscountPreview.finalAmount,
-          amount: isBundledBooking ? resolvedDiscountPreview.finalAmount : undefined,
-        })
-        .eq('id', booking.id);
+        .update(discountPatch)
+        .eq('id', booking.id)
+        .select('*')
+        .maybeSingle();
+
+      if (discountPatchError) {
+        throw discountPatchError;
+      }
+
+      if (discountedBooking) {
+        responseBooking = discountedBooking as typeof booking;
+      }
 
       try {
-        await createDiscountRedemption(admin, {
-          discountId: resolvedDiscountPreview.discountId,
-          bookingId: booking.id,
-          userId: targetUserId,
-          discountAmount: resolvedDiscountPreview.discountAmount,
-        });
+        if (resolvedDiscountPreview) {
+          await createDiscountRedemption(admin, {
+            discountId: resolvedDiscountPreview.discountId,
+            bookingId: booking.id,
+            userId: targetUserId,
+            discountAmount: resolvedDiscountPreview.discountAmount,
+          });
+        }
       } catch (redemptionError) {
         console.error('[bookings/create] non-fatal discount redemption persistence failure', redemptionError);
       }
@@ -430,7 +560,7 @@ export async function POST(request: Request) {
 
       if (!existingCreditLink) {
         try {
-          const creditAmount = Number(booking.price_at_booking ?? 0);
+          const creditAmount = Number(responseBooking.final_price ?? responseBooking.amount ?? booking.price_at_booking ?? 0);
           if (!Number.isFinite(creditAmount) || creditAmount <= 0) {
             throw new Error('Booking price is required for subscription credit usage.');
           }
@@ -502,7 +632,7 @@ export async function POST(request: Request) {
     }
 
     // Deduct wallet credits if requested — cap at actual booking price to prevent overdrain
-    const bookingPrice = Number(booking.price_at_booking ?? 0);
+    const bookingPrice = Number(responseBooking.final_price ?? responseBooking.amount ?? booking.price_at_booking ?? 0);
     const walletCreditsRequested = Math.min(
       parsed.data.walletCreditsAppliedInr ?? 0,
       bookingPrice,
@@ -539,24 +669,22 @@ export async function POST(request: Request) {
       }
     }
 
-    let responseBooking = booking;
-
     if (parsed.data.bundleSummary || parsed.data.bundleEstimatedTotalInr) {
       const bundleSummary = parsed.data.bundleSummary?.trim() ?? '';
-      const mergedNotes = [bundleSummary, booking.provider_notes ?? null]
+      const mergedNotes = [bundleSummary, responseBooking.provider_notes ?? null]
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
         .join('\n\n');
-      const mergedInternalNotes = [bundleSummary, booking.internal_notes ?? null]
+      const mergedInternalNotes = [bundleSummary, responseBooking.internal_notes ?? null]
         .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
         .join('\n\n');
 
       const estimatedTotalInr = Math.max(0, Number(parsed.data.bundleEstimatedTotalInr ?? 0));
       const walletAppliedForBundle = Math.max(0, Number(parsed.data.walletCreditsAppliedInr ?? 0));
-      const discountAmountForBundle = Math.max(0, Number(resolvedDiscountPreview?.discountAmount ?? 0));
+      const discountAmountForBundle = Math.max(0, totalDiscountAmount);
       const bookingFinalAmount = Number(
-        (booking as { final_price?: number | null; amount?: number | null }).final_price ??
-          (booking as { amount?: number | null }).amount ??
-          booking.price_at_booking ??
+        (responseBooking as { final_price?: number | null; amount?: number | null }).final_price ??
+          (responseBooking as { amount?: number | null }).amount ??
+          responseBooking.price_at_booking ??
           0,
       );
       const finalPriceForBundle =

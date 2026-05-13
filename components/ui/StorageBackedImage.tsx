@@ -29,6 +29,7 @@ type ResolvedUrlCacheEntry = {
 };
 
 const resolvedUrlCache = new Map<string, ResolvedUrlCacheEntry>();
+const pendingSignedUrlRequests = new Map<string, Promise<string>>();
 const supabaseOrigin = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '') ?? '';
 
 function isDirectHttpOrStorageUrl(value: string) {
@@ -187,16 +188,29 @@ function setCachedResolvedUrl(cacheKey: string, url: string, expiresAt: number |
 }
 
 async function createSignedReadUrl(bucket: BucketName, path: string) {
-  const payload = await apiRequest<{ signedUrl: string }>('/api/storage/signed-read-url', {
+  const requestKey = `${bucket}::${path}`;
+  const pendingRequest = pendingSignedUrlRequests.get(requestKey);
+
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
+  const request = apiRequest<{ signedUrl: string }>('/api/storage/signed-read-url', {
     method: 'POST',
     body: JSON.stringify({
       bucket,
       path,
       expiresIn: SIGNED_URL_EXPIRES_IN_SECONDS,
     }),
-  });
+  }).then((payload) => absolutizeStorageUrl(payload.signedUrl));
 
-  return absolutizeStorageUrl(payload.signedUrl);
+  pendingSignedUrlRequests.set(requestKey, request);
+
+  try {
+    return await request;
+  } finally {
+    pendingSignedUrlRequests.delete(requestKey);
+  }
 }
 
 export default function StorageBackedImage({

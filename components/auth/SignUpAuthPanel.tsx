@@ -8,6 +8,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { FlowState } from '@/lib/flows/contracts';
 import { extractIndianPhoneDigits, isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
+import { DEFAULT_BUSINESS_REFEREE_REWARD_INR, REFERRAL_CODE_MAX_LENGTH } from '@/lib/referrals/business-campaign-config';
 
 type SignUpStep = 'collect' | 'verify' | 'done';
 
@@ -125,6 +126,8 @@ export default function SignUpAuthPanel() {
   const [phoneDigits, setPhoneDigits] = useState('');
   const [referralCode, setReferralCode] = useState('');
   const [activeCampaignReferralCode, setActiveCampaignReferralCode] = useState<string | null>(null);
+  const [activeCampaignRewardInr, setActiveCampaignRewardInr] = useState<number | null>(null);
+  const [hasResolvedActiveCampaign, setHasResolvedActiveCampaign] = useState(false);
   const [isReferralAutoApplied, setIsReferralAutoApplied] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [resendCooldownSeconds, setResendCooldownSeconds] = useState(0);
@@ -135,6 +138,8 @@ export default function SignUpAuthPanel() {
   const [, setFlowState] = useState<FlowState>('collecting');
   const otpInputRef = useRef<HTMLInputElement | null>(null);
   const hasReferralBeenEditedRef = useRef(false);
+  const activeCampaignRewardLabel = activeCampaignRewardInr ? `₹${activeCampaignRewardInr}` : null;
+  const shouldShowOfferPanel = !hasResolvedActiveCampaign || Boolean(activeCampaignRewardLabel);
 
   // Pre-fill referral code from URL ?ref= param
   useEffect(() => {
@@ -150,10 +155,8 @@ export default function SignUpAuthPanel() {
     let isCancelled = false;
 
     async function hydrateActiveCampaignReferralCode() {
-      const refParam = params.get('ref');
-      if (refParam) {
-        return;
-      }
+      setHasResolvedActiveCampaign(false);
+      const refParam = params.get('ref')?.trim().toUpperCase() ?? '';
 
       try {
         const response = await fetch('/api/referrals/business-signup-link', { cache: 'no-store' });
@@ -164,14 +167,32 @@ export default function SignUpAuthPanel() {
         const payload = (await response.json()) as {
           is_active?: boolean;
           referral_code?: string | null;
+          referee_reward_inr?: number | null;
         };
 
         if (isCancelled || !payload.is_active || !payload.referral_code) {
+          if (!isCancelled) {
+            setActiveCampaignReferralCode(null);
+            setActiveCampaignRewardInr(null);
+          }
           return;
         }
 
         const normalizedCampaignCode = payload.referral_code.trim().toUpperCase();
-        setActiveCampaignReferralCode(normalizedCampaignCode);
+        const shouldShowBusinessOffer = !refParam || refParam === normalizedCampaignCode;
+
+        setActiveCampaignReferralCode(shouldShowBusinessOffer ? normalizedCampaignCode : null);
+        setActiveCampaignRewardInr(
+          shouldShowBusinessOffer
+            ? typeof payload.referee_reward_inr === 'number' && payload.referee_reward_inr > 0
+              ? payload.referee_reward_inr
+              : DEFAULT_BUSINESS_REFEREE_REWARD_INR
+            : null,
+        );
+
+        if (refParam) {
+          return;
+        }
 
         setReferralCode((previous) => {
           if (hasReferralBeenEditedRef.current || previous.trim()) {
@@ -183,6 +204,10 @@ export default function SignUpAuthPanel() {
         });
       } catch {
         // Keep form usable even if campaign lookup is unavailable.
+      } finally {
+        if (!isCancelled) {
+          setHasResolvedActiveCampaign(true);
+        }
       }
     }
 
@@ -258,13 +283,22 @@ export default function SignUpAuthPanel() {
         return '';
       }
 
-      const payload = (await response.json()) as { is_active?: boolean; referral_code?: string | null };
+      const payload = (await response.json()) as {
+        is_active?: boolean;
+        referral_code?: string | null;
+        referee_reward_inr?: number | null;
+      };
       if (!payload.is_active || !payload.referral_code) {
         return '';
       }
 
       const normalizedCampaignCode = payload.referral_code.trim().toUpperCase();
       setActiveCampaignReferralCode(normalizedCampaignCode);
+      setActiveCampaignRewardInr(
+        typeof payload.referee_reward_inr === 'number' && payload.referee_reward_inr > 0
+          ? payload.referee_reward_inr
+          : DEFAULT_BUSINESS_REFEREE_REWARD_INR,
+      );
       setReferralCode((previous) => previous.trim().toUpperCase() || normalizedCampaignCode);
       setIsReferralAutoApplied(true);
       return normalizedCampaignCode;
@@ -503,50 +537,56 @@ export default function SignUpAuthPanel() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[1.1fr_1fr]">
-      <section className="relative hidden overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-6 shadow-soft-md lg:block">
-        <div className="pointer-events-none absolute -left-14 -top-16 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(253,196,146,0.55)_0%,rgba(253,196,146,0)_72%)]" aria-hidden="true" />
-        <div className="pointer-events-none absolute -right-32 bottom-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(228,145,76,0.3)_0%,rgba(228,145,76,0)_72%)]" aria-hidden="true" />
+    <div className={`mx-auto grid w-full gap-6 ${shouldShowOfferPanel ? 'max-w-5xl lg:grid-cols-[1.1fr_1fr]' : 'max-w-[460px]'}`}>
+      {shouldShowOfferPanel ? (
+        <section className="relative hidden overflow-hidden rounded-3xl border border-[#e9c8ab] bg-[linear-gradient(150deg,#fffefc_0%,#fff7ef_42%,#fce9d7_100%)] p-6 shadow-soft-md lg:block">
+          <div className="pointer-events-none absolute -left-14 -top-16 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(253,196,146,0.55)_0%,rgba(253,196,146,0)_72%)]" aria-hidden="true" />
+          <div className="pointer-events-none absolute -right-32 bottom-12 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(228,145,76,0.3)_0%,rgba(228,145,76,0)_72%)]" aria-hidden="true" />
 
-        <div className="relative mx-auto w-full max-w-[430px]">
-          <div className="inline-flex items-center gap-2 rounded-full border border-[#ecd1b8] bg-white/80 px-3 py-1 text-xs font-semibold text-[#8e5630] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
-            <Sparkles className="h-3.5 w-3.5" />
-            Welcome Offer
-          </div>
-          <h2 className="mt-4 whitespace-nowrap text-[1.56rem] font-bold leading-tight text-ink">🎉 Add 2+ Years to Your Pet&apos;s Life 🐾</h2>
-          <p className="mt-2 inline-flex rounded-full border border-[#efc8a8] bg-[#ffe8d2] px-3 py-1 text-sm font-bold text-[#c06120]">
-            + Get ₹500 Free on Signup
-          </p>
-          {activeCampaignReferralCode ? (
-            <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9f5d2f]">
-              Use code {activeCampaignReferralCode} during signup
+          <div className="relative mx-auto w-full max-w-[430px]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#ecd1b8] bg-white/80 px-3 py-1 text-xs font-semibold text-[#8e5630] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
+              <Sparkles className="h-3.5 w-3.5" />
+              Welcome Offer
+            </div>
+            <h2 className="mt-4 whitespace-nowrap text-[1.56rem] font-bold leading-tight text-ink">🎉 Add 2+ Years to Your Pet&apos;s Life 🐾</h2>
+            {activeCampaignRewardLabel ? (
+              <p className="mt-2 inline-flex rounded-full border border-[#efc8a8] bg-[#ffe8d2] px-3 py-1 text-sm font-bold text-[#c06120]">
+                + Get {activeCampaignRewardLabel} Free on Signup
+              </p>
+            ) : null}
+            {activeCampaignReferralCode ? (
+              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#9f5d2f]">
+                Use code {activeCampaignReferralCode} during signup
+              </p>
+            ) : null}
+            <p className="mt-2.5 text-sm leading-relaxed text-[#67584a]">
+              Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
             </p>
-          ) : null}
-          <p className="mt-2.5 text-sm leading-relaxed text-[#67584a]">
-            Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
-          </p>
-          <ul className="mt-3.5 space-y-2 text-sm text-[#45372b]">
-            {welcomeOfferBenefits.map(({ icon: Icon, label }) => (
-              <li
-                key={label}
-                className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-2 shadow-[0_6px_14px_rgba(147,90,47,0.1)]"
-              >
-                <span className="inline-flex items-center gap-2.5 text-[0.92rem] font-medium">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
-                    <Icon className="h-3 w-3" />
+            <ul className="mt-3.5 space-y-2 text-sm text-[#45372b]">
+              {welcomeOfferBenefits.map(({ icon: Icon, label }) => (
+                <li
+                  key={label}
+                  className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-2 shadow-[0_6px_14px_rgba(147,90,47,0.1)]"
+                >
+                  <span className="inline-flex items-center gap-2.5 text-[0.92rem] font-medium">
+                    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
+                      <Icon className="h-3 w-3" />
+                    </span>
+                    {label}
                   </span>
-                  {label}
-                </span>
-              </li>
-            ))}
-          </ul>
-          <div className="mt-3 rounded-xl border border-[#e5c7ab] bg-[#fff6ec] px-4 py-1.5 text-center">
-            <p className="text-xs font-bold uppercase tracking-[0.13em] text-[#a46336]">
-              Offer expires in {formatOfferTimer(offerCountdownSeconds)}
-            </p>
+                </li>
+              ))}
+            </ul>
+            {activeCampaignRewardLabel ? (
+              <div className="mt-3 rounded-xl border border-[#e5c7ab] bg-[#fff6ec] px-4 py-1.5 text-center">
+                <p className="text-xs font-bold uppercase tracking-[0.13em] text-[#a46336]">
+                  Offer expires in {formatOfferTimer(offerCountdownSeconds)}
+                </p>
+              </div>
+            ) : null}
           </div>
-        </div>
-      </section>
+        </section>
+      ) : null}
 
       <section className="rounded-3xl border border-[#f2dfcf] bg-white p-4 shadow-soft-md sm:p-4">
         <h1 className="text-2xl font-bold text-ink">Create your account</h1>
@@ -621,7 +661,7 @@ export default function SignUpAuthPanel() {
                   setReferralCode(e.target.value.trim().toUpperCase());
                 }}
                 placeholder="e.g. DOFR4X9K2"
-                maxLength={9}
+                maxLength={REFERRAL_CODE_MAX_LENGTH}
                 className="w-full rounded-xl border border-[#f2dfcf] px-4 py-2 text-sm uppercase tracking-wider outline-none transition focus:border-[#e89a5e] focus:ring-2 focus:ring-[#f7d8bd]"
               />
               {isReferralAutoApplied ? (
@@ -629,7 +669,7 @@ export default function SignUpAuthPanel() {
                   Applied automatically
                 </p>
               ) : null}
-              <p className="mt-0.5 text-[11px] text-[#9a9a9a]">Have a friend&apos;s code? Enter it to earn ₹500 welcome credits.</p>
+              <p className="mt-0.5 text-[11px] text-[#9a9a9a]">Have a referral code? Enter it to earn welcome credits.</p>
             </div>
 
             <button

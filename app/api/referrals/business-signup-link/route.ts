@@ -14,6 +14,7 @@ export async function GET() {
     return NextResponse.json({
       signup_link: buildBusinessReferralSignupLink(campaign.referral_code),
       referral_code: campaign.referral_code,
+      referee_reward_inr: campaign.referee_reward_inr,
       is_active: true,
     });
   } catch (error) {

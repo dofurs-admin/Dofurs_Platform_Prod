@@ -212,6 +212,7 @@ const localBusinessSchema = {
         name: 'Grooming',
         itemListElement: [
           { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Doorstep Pet Grooming' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Fur Makeover' } },
           { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Salon Grooming' } },
         ],
       },

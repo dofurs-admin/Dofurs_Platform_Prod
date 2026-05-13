@@ -38,6 +38,14 @@ export const GROOMING_PACKAGES: GroomingPackage[] = [
     serviceTypeKeywords: ['summer bonanza', 'offer package'],
   },
   {
+    title: 'Fur Makeover',
+    price: 1199,
+    features: ['Hair Trimming', 'Paw Hair Trimming', 'Nail Clipping'],
+    badge: 'Great Deal',
+    badgeVariant: 'deal',
+    serviceTypeKeywords: ['fur makeover', 'fur makeover package'],
+  },
+  {
     title: 'Essential Grooming',
     price: 1799,
     features: [

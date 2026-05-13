@@ -9,11 +9,11 @@ import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/s
 export const metadata: Metadata = {
   title: 'Professional Pet Grooming in Bangalore — Doorstep & Salon | Dofurs',
   description:
-    'Book expert pet grooming in Bangalore — doorstep bath, haircut, nail trimming, de-shedding, and full spa packages. Verified groomers, pet-safe products, and transparent pricing from ₹899.',
+    'Book expert pet grooming in Bangalore — doorstep bath, Fur Makeover trims, nail trimming, de-shedding, and full spa packages. Verified groomers, pet-safe products, and transparent pricing from ₹899.',
   openGraph: {
     title: 'Pet Grooming in Bangalore | Dofurs',
     description:
-      'Professional doorstep pet grooming in Bangalore. Choose from Essential, Complete Care, and Summer Bonanza packages. Verified groomers, safe products.',
+      'Professional doorstep pet grooming in Bangalore. Choose from Fur Makeover, Essential, Complete Care, and Summer Bonanza packages. Verified groomers, safe products.',
     type: 'website',
     url: 'https://dofurs.in/services/grooming',
   },
@@ -58,6 +58,15 @@ const GROOMING_PACKAGES = [
       'Nail Clipping & Paw Hair Trimming',
     ],
     description: 'Perfect for the summer months — a full bath and coat refresh.',
+  },
+  {
+    title: 'Fur Makeover',
+    price: '₹1,199',
+    badge: 'Great Deal',
+    badgeColor: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
+    features: ['Hair Trimming', 'Paw Hair Trimming', 'Nail Clipping'],
+    description: 'A trim-focused refresh for coat shape, paws, and nails.',
+    anchorId: 'fur-makeover',
   },
   {
     title: 'Essential Grooming',
@@ -154,6 +163,7 @@ const groomingServiceSchema = buildServiceSchema({
   offers: [
     { name: 'Doorstep Pet Grooming', priceFrom: 899, description: 'Nail trim, paw hair, knot removal, eye and ear cleaning.' },
     { name: 'Summer Bonanza Bath', priceFrom: 1199, description: 'Bath, dry, shampoo, conditioner, brushing, de-matting and nail clipping.' },
+    { name: 'Fur Makeover', priceFrom: 1199, description: 'Hair trimming, paw hair trimming, and nail clipping.' },
     { name: 'Essential Grooming', priceFrom: 1799, description: 'Comprehensive grooming: bath, nail clipping, paw trim, sanitary trim, brushing, paw massage, eye cleaning.' },
     { name: 'Complete Care', priceFrom: 2499, description: 'Full spa grooming with custom haircut and face styling.' },
   ],
@@ -229,6 +239,7 @@ export default function GroomingPage() {
         {GROOMING_PACKAGES.map((pkg) => (
           <div
             key={pkg.title}
+            id={pkg.anchorId}
             className={`relative flex flex-col rounded-2xl border p-5 transition-shadow hover:shadow-md ${
               pkg.highlight
                 ? 'border-[#e4973f] bg-[linear-gradient(160deg,#fffcf8,#fff8f0)]'

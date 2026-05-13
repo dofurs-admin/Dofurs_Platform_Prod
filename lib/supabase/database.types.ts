@@ -2791,6 +2791,7 @@ export type Database = {
           location: unknown
           longitude: number | null
           pincode: string
+          phone: string | null
           state: string
           updated_at: string
           user_id: string
@@ -2808,6 +2809,7 @@ export type Database = {
           location?: unknown
           longitude?: number | null
           pincode: string
+          phone?: string | null
           state: string
           updated_at?: string
           user_id: string
@@ -2825,6 +2827,7 @@ export type Database = {
           location?: unknown
           longitude?: number | null
           pincode?: string
+          phone?: string | null
           state?: string
           updated_at?: string
           user_id?: string

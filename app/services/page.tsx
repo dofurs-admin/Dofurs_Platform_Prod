@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 export const metadata: Metadata = {
   title: 'Pet Services in Bangalore — Grooming, Boarding, Vet, Sitting & More | Dofurs',
   description:
-    'Explore premium pet services in Bangalore: professional doorstep grooming from ₹899, pet boarding from ₹999/night, birthday packages from ₹1,999, vet home visits, in-home sitting, and positive-reinforcement training from verified specialists.',
+    'Explore premium pet services in Bangalore: professional doorstep grooming from ₹899, Fur Makeover trims from ₹1,199, pet boarding from ₹999/night, birthday packages from ₹1,999, vet home visits, in-home sitting, and positive-reinforcement training from verified specialists.',
   alternates: { canonical: '/services' },
   openGraph: {
     title: 'Pet Services in Bangalore | Dofurs',
@@ -31,7 +31,7 @@ const SERVICE_CATEGORIES = [
     slug: 'grooming',
     label: 'Pet Grooming',
     description:
-      'Professional doorstep baths, haircuts, nail trimming, and full grooming sessions. Verified groomers, safe products, at-home convenience.',
+      'Professional doorstep baths, Fur Makeover trims, haircuts, nail trimming, and full grooming sessions. Verified groomers, safe products, at-home convenience.',
     icon: '✂️',
     color: 'border-orange-200 bg-orange-50/60',
     iconBg: 'bg-orange-100',

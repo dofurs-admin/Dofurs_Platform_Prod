@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/design-system';
+import CollapsibleAdminSection, { AdminSectionCollapseToolbar } from '@/components/dashboard/admin/CollapsibleAdminSection';
 import AdminPaginationControls from '@/components/dashboard/admin/AdminPaginationControls';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -18,6 +19,35 @@ type AdminBillingInvoice = {
 };
 
 type BillingInvoiceUpdateStatus = 'draft' | 'issued' | 'paid';
+
+type BillingAdminSectionId =
+  | 'searchFilter'
+  | 'moneyOverview'
+  | 'paymentMatching'
+  | 'matchQueue'
+  | 'paymentReminders'
+  | 'overdueEscalations'
+  | 'invoiceLedger';
+
+const billingAdminSectionIds: BillingAdminSectionId[] = [
+  'searchFilter',
+  'moneyOverview',
+  'paymentMatching',
+  'matchQueue',
+  'paymentReminders',
+  'overdueEscalations',
+  'invoiceLedger',
+];
+
+const defaultExpandedBillingAdminSections: Record<BillingAdminSectionId, boolean> = {
+  searchFilter: true,
+  moneyOverview: false,
+  paymentMatching: false,
+  matchQueue: false,
+  paymentReminders: false,
+  overdueEscalations: false,
+  invoiceLedger: true,
+};
 
 type BillingReconciliationSummary = {
   checked_at: string;
@@ -451,9 +481,29 @@ export default function AdminBillingView({
   } = escalationState;
 
   const [showGuide, setShowGuide] = useState(false);
+  const [expandedBillingAdminSections, setExpandedBillingAdminSections] = useState<Record<BillingAdminSectionId, boolean>>(
+    () => defaultExpandedBillingAdminSections,
+  );
+  const areAllBillingAdminSectionsExpanded = billingAdminSectionIds.every((sectionId) => expandedBillingAdminSections[sectionId]);
+  const areAllBillingAdminSectionsMinimized = billingAdminSectionIds.every((sectionId) => !expandedBillingAdminSections[sectionId]);
+
+  function toggleBillingAdminSection(sectionId: BillingAdminSectionId) {
+    setExpandedBillingAdminSections((current) => ({
+      ...current,
+      [sectionId]: !current[sectionId],
+    }));
+  }
+
+  function setAllBillingAdminSectionsExpanded(isExpanded: boolean) {
+    setExpandedBillingAdminSections(
+      billingAdminSectionIds.reduce<Record<BillingAdminSectionId, boolean>>((nextState, sectionId) => {
+        nextState[sectionId] = isExpanded;
+        return nextState;
+      }, {} as Record<BillingAdminSectionId, boolean>),
+    );
+  }
 
   // ── Shared styles ──────────────────────────────────────────────────────
-  const sectionCard = 'rounded-2xl border border-neutral-200/60 bg-white p-6 shadow-sm';
   const sectionNumber = 'flex h-7 w-7 items-center justify-center rounded-full bg-coral/10 text-xs font-bold text-coral';
   const statCard = 'rounded-xl border p-4';
   const statLabel = 'text-xs font-medium';
@@ -554,15 +604,26 @@ export default function AdminBillingView({
         </div>
       </div>
 
+      <AdminSectionCollapseToolbar
+        title="Billing Sections"
+        description="Keep filters and the ledger open, or minimize the operational queues for a shorter workspace."
+        areAllExpanded={areAllBillingAdminSectionsExpanded}
+        areAllMinimized={areAllBillingAdminSectionsMinimized}
+        onExpandAll={() => setAllBillingAdminSectionsExpanded(true)}
+        onMinimizeAll={() => setAllBillingAdminSectionsExpanded(false)}
+      />
+
       {/* ── Section 1: Search & Filter ──────────────────────────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-4 flex items-center gap-2.5">
-          <span className={sectionNumber}>1</span>
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900">Search & Filter Invoices</h3>
-            <p className="text-xs text-neutral-500">Narrow down invoices using any combination of filters below.</p>
-          </div>
-        </div>
+      <CollapsibleAdminSection
+        id="admin-billing-search-filter"
+        title="Search & Filter Invoices"
+        description="Narrow down invoices using any combination of filters below."
+        summary="1"
+        isExpanded={expandedBillingAdminSections.searchFilter}
+        onToggle={() => toggleBillingAdminSection('searchFilter')}
+        headingLevel="h3"
+        bodyClassName="mt-4"
+      >
         <div className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <div>
             <label className="mb-2 block text-sm font-medium text-neutral-700">Search</label>
@@ -605,27 +666,29 @@ export default function AdminBillingView({
             </button>
           </div>
         </div>
-      </div>
+      </CollapsibleAdminSection>
 
       {/* ── Section 2: Money Overview (Collections Health) ──────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className={sectionNumber}>2</span>
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900">Money Overview</h3>
-              <p className="text-xs text-neutral-500">Your billing summary — how much has been billed, collected, and what&apos;s still outstanding.</p>
-            </div>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-billing-money-overview"
+        title="Money Overview"
+        description="Your billing summary: how much has been billed, collected, and what is still outstanding."
+        summary="2"
+        isExpanded={expandedBillingAdminSections.moneyOverview}
+        onToggle={() => toggleBillingAdminSection('moneyOverview')}
+        headingLevel="h3"
+        bodyClassName="mt-5"
+        actions={(
           <button
             type="button"
             onClick={() => void onRefreshCollectionsMetrics()}
             disabled={isBillingCollectionsMetricsLoading}
             className={secondaryBtn}
           >
-            {isBillingCollectionsMetricsLoading ? 'Refreshing...' : '↻ Refresh Metrics'}
+            {isBillingCollectionsMetricsLoading ? 'Refreshing...' : 'Refresh Metrics'}
           </button>
-        </div>
+        )}
+      >
 
         {billingCollectionsMetrics ? (
           <div className="space-y-5">
@@ -680,27 +743,29 @@ export default function AdminBillingView({
             <p className="text-sm text-neutral-500">Click &quot;Refresh Metrics&quot; to load your billing overview.</p>
           </div>
         )}
-      </div>
+      </CollapsibleAdminSection>
 
       {/* ── Section 3: Payment Matching (Reconciliation) ────────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className={sectionNumber}>3</span>
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900">Payment Matching</h3>
-              <p className="text-xs text-neutral-500">Check if every payment is correctly linked to its invoice. Fix mismatches here.</p>
-            </div>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-billing-payment-matching"
+        title="Payment Matching"
+        description="Check if every payment is correctly linked to its invoice. Fix mismatches here."
+        summary="3"
+        isExpanded={expandedBillingAdminSections.paymentMatching}
+        onToggle={() => toggleBillingAdminSection('paymentMatching')}
+        headingLevel="h3"
+        bodyClassName="mt-5"
+        actions={(
           <button
             type="button"
             onClick={() => void onRunReconciliation()}
             disabled={isBillingReconciliationLoading}
             className={secondaryBtn}
           >
-            {isBillingReconciliationLoading ? 'Checking...' : '↻ Run Check'}
+            {isBillingReconciliationLoading ? 'Checking...' : 'Run Check'}
           </button>
-        </div>
+        )}
+      >
 
         {billingReconciliation ? (
           <div className="space-y-4">
@@ -785,18 +850,19 @@ export default function AdminBillingView({
             <p className="text-sm text-neutral-500">Click &quot;Run Check&quot; to verify payment-to-invoice links.</p>
           </div>
         )}
-      </div>
+      </CollapsibleAdminSection>
 
       {/* ── Section 4: Payment Match Queue ─────────────────────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className={sectionNumber}>4</span>
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900">Match Queue</h3>
-              <p className="text-xs text-neutral-500">Unlinked payments waiting to be paired with invoices. Review and approve matches.</p>
-            </div>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-billing-match-queue"
+        title="Match Queue"
+        description="Unlinked payments waiting to be paired with invoices. Review and approve matches."
+        summary="4"
+        isExpanded={expandedBillingAdminSections.matchQueue}
+        onToggle={() => toggleBillingAdminSection('matchQueue')}
+        headingLevel="h3"
+        bodyClassName="mt-5"
+        actions={(
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={billingBulkAutoMatchConfidence}
@@ -826,7 +892,8 @@ export default function AdminBillingView({
               {isBillingReconciliationCandidatesLoading ? 'Refreshing...' : '↻ Refresh'}
             </button>
           </div>
-        </div>
+        )}
+      >
 
         {billingReconciliationCandidates ? (
           <div className="space-y-4">
@@ -914,27 +981,29 @@ export default function AdminBillingView({
             <p className="text-sm text-neutral-500">Click &quot;Refresh&quot; to load the payment match queue.</p>
           </div>
         )}
-      </div>
+      </CollapsibleAdminSection>
 
       {/* ── Section 5: Payment Reminders ────────────────────────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className={sectionNumber}>5</span>
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900">Payment Reminders</h3>
-              <p className="text-xs text-neutral-500">Send reminders to customers with unpaid invoices. Supports WhatsApp and email.</p>
-            </div>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-billing-payment-reminders"
+        title="Payment Reminders"
+        description="Send reminders to customers with unpaid invoices. Supports WhatsApp and email."
+        summary="5"
+        isExpanded={expandedBillingAdminSections.paymentReminders}
+        onToggle={() => toggleBillingAdminSection('paymentReminders')}
+        headingLevel="h3"
+        bodyClassName="mt-5"
+        actions={(
           <button
             type="button"
             onClick={() => void onRefreshReminders()}
             disabled={isBillingReminderLoading}
             className={secondaryBtn}
           >
-            {isBillingReminderLoading ? 'Refreshing...' : '↻ Refresh Queue'}
+            {isBillingReminderLoading ? 'Refreshing...' : 'Refresh Queue'}
           </button>
-        </div>
+        )}
+      >
 
         {billingReminderQueue ? (
           <div className="space-y-5">
@@ -1209,18 +1278,19 @@ export default function AdminBillingView({
             <p className="text-sm text-neutral-500">Click &quot;Refresh Queue&quot; to load pending reminders.</p>
           </div>
         )}
-      </div>
+      </CollapsibleAdminSection>
 
       {/* ── Section 6: Escalation Review ───────────────────────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className={sectionNumber}>6</span>
-            <div>
-              <h3 className="text-sm font-semibold text-neutral-900">Overdue Escalations</h3>
-              <p className="text-xs text-neutral-500">Invoices unpaid for 30+ days. Escalate, snooze (pause for 48h), or mark as resolved.</p>
-            </div>
-          </div>
+      <CollapsibleAdminSection
+        id="admin-billing-overdue-escalations"
+        title="Overdue Escalations"
+        description="Invoices unpaid for 30+ days. Escalate, snooze for 48 hours, or mark them as resolved."
+        summary="6"
+        isExpanded={expandedBillingAdminSections.overdueEscalations}
+        onToggle={() => toggleBillingAdminSection('overdueEscalations')}
+        headingLevel="h3"
+        bodyClassName="mt-5"
+        actions={(
           <div className="flex items-center gap-2">
             <select
               value={billingEscalationStateFilter}
@@ -1241,7 +1311,8 @@ export default function AdminBillingView({
               {isBillingEscalationLoading ? 'Refreshing...' : '↻ Refresh'}
             </button>
           </div>
-        </div>
+        )}
+      >
 
         {billingEscalationQueue ? (
           <div className="space-y-4">
@@ -1368,17 +1439,19 @@ export default function AdminBillingView({
             <p className="text-sm text-neutral-500">Click &quot;Refresh&quot; to load the escalation queue.</p>
           </div>
         )}
-      </div>
+      </CollapsibleAdminSection>
 
       {/* ── Invoice Ledger ─────────────────────────────────────────────── */}
-      <div className={sectionCard}>
-        <div className="mb-4 flex items-center gap-2.5">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 text-xs font-bold text-neutral-600">📋</span>
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900">Invoice Ledger</h3>
-            <p className="text-xs text-neutral-500">All invoices listed below. Select invoices to update their status in bulk.</p>
-          </div>
-        </div>
+      <CollapsibleAdminSection
+        id="admin-billing-invoice-ledger"
+        title="Invoice Ledger"
+        description="All invoices listed below. Select invoices to update their status in bulk."
+        summary={`${invoices.length} invoices`}
+        isExpanded={expandedBillingAdminSections.invoiceLedger}
+        onToggle={() => toggleBillingAdminSection('invoiceLedger')}
+        headingLevel="h3"
+        bodyClassName="mt-4"
+      >
 
         {isFinanceDataLoading ? (
           <div className="flex items-center justify-center py-12">
@@ -1478,7 +1551,7 @@ export default function AdminBillingView({
             <AdminPaginationControls page={page} pageSize={pageSize} total={total} onPageChange={onPageChange} />
           </div>
         )}
-      </div>
+      </CollapsibleAdminSection>
     </section>
   );
 }

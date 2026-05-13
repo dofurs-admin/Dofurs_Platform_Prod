@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { toFriendlyApiError } from '@/lib/api/errors';
 import { forbidden, requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { CustomerIntakeError, ensureOwnerProfileForBookingCustomer } from '@/lib/bookings/customer-intake';
 import { assertRoleCanCreateBookingForUser } from '@/lib/bookings/state-transition-guard';
 
 const querySchema = z.object({
@@ -53,11 +55,29 @@ export async function POST(request: Request) {
 
   try {
     assertRoleCanCreateBookingForUser(role as 'user' | 'provider' | 'admin' | 'staff', user.id, targetUserId);
-  } catch (err) { console.error(err);
+  } catch (err) {
+    console.error(err);
     return forbidden();
   }
 
-  const client = targetUserId === user.id ? supabase : getSupabaseAdminClient();
+  let adminClient: ReturnType<typeof getSupabaseAdminClient> | null = null;
+
+  if (targetUserId !== user.id) {
+    adminClient = getSupabaseAdminClient();
+
+    try {
+      await ensureOwnerProfileForBookingCustomer(adminClient, targetUserId);
+    } catch (error) {
+      if (error instanceof CustomerIntakeError) {
+        return NextResponse.json({ error: error.message }, { status: error.status });
+      }
+
+      const mapped = toFriendlyApiError(error, 'Unable to prepare customer profile.');
+      return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    }
+  }
+
+  const client = targetUserId === user.id ? supabase : adminClient ?? getSupabaseAdminClient();
 
   const { data, error } = await client
     .from('user_addresses')
@@ -79,7 +99,12 @@ export async function POST(request: Request) {
     .single();
 
   if (error || !data) {
-    return NextResponse.json({ error: 'Unable to save address.' }, { status: 500 });
+    if (error) {
+      console.error('[bookings/user-addresses] address save failed:', error);
+    }
+
+    const mapped = error ? toFriendlyApiError(error, 'Unable to save address.') : null;
+    return NextResponse.json({ error: mapped?.message ?? 'Unable to save address.' }, { status: mapped?.status ?? 500 });
   }
 
   return NextResponse.json({ success: true, address: data });
