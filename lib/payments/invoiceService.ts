@@ -12,6 +12,60 @@ function invoiceNumber(prefix: 'INV-SVC' | 'INV-SUB') {
   return `${prefix}-${y}${m}${d}-${t}-${rand}`;
 }
 
+export type ServiceInvoiceLineItemInput = {
+  description: string;
+  quantity?: number;
+  unitAmountInr?: number;
+  lineTotalInr?: number;
+};
+
+function normalizeServiceInvoiceLineItems(
+  lineItems: ServiceInvoiceLineItemInput[] | null | undefined,
+) {
+  if (!Array.isArray(lineItems)) {
+    return [] as Array<{
+      description: string;
+      quantity: number;
+      unit_amount_inr: number;
+      line_total_inr: number;
+    }>;
+  }
+
+  return lineItems
+    .map((item) => {
+      const description = item.description.trim();
+      const quantity = Math.max(1, Math.round(Number(item.quantity ?? 1)));
+      const explicitLineTotal = Number(item.lineTotalInr ?? NaN);
+      const unitAmount = Number.isFinite(Number(item.unitAmountInr))
+        ? Number(item.unitAmountInr)
+        : Number.isFinite(explicitLineTotal)
+          ? explicitLineTotal / quantity
+          : NaN;
+      const lineTotal = Number.isFinite(explicitLineTotal)
+        ? explicitLineTotal
+        : Number.isFinite(unitAmount)
+          ? unitAmount * quantity
+          : NaN;
+
+      if (!description || !Number.isFinite(unitAmount) || !Number.isFinite(lineTotal) || lineTotal <= 0) {
+        return null;
+      }
+
+      return {
+        description,
+        quantity,
+        unit_amount_inr: Math.round(unitAmount),
+        line_total_inr: Math.round(lineTotal),
+      };
+    })
+    .filter((item): item is {
+      description: string;
+      quantity: number;
+      unit_amount_inr: number;
+      line_total_inr: number;
+    } => Boolean(item));
+}
+
 export async function createSubscriptionInvoice(
   supabase: SupabaseClient,
   input: {
@@ -81,6 +135,7 @@ export async function createServiceInvoice(
     amountInr: number;
     discountInr?: number;
     walletCreditsAppliedInr?: number;
+    serviceLineItems?: ServiceInvoiceLineItemInput[];
     status: 'issued' | 'paid';
     metadata?: Record<string, unknown>;
   },
@@ -151,15 +206,23 @@ export async function createServiceInvoice(
 
   if (invoiceError || !invoice) throw invoiceError ?? new Error('Unable to create service invoice.');
 
-  // Service charge line item
-  await supabase.from('billing_invoice_items').insert({
-    invoice_id: invoice.id,
-    item_type: 'service',
-    description: input.description,
-    quantity: 1,
-    unit_amount_inr: subtotalInr,
-    line_total_inr: subtotalInr,
-  });
+  const normalizedServiceLineItems = normalizeServiceInvoiceLineItems(input.serviceLineItems);
+  const serviceLineItems = normalizedServiceLineItems.length > 0
+    ? normalizedServiceLineItems
+    : [{
+        description: input.description,
+        quantity: 1,
+        unit_amount_inr: subtotalInr,
+        line_total_inr: subtotalInr,
+      }];
+
+  await supabase.from('billing_invoice_items').insert(
+    serviceLineItems.map((item) => ({
+      invoice_id: invoice.id,
+      item_type: 'service',
+      ...item,
+    })),
+  );
 
   if (discountInr > 0) {
     await supabase.from('billing_invoice_items').insert({

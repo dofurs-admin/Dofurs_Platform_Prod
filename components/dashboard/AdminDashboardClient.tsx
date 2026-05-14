@@ -30,6 +30,7 @@ import AdminBillingView from '@/components/dashboard/admin/views/AdminBillingVie
 import AdminProvidersView from '@/components/dashboard/admin/views/AdminProvidersView';
 import AdminAuditView from '@/components/dashboard/admin/views/AdminAuditView';
 import AdminSubscriptionPlansClient from '@/components/dashboard/admin/AdminSubscriptionPlansClient';
+import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
 
 // Premium Components
 import DashboardPageLayout from './premium/DashboardPageLayout';
@@ -51,7 +52,12 @@ type AdminBooking = {
   booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
-  included_services?: string[];
+  included_services?: string[] | null;
+  provider_notes?: string | null;
+  internal_notes?: string | null;
+  provider_service_id?: string | null;
+  admin_price_reference?: number | null;
+  price_at_booking?: number | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -1233,6 +1239,11 @@ export default function AdminDashboardClient({
       cancelled: bookings.filter((booking) => (booking.booking_status ?? booking.status) === 'cancelled').length,
     };
   }, [bookings]);
+
+  const bookingServiceUnitCount = useMemo(
+    () => bookings.reduce((sum, booking) => sum + countServiceUnitsForBooking(booking), 0),
+    [bookings],
+  );
 
   const totalCustomers = useMemo(() => {
     const customerKeys = new Set<string>();
@@ -4554,6 +4565,7 @@ export default function AdminDashboardClient({
       {isOverviewView ? (
         <AdminOverviewView
           bookingCount={bookings.length}
+          bookingServiceUnitCount={bookingServiceUnitCount}
           bookingRiskSummary={bookingRiskSummary}
           providerCount={providerRows.length}
           serviceCount={initialCatalogServices.length}

@@ -12,12 +12,14 @@ describe('normalizeAdminDashboardBusinessStats', () => {
         noShow: 2,
         cancelled: 8,
       },
+      bookingServiceUnitCount: 57,
       providerCount: 9,
       serviceCount: 14,
       customerCount: 31,
       activeDiscountCount: 3,
     })).toEqual({
       bookingCount: 42,
+      bookingServiceUnitCount: 57,
       bookingRiskSummary: {
         pending: 5,
         inProgress: 12,
@@ -40,12 +42,14 @@ describe('normalizeAdminDashboardBusinessStats', () => {
       completed_bookings: '4',
       no_show_bookings: '1',
       cancelled_bookings: '0',
+      booking_service_unit_count: '13',
       provider_count: '6',
       service_count: '7',
       customer_count: '8',
       active_discount_count: '9',
     })).toEqual({
       bookingCount: 10,
+      bookingServiceUnitCount: 13,
       bookingRiskSummary: {
         pending: 2,
         inProgress: 5,

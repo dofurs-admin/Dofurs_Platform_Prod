@@ -15,6 +15,7 @@ import type {
 } from '@/lib/provider-applications/types';
 import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
 import type { AdminDashboardBusinessStats } from '@/lib/admin/dashboard-stats';
+import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -57,6 +58,12 @@ type AdminBooking = {
   booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
+  included_services?: string[] | null;
+  provider_notes?: string | null;
+  internal_notes?: string | null;
+  provider_service_id?: string | null;
+  admin_price_reference?: number | null;
+  price_at_booking?: number | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -109,6 +116,7 @@ function buildFallbackBusinessStats(
 
   return {
     bookingCount: bookings.length,
+    bookingServiceUnitCount: bookings.reduce((sum, booking) => sum + countServiceUnitsForBooking(booking), 0),
     bookingRiskSummary,
     providerCount,
     serviceCount,

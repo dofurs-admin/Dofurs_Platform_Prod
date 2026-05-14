@@ -32,6 +32,29 @@ function appendInternalNote(existing: string | null | undefined, note: string | 
     .join('\n\n') || null;
 }
 
+function mergeDistinctNotes(...notes: Array<string | null | undefined>) {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+
+  for (const note of notes) {
+    if (typeof note !== 'string') {
+      continue;
+    }
+
+    for (const block of note.split(/\n{2,}/)) {
+      const trimmed = block.trim();
+      if (!trimmed || seen.has(trimmed)) {
+        continue;
+      }
+
+      seen.add(trimmed);
+      merged.push(trimmed);
+    }
+  }
+
+  return merged.join('\n\n') || null;
+}
+
 async function resolveManualDiscountSubtotal(
   supabase: ReturnType<typeof getSupabaseAdminClient>,
   input: {
@@ -671,12 +694,8 @@ export async function POST(request: Request) {
 
     if (parsed.data.bundleSummary || parsed.data.bundleEstimatedTotalInr) {
       const bundleSummary = parsed.data.bundleSummary?.trim() ?? '';
-      const mergedNotes = [bundleSummary, responseBooking.provider_notes ?? null]
-        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-        .join('\n\n');
-      const mergedInternalNotes = [bundleSummary, responseBooking.internal_notes ?? null]
-        .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-        .join('\n\n');
+      const mergedNotes = mergeDistinctNotes(bundleSummary, responseBooking.provider_notes ?? null);
+      const mergedInternalNotes = mergeDistinctNotes(bundleSummary, responseBooking.internal_notes ?? null);
 
       const estimatedTotalInr = Math.max(0, Number(parsed.data.bundleEstimatedTotalInr ?? 0));
       const walletAppliedForBundle = Math.max(0, Number(parsed.data.walletCreditsAppliedInr ?? 0));
@@ -693,8 +712,8 @@ export async function POST(request: Request) {
           : bookingFinalAmount;
 
       const bundlePatch: Record<string, unknown> = {
-        provider_notes: mergedNotes || null,
-        internal_notes: mergedInternalNotes || null,
+        provider_notes: mergedNotes,
+        internal_notes: mergedInternalNotes,
       };
 
       if (estimatedTotalInr > 0) {

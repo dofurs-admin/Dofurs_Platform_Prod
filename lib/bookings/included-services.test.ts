@@ -3,6 +3,7 @@ import {
   extractBundledPetIdsFromNotes,
   extractIncludedServicesFromNotes,
   extractProviderServiceIdsFromNotes,
+  countServiceUnitsForBooking,
   resolveIncludedServicesForBooking,
 } from './included-services';
 
@@ -164,5 +165,21 @@ describe('resolveIncludedServicesForBooking', () => {
         serviceBasePriceByProviderServiceId: basePriceByServiceId,
       }),
     ).toEqual(['Doorstep Pet Grooming (Basic Package)']);
+  });
+});
+
+describe('countServiceUnitsForBooking', () => {
+  it('counts each bundled service line represented by one booking row', () => {
+    expect(
+      countServiceUnitsForBooking({
+        service_type: 'Doorstep Pet Grooming (Basic Package)',
+        provider_notes: [
+          'Bundled services (3)',
+          '1. Pet 81 | Doorstep Pet Grooming (Basic Package)',
+          '2. Pet 82 | Summer Bonanza (Offer Package)',
+          '3. Pet 83 | Vet Consultation',
+        ].join('\n'),
+      }),
+    ).toBe(3);
   });
 });

@@ -28,7 +28,7 @@ type AdminBooking = {
   customer_email?: string | null;
   customer_phone?: string | null;
   provider_name?: string | null;
-  included_services?: string[];
+  included_services?: string[] | null;
   payment_mode?: string | null;
   cash_collected?: boolean;
   completion_task_status?: 'pending' | 'completed' | null;

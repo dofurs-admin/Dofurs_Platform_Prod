@@ -169,6 +169,7 @@ type BookingCreateResponse = {
 
 type BookingConfirmation = {
   bookingIds: number[];
+  serviceCount: number;
   customerName: string;
   providerName: string;
   bookingDate: string;
@@ -509,7 +510,37 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   const stepProgress = isFlowCompleted ? 100 : (step / STEPS.length) * 100;
   const availabilityDebug = availability.debug ?? null;
 
-  const summaryBaseAmount = (selectedProvider?.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
+  const summaryBaseAmount = useMemo(() => {
+    if (!selectedProvider) {
+      return 0;
+    }
+
+    let total = 0;
+    let hasSelectedService = false;
+
+    for (const selectedPetId of selectedPetIds) {
+      const selection = petServiceSelections[selectedPetId];
+      if (!selection?.serviceType) {
+        continue;
+      }
+
+      const selectedServiceType = selection.serviceType;
+
+      const providerService = catalogServices.find(
+        (service) =>
+          service.provider_id === selectedProvider.providerId &&
+          service.source === 'provider_services' &&
+          service.service_type.toLowerCase() === selectedServiceType.toLowerCase(),
+      );
+      const quantity = Math.max(1, selection.quantity);
+      total += Math.max(0, Number(providerService?.base_price ?? selectedProvider.basePrice ?? 0)) * quantity;
+      hasSelectedService = true;
+    }
+
+    return hasSelectedService
+      ? total
+      : (selectedProvider.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
+  }, [catalogServices, petServiceSelections, selectedPetIds, selectedProvider, totalSelectedServices]);
   const summaryAddOnAmount = useMemo(
     () =>
       serviceAddOns.reduce((sum, addOn) => {
@@ -1876,7 +1907,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
       return;
     }
 
-    const bundleEntries: Array<{ petId: number; providerServiceId: string; durationMinutes: number }> = [];
+    const bundleEntries: Array<{ petId: number; providerServiceId: string; durationMinutes: number; basePrice: number }> = [];
 
     for (const selectedPetId of selectedPetIds) {
       const selection = petServiceSelections[selectedPetId];
@@ -1908,6 +1939,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
           petId: selectedPetId,
           providerServiceId: providerService.id,
           durationMinutes: duration,
+          basePrice: Math.max(0, Number(providerService.base_price ?? 0)),
         });
       }
     }
@@ -1937,14 +1969,12 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
           ].join('\n')
         : null;
 
-    const mergedProviderNotes = [bundleSummary, providerNotes.trim()]
-      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
-      .join('\n\n');
+    const trimmedProviderNotes = providerNotes.trim();
 
     startTransition(async () => {
       try {
         const useSubscriptionCredit = paymentChoice === 'subscription_credit';
-        const totalBundleAmount = summaryBaseAmount + summaryAddOnAmount;
+        const totalBundleAmount = bundleEntries.reduce((sum, entry) => sum + entry.basePrice, 0) + summaryAddOnAmount;
         const firstEntry = bundleEntries[0];
 
         const result = await apiRequest<BookingCreateResponse>('/api/bookings/create', {
@@ -1955,12 +1985,12 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
             providerServiceId: firstEntry.providerServiceId,
             bookingDate,
             startTime: slotStartTime,
-            endTime: allowPastSlots && bundleEntries.length === 1 ? slotEndTime : undefined,
+            endTime: allowPastSlots ? slotEndTime : undefined,
             bookingMode,
             locationAddress: bookingMode === 'home_visit' ? formatSavedAddress(selectedAddress) : null,
             latitude: bookingMode === 'home_visit' ? selectedAddress.latitude : null,
             longitude: bookingMode === 'home_visit' ? selectedAddress.longitude : null,
-            providerNotes: mergedProviderNotes || null,
+            providerNotes: trimmedProviderNotes || null,
             bookingUserId: selectedBookingUserId,
             discountCode: bundleEntries.length === 1 && discountCode.trim() ? discountCode.trim().toUpperCase() : undefined,
             manualDiscountAmountInr: manualDiscountAmount > 0 ? manualDiscountAmount : undefined,
@@ -1991,11 +2021,17 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
             'success',
           );
         } else {
-          showToast(`${bundleEntries.length} booking${bundleEntries.length === 1 ? '' : 's'} created successfully.`, 'success');
+          showToast(
+            bundleEntries.length === 1
+              ? 'Booking created successfully.'
+              : `Booking created successfully with ${bundleEntries.length} bundled service items.`,
+            'success',
+          );
         }
 
         setBookingConfirmation({
           bookingIds: createdBookingIds,
+          serviceCount: bundleEntries.length,
           customerName: selectedUser?.name?.trim() || selectedUser?.email || selectedUser?.id || 'Unknown customer',
           providerName: selectedProvider.providerName,
           bookingDate,
@@ -2105,7 +2141,13 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
               <h4 className="text-base font-semibold text-emerald-900">Booking Confirmed</h4>
               <p className="mt-1 text-sm text-emerald-800">Your booking has been created successfully.</p>
               <div className="mt-3 grid gap-2 text-xs text-emerald-900 sm:grid-cols-2">
-                <p><span className="font-semibold">Booking IDs:</span> {bookingConfirmation.bookingIds.join(', ') || '—'}</p>
+                <p>
+                  <span className="font-semibold">{bookingConfirmation.bookingIds.length === 1 ? 'Booking ID' : 'Booking IDs'}:</span>{' '}
+                  {bookingConfirmation.bookingIds.join(', ') || '—'}
+                </p>
+                {bookingConfirmation.serviceCount > 1 ? (
+                  <p><span className="font-semibold">Service Items:</span> {bookingConfirmation.serviceCount}</p>
+                ) : null}
                 <p><span className="font-semibold">Customer:</span> {bookingConfirmation.customerName}</p>
                 <p><span className="font-semibold">Provider:</span> {bookingConfirmation.providerName}</p>
                 <p><span className="font-semibold">Date:</span> {bookingConfirmation.bookingDate}</p>

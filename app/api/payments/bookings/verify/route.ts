@@ -5,6 +5,7 @@ import { fetchRazorpayPayment, verifyPaymentSignature } from '@/lib/payments/raz
 import { bookingCreateSchema } from '@/lib/flows/validation';
 import { createBooking } from '@/lib/bookings/service';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
+import { buildServiceInvoiceLineItemsForBooking } from '@/lib/payments/serviceInvoiceItems';
 import { createDiscountRedemption } from '@/lib/bookings/discounts';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { deductCredits } from '@/lib/credits/wallet';
@@ -348,6 +349,7 @@ export async function POST(request: Request) {
 
   const createdBookingIds: number[] = [];
   let primaryBookingId: number | null = null;
+  let invoiceBookingSnapshot: Parameters<typeof buildServiceInvoiceLineItemsForBooking>[1] | null = null;
   const isBundleBooking = bookingPayloads.length > 1;
 
   try {
@@ -401,6 +403,16 @@ export async function POST(request: Request) {
         wallet_credits_applied_inr: walletCreditsAppliedInr > 0 ? walletCreditsAppliedInr : null,
       })
       .eq('id', createdBooking.id);
+
+    invoiceBookingSnapshot = {
+      service_type: createdBooking.service_type,
+      provider_service_id: primaryPayload.providerServiceId ?? createdBooking.provider_service_id,
+      included_services: null,
+      provider_notes: mergedProviderNotes || null,
+      internal_notes: bundleSummaryNote ?? null,
+      admin_price_reference: baseAmount,
+      price_at_booking: baseAmount,
+    };
   } catch (error) {
     if (createdBookingIds.length > 0) {
       for (const bookingId of createdBookingIds) {
@@ -562,6 +574,9 @@ export async function POST(request: Request) {
       0,
       Number(priceBreakdown?.baseAmount ?? Number(transaction.amount_inr) + walletCreditsInr + discountInr),
     );
+    const serviceLineItems = invoiceBookingSnapshot
+      ? await buildServiceInvoiceLineItemsForBooking(admin, invoiceBookingSnapshot, subtotalInr)
+      : undefined;
 
     await createServiceInvoice(admin, {
       userId: transaction.user_id,
@@ -571,6 +586,7 @@ export async function POST(request: Request) {
       amountInr: subtotalInr,
       discountInr,
       walletCreditsAppliedInr: walletCreditsInr,
+      serviceLineItems,
       status: 'paid',
     });
   } catch (invoiceError) {

@@ -59,6 +59,7 @@ import { calculateBookingPriceWithSupabase } from '@/lib/bookings/engines/pricin
 import { POST } from '@/app/api/bookings/create/route';
 
 const FUTURE_BOOKING_DATE = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+const PAST_BOOKING_DATE = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 
 function makeAdminSupabase(options?: {
   petOwnership?: { data: { id: number } | null; error: null | { message?: string } };
@@ -352,5 +353,79 @@ describe('POST /api/bookings/create', () => {
 
     const payload = await response.json();
     expect(payload.booking.final_price).toBe(1050);
+  });
+
+  it('passes end time through for admin offline bundled booking payloads', async () => {
+    const adminSupabase = makeAdminSupabase();
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: '550e8400-e29b-41d4-a716-446655440001' },
+        role: 'admin',
+        supabase: {},
+      },
+    } as never);
+
+    const bundledProviderServiceIds = [
+      '550e8400-e29b-41d4-a716-446655440010',
+      '550e8400-e29b-41d4-a716-446655440011',
+    ];
+    const bundleSummary = [
+      'Bundled services (2)',
+      '1. Pet 5 | Service 550e8400-e29b-41d4-a716-446655440010',
+      '2. Pet 6 | Service 550e8400-e29b-41d4-a716-446655440011',
+    ].join('\n');
+    const providerNote = 'Gate access code 1234';
+
+    vi.mocked(createBooking).mockResolvedValue({
+      id: 905,
+      provider_notes: [bundleSummary, providerNote].join('\n\n'),
+      internal_notes: null,
+      price_at_booking: 2000,
+      final_price: 2000,
+      amount: 2000,
+    } as never);
+
+    const request = new Request('http://localhost/api/bookings/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        petId: 5,
+        providerId: 12,
+        providerServiceId: '550e8400-e29b-41d4-a716-446655440000',
+        bookingDate: PAST_BOOKING_DATE,
+        startTime: '10:00',
+        endTime: '12:30',
+        bookingMode: 'home_visit',
+        locationAddress: 'Indiranagar',
+        latitude: 12.97,
+        longitude: 77.64,
+        bookingUserId: '550e8400-e29b-41d4-a716-446655440002',
+        providerNotes: [bundleSummary, providerNote].join('\n\n'),
+        allowPastBooking: true,
+        bundleSummary,
+        bundleEstimatedTotalInr: 2000,
+        bundleProviderServiceIds: bundledProviderServiceIds,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(createBooking).toHaveBeenCalledWith(
+      expect.any(Object),
+      '550e8400-e29b-41d4-a716-446655440002',
+      expect.objectContaining({
+        endTime: '12:30',
+        allowPastBooking: true,
+        bundleProviderServiceIds: bundledProviderServiceIds,
+      }),
+      expect.any(Object),
+    );
+    expect(adminSupabase.__queries.bookings.update).toHaveBeenCalledWith(expect.objectContaining({
+      provider_notes: [bundleSummary, providerNote].join('\n\n'),
+      internal_notes: bundleSummary,
+    }));
   });
 });

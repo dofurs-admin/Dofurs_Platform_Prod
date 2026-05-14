@@ -31,7 +31,7 @@ export async function loadAdminDashboardData(
   ] = await Promise.all([
     supabase
       .from('bookings')
-      .select('id, user_id, provider_id, booking_start, booking_date, start_time, end_time, status, booking_status, booking_mode, service_type, included_services')
+      .select('id, user_id, provider_id, booking_start, booking_date, start_time, end_time, status, booking_status, booking_mode, service_type, provider_service_id, provider_notes, internal_notes, admin_price_reference, price_at_booking')
       .order('booking_start', { ascending: false })
       .limit(200),
     supabase.from('providers').select('id, name').order('name', { ascending: true }).limit(200),

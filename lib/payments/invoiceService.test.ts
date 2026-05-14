@@ -327,4 +327,64 @@ describe('createServiceInvoice', () => {
     const result = await createServiceInvoice(supabase, { ...validInput, paymentTransactionId: undefined });
     expect(result).toMatchObject({ id: 'inv_svc_nopay' });
   });
+
+  it('writes itemized service rows when serviceLineItems are provided', async () => {
+    const createdInvoice = { id: 'inv_svc_bundle', invoice_number: 'INV-SVC-BUNDLE' };
+    let capturedLineItems: unknown = null;
+
+    const supabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        const builder: Record<string, unknown> = {};
+        for (const method of ['select', 'eq', 'is', 'update', 'upsert']) {
+          builder[method] = vi.fn().mockReturnValue(builder);
+        }
+        builder['maybeSingle'] = vi.fn().mockResolvedValue({ data: null, error: null });
+        builder['insert'] = vi.fn().mockImplementation((payload: unknown) => {
+          if (table === 'billing_invoice_items') {
+            capturedLineItems = payload;
+          }
+
+          const insertBuilder: Record<string, unknown> = {};
+          insertBuilder['select'] = vi.fn().mockReturnValue(insertBuilder);
+          insertBuilder['eq'] = vi.fn().mockReturnValue(insertBuilder);
+          insertBuilder['single'] = vi.fn().mockResolvedValue({
+            data: table === 'billing_invoices' ? createdInvoice : null,
+            error: null,
+          });
+          const thenFn = (resolve: (value: unknown) => void) => resolve({ data: null, error: null });
+          Object.defineProperty(insertBuilder, 'then', { get: () => thenFn });
+          return insertBuilder;
+        });
+        return builder;
+      }),
+    } as unknown as SupabaseClient;
+
+    await createServiceInvoice(supabase, {
+      ...validInput,
+      amountInr: 2200,
+      serviceLineItems: [
+        { description: 'Grooming', quantity: 1, unitAmountInr: 1200, lineTotalInr: 1200 },
+        { description: 'Vet Consultation', quantity: 1, unitAmountInr: 1000, lineTotalInr: 1000 },
+      ],
+    });
+
+    expect(capturedLineItems).toEqual([
+      {
+        invoice_id: createdInvoice.id,
+        item_type: 'service',
+        description: 'Grooming',
+        quantity: 1,
+        unit_amount_inr: 1200,
+        line_total_inr: 1200,
+      },
+      {
+        invoice_id: createdInvoice.id,
+        item_type: 'service',
+        description: 'Vet Consultation',
+        quantity: 1,
+        unit_amount_inr: 1000,
+        line_total_inr: 1000,
+      },
+    ]);
+  });
 });

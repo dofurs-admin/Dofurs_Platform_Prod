@@ -25,10 +25,15 @@ vi.mock('@/lib/notifications/service', () => ({
   notifyBookingStatusChanged: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/payments/bookingPayable', () => ({
+  getBookingOutstandingSummary: vi.fn().mockResolvedValue({ outstandingInr: 0 }),
+}));
+
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { updateBookingStatus } from '@/lib/bookings/service';
 import { notifyBookingStatusChanged } from '@/lib/notifications/service';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 import { PATCH } from '@/app/api/admin/bookings/bulk-status/route';
 
 function makeMockSupabaseForBookings(bookingRows: Array<{
@@ -104,7 +109,7 @@ describe('PATCH /api/admin/bookings/bulk-status', () => {
     const mockSupabase = makeMockSupabaseForBookings([
       { id: 9, user_id: 'user-9', provider_id: 19, booking_status: 'confirmed', status: 'confirmed', payment_mode: 'direct_to_provider' },
     ]);
-    mockSupabase.__query.maybeSingle.mockResolvedValueOnce({ data: null, error: null });
+    vi.mocked(getBookingOutstandingSummary).mockResolvedValueOnce({ outstandingInr: 1200 } as never);
 
     vi.mocked(getSupabaseAdminClient).mockReturnValue(mockSupabase as never);
     vi.mocked(updateBookingStatus).mockResolvedValue(undefined as never);
@@ -122,6 +127,38 @@ describe('PATCH /api/admin/bookings/bulk-status', () => {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ bookingIds: [9], status: 'completed' }),
+    });
+
+    const response = await PATCH(request);
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.updated).toBe(0);
+    expect(json.failed).toBe(1);
+    expect(updateBookingStatus).not.toHaveBeenCalled();
+  });
+
+  it('blocks completion for mixed booking with pending payable', async () => {
+    const mockSupabase = makeMockSupabaseForBookings([
+      { id: 10, user_id: 'user-10', provider_id: 20, booking_status: 'confirmed', status: 'confirmed', payment_mode: 'mixed' },
+    ]);
+    vi.mocked(getBookingOutstandingSummary).mockResolvedValueOnce({ outstandingInr: 500 } as never);
+
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(mockSupabase as never);
+    vi.mocked(updateBookingStatus).mockResolvedValue(undefined as never);
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: 'admin-user-id' },
+        role: 'admin',
+        supabase: {},
+      },
+    } as never);
+
+    const request = new Request('http://localhost/api/admin/bookings/bulk-status', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ bookingIds: [10], status: 'completed' }),
     });
 
     const response = await PATCH(request);

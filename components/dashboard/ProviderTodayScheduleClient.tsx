@@ -33,6 +33,7 @@ export type TodayBooking = {
   internal_notes?: string | null;
   pet_name: string;
   pet_breed: string | null;
+  pet_count?: number;
   pet_photo_url?: string | null;
   owner_name: string | null;
   owner_phone: string | null;
@@ -345,9 +346,11 @@ function BookingCard({
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-neutral-950">{booking.pet_name}</p>
-              {booking.pet_breed && (
+              {(booking.pet_count ?? 1) > 1 ? (
+                <p className="truncate text-xs text-neutral-500">{booking.pet_count} pets</p>
+              ) : booking.pet_breed ? (
                 <p className="truncate text-xs text-neutral-500">{booking.pet_breed}</p>
-              )}
+              ) : null}
               {booking.owner_name && (
                 <p className="text-xs text-neutral-700">Customer: {booking.owner_name}</p>
               )}

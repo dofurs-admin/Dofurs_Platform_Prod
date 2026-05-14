@@ -259,3 +259,10 @@ export function buildIncludedServicesLabel(
   const fallbackLabel = fallbackServiceType?.trim();
   return fallbackLabel && fallbackLabel.length > 0 ? fallbackLabel : 'Service';
 }
+
+export function countServiceUnitsForBooking(
+  booking: IncludedServicesBookingLike,
+  options?: IncludedServicesOptions,
+) {
+  return Math.max(1, resolveIncludedServicesForBooking(booking, options).length);
+}

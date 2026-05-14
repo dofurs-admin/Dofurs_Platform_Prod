@@ -12,6 +12,7 @@ type BookingRiskSummary = {
 
 type AdminOverviewViewProps = {
   bookingCount: number;
+  bookingServiceUnitCount: number;
   bookingRiskSummary: BookingRiskSummary;
   providerCount: number;
   serviceCount: number;
@@ -22,6 +23,7 @@ type AdminOverviewViewProps = {
 
 export default function AdminOverviewView({
   bookingCount,
+  bookingServiceUnitCount,
   bookingRiskSummary,
   providerCount,
   serviceCount,
@@ -42,6 +44,12 @@ export default function AdminOverviewView({
           value={bookingCount}
           icon="calendar"
           description="Live pipeline volume"
+        />
+        <StatCard
+          label="Service Units"
+          value={bookingServiceUnitCount}
+          icon="star"
+          description="Booked service items across bundles"
         />
         <StatCard
           label="Bookings in Progress"

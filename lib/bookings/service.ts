@@ -11,6 +11,7 @@ import {
 import { assertBookingStateTransition } from './state-transition-guard';
 import { reserveCreditForBooking, consumeOrRestoreCreditForBookingTransition } from '@/lib/subscriptions/creditTracking';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
+import { buildServiceInvoiceLineItemsForBooking } from '@/lib/payments/serviceInvoiceItems';
 import { getAddonEffectivePrice, recalculateBookingAddonTotals } from '@/lib/addons/service';
 import type {
   BookingRecord,
@@ -944,6 +945,8 @@ async function runPostTransitionHooks(
         const subtotalInr = Math.max(0, derivedFinalInr + Math.max(0, discountInr));
 
         if (subtotalInr > 0) {
+          const serviceLineItems = await buildServiceInvoiceLineItemsForBooking(supabase, bookingData, subtotalInr);
+
           await createServiceInvoice(supabase, {
             userId: bookingData.user_id,
             bookingId,
@@ -951,6 +954,7 @@ async function runPostTransitionHooks(
             amountInr: subtotalInr,
             discountInr,
             walletCreditsAppliedInr,
+            serviceLineItems,
             status: bookingData.payment_mode === 'direct_to_provider' ? 'issued' : 'paid',
           });
         }

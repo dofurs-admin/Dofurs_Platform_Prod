@@ -5,6 +5,7 @@ import StatCard from '@/components/dashboard/premium/StatCard';
 import AdminBookingsView from '@/components/dashboard/admin/views/AdminBookingsView';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAdminBookingRealtime } from '@/lib/hooks/useRealtime';
+import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
 import type { ConfirmConfig } from '@/components/dashboard/admin/AdminDashboardShell';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -21,7 +22,12 @@ type AdminBooking = {
   booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
-  included_services?: string[];
+  included_services?: string[] | null;
+  provider_notes?: string | null;
+  internal_notes?: string | null;
+  provider_service_id?: string | null;
+  admin_price_reference?: number | null;
+  price_at_booking?: number | null;
   customer_name?: string | null;
   customer_email?: string | null;
   customer_phone?: string | null;
@@ -155,6 +161,11 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
     noShow: bookings.filter((b) => (b.booking_status ?? b.status) === 'no_show').length,
     cancelled: bookings.filter((b) => (b.booking_status ?? b.status) === 'cancelled').length,
   }), [bookings]);
+
+  const bookingServiceUnitCount = useMemo(
+    () => bookings.reduce((sum, booking) => sum + countServiceUnitsForBooking(booking), 0),
+    [bookings],
+  );
 
   const logModerationActivity = useCallback((message: string) => {
     setBookingModerationActivity(message);
@@ -464,12 +475,18 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
           <p className="text-muted">Monitor booking pipeline, SLA risk, and fulfillment actions in one place</p>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
           <StatCard
             label="All Bookings"
             value={bookings.length}
             icon="calendar"
             description="Live pipeline volume"
+          />
+          <StatCard
+            label="Service Units"
+            value={bookingServiceUnitCount}
+            icon="star"
+            description="Booked service items across bundles"
           />
           <StatCard
             label="Bookings in Progress"

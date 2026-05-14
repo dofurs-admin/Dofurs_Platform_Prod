@@ -419,7 +419,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
-    const payableSummary = await getBookingOutstandingSummary(supabase, bookingId);
+    const payableSummary = await getBookingOutstandingSummary(adminSupabase, bookingId);
     pendingPayableInr = payableSummary.outstandingInr;
   } catch (pendingError) {
     console.error('Failed to compute admin pending payable', { bookingId, error: pendingError });
@@ -434,7 +434,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   // Fetch linked invoice if any
-  const { data: invoices } = await supabase
+  const { data: invoices } = await adminSupabase
     .from('billing_invoices')
     .select('id, invoice_number, status, total_inr, wallet_credits_applied_inr, issued_at, paid_at')
     .eq('booking_id', bookingId)

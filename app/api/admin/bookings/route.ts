@@ -43,7 +43,6 @@ type BookingServiceSourceRow = {
   id: number;
   service_type: string | null;
   provider_service_id: string | null;
-  included_services: Array<string | null> | null;
   provider_notes: string | null;
   internal_notes: string | null;
   admin_price_reference: number | null;
@@ -63,7 +62,7 @@ async function hydrateIncludedServicesByBookingId(
   const { data: bookingRows, error: bookingRowsError } = await adminSupabase
     .from('bookings')
     .select(
-      'id, service_type, provider_service_id, included_services, provider_notes, internal_notes, admin_price_reference, price_at_booking',
+      'id, service_type, provider_service_id, provider_notes, internal_notes, admin_price_reference, price_at_booking',
     )
     .in('id', bookingIds)
     .returns<BookingServiceSourceRow[]>();

@@ -1,6 +1,8 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
+import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
 
 const CUSTOMER_COUNT_PAGE_SIZE = 1000;
+const SERVICE_UNIT_COUNT_PAGE_SIZE = 1000;
 
 type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 
@@ -14,6 +16,7 @@ export type AdminDashboardBookingRiskSummary = {
 
 export type AdminDashboardBusinessStats = {
   bookingCount: number;
+  bookingServiceUnitCount: number;
   bookingRiskSummary: AdminDashboardBookingRiskSummary;
   providerCount: number;
   serviceCount: number;
@@ -28,6 +31,15 @@ type CountResult = {
 
 type BookingCustomerRow = {
   user_id: string | null;
+};
+
+type BookingServiceUnitRow = {
+  service_type: string | null;
+  provider_service_id: string | null;
+  provider_notes: string | null;
+  internal_notes: string | null;
+  admin_price_reference: number | null;
+  price_at_booking: number | null;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -74,8 +86,14 @@ export function normalizeAdminDashboardBusinessStats(value: unknown): AdminDashb
   const pending = toCount(riskSummary.pending ?? riskSummary.pending_bookings);
   const confirmed = toCount(riskSummary.confirmed ?? riskSummary.confirmed_bookings);
 
+  const bookingCount = toCount(payload.bookingCount ?? payload.booking_count);
+  const bookingServiceUnitCount = toCount(
+    payload.bookingServiceUnitCount ?? payload.booking_service_unit_count,
+  );
+
   return {
-    bookingCount: toCount(payload.bookingCount ?? payload.booking_count),
+    bookingCount,
+    bookingServiceUnitCount: bookingServiceUnitCount || bookingCount,
     bookingRiskSummary: {
       pending,
       inProgress: toCount(riskSummary.inProgress ?? riskSummary.in_progress ?? riskSummary.in_progress_bookings) || pending + confirmed,
@@ -88,6 +106,33 @@ export function normalizeAdminDashboardBusinessStats(value: unknown): AdminDashb
     customerCount: toCount(payload.customerCount ?? payload.customer_count),
     activeDiscountCount: toCount(payload.activeDiscountCount ?? payload.active_discount_count),
   };
+}
+
+async function countBookingServiceUnits(supabase: SupabaseClient) {
+  let total = 0;
+
+  for (let from = 0; ; from += SERVICE_UNIT_COUNT_PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('service_type, provider_service_id, provider_notes, internal_notes, admin_price_reference, price_at_booking')
+      .order('id', { ascending: true })
+      .range(from, from + SERVICE_UNIT_COUNT_PAGE_SIZE - 1)
+      .returns<BookingServiceUnitRow[]>();
+
+    if (error) {
+      throw error;
+    }
+
+    for (const booking of data ?? []) {
+      total += countServiceUnitsForBooking(booking);
+    }
+
+    if (!data || data.length < SERVICE_UNIT_COUNT_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return total;
 }
 
 async function countEffectiveBookingStatus(supabase: SupabaseClient, status: BookingStatus) {
@@ -147,6 +192,7 @@ async function loadAdminDashboardBusinessStatsFallback(supabase: SupabaseClient)
     providerCountResult,
     serviceCountResult,
     customerCount,
+    bookingServiceUnitCount,
     activeDiscountCountResult,
   ] = await Promise.all([
     supabase.from('bookings').select('id', { count: 'exact', head: true }),
@@ -161,6 +207,7 @@ async function loadAdminDashboardBusinessStatsFallback(supabase: SupabaseClient)
       .select('id', { count: 'exact', head: true })
       .is('provider_id', null),
     countDistinctBookingCustomers(supabase),
+    countBookingServiceUnits(supabase),
     supabase
       .from('platform_discounts')
       .select('id', { count: 'exact', head: true })
@@ -169,6 +216,7 @@ async function loadAdminDashboardBusinessStatsFallback(supabase: SupabaseClient)
 
   return {
     bookingCount: readCount(bookingCountResult),
+    bookingServiceUnitCount,
     bookingRiskSummary: {
       pending,
       inProgress: pending + confirmed,
@@ -189,7 +237,14 @@ export async function loadAdminDashboardBusinessStats(supabase: SupabaseClient):
   if (!error) {
     const stats = normalizeAdminDashboardBusinessStats(data);
     if (stats) {
-      return stats;
+      try {
+        return {
+          ...stats,
+          bookingServiceUnitCount: await countBookingServiceUnits(supabase),
+        };
+      } catch {
+        return stats;
+      }
     }
   } else if (!isMissingFunctionError(error)) {
     throw error;

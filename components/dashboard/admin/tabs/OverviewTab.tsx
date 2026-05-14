@@ -51,6 +51,7 @@ export default function OverviewTab({
   return (
     <AdminOverviewView
       bookingCount={businessStats.bookingCount}
+      bookingServiceUnitCount={businessStats.bookingServiceUnitCount}
       bookingRiskSummary={businessStats.bookingRiskSummary}
       providerCount={businessStats.providerCount}
       serviceCount={businessStats.serviceCount}

@@ -133,6 +133,25 @@ function makeSupabaseMock(options?: {
 }
 
 function makeAdminSupabaseMock() {
+  const invoicesQuery = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    order: vi.fn().mockReturnThis(),
+    limit: vi.fn().mockResolvedValue({
+      data: [
+        {
+          id: 'inv-1',
+          invoice_number: 'INV-001',
+          status: 'paid',
+          total_inr: 1200,
+          issued_at: '2026-04-08T10:00:00.000Z',
+          paid_at: '2026-04-08T10:02:00.000Z',
+        },
+      ],
+      error: null,
+    }),
+  };
+
   const addonItemsQuery = {
     select: vi.fn().mockReturnThis(),
     in: vi.fn().mockReturnThis(),
@@ -184,6 +203,7 @@ function makeAdminSupabaseMock() {
   return {
     from: vi.fn((table: string) => {
       if (table === 'booking_addon_items') return addonItemsQuery;
+      if (table === 'billing_invoices') return invoicesQuery;
       if (table === 'payment_transactions') return paymentTransactionsQuery;
       if (table === 'pets') return petsQuery;
 

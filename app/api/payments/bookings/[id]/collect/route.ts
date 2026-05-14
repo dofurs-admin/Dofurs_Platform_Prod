@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { markBookingPaymentCollected } from '@/lib/payments/payAfterService';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
+import { buildServiceInvoiceLineItemsForBooking } from '@/lib/payments/serviceInvoiceItems';
 import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
@@ -30,16 +31,20 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
   const { data: booking, error: bookingError } = await admin
     .from('bookings')
-    .select('id, user_id, provider_id, service_type, booking_status, payment_mode, price_at_booking, discount_amount, final_price, wallet_credits_applied_inr')
+    .select('id, user_id, provider_id, service_type, provider_service_id, provider_notes, internal_notes, booking_status, payment_mode, price_at_booking, admin_price_reference, discount_amount, final_price, wallet_credits_applied_inr')
     .eq('id', bookingId)
     .single<{
       id: number;
       user_id: string;
       provider_id: number;
       service_type: string | null;
+      provider_service_id: string | null;
+      provider_notes: string | null;
+      internal_notes: string | null;
       booking_status: string;
       payment_mode: string | null;
       price_at_booking: number | null;
+      admin_price_reference: number | null;
       discount_amount: number | null;
       final_price: number | null;
       wallet_credits_applied_inr: number | null;
@@ -91,6 +96,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     notes,
   });
 
+  const serviceLineItems = await buildServiceInvoiceLineItemsForBooking(admin, booking, amountInr);
+
   await createServiceInvoice(admin, {
     userId: booking.user_id,
     bookingId,
@@ -99,6 +106,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     amountInr,
     discountInr: 0,
     walletCreditsAppliedInr: 0,
+    serviceLineItems,
     status: 'paid',
   });
 

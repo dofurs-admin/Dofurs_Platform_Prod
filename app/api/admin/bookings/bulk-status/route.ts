@@ -9,6 +9,7 @@ import { logAdminAction } from '@/lib/admin/audit';
 import { notifyBookingStatusChanged } from '@/lib/notifications/service';
 import { restoreCredits } from '@/lib/credits/wallet';
 import { processReferrerRewardOnFirstBooking } from '@/lib/referrals/service';
+import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 
 const payloadSchema = z.object({
   bookingIds: z.array(z.number().int().positive()).min(1).max(100),
@@ -61,16 +62,11 @@ export async function PATCH(request: Request) {
 
       const previousStatus = bookingBeforeUpdate.booking_status ?? bookingBeforeUpdate.status;
 
-      if (parsed.data.status === 'completed' && bookingBeforeUpdate.payment_mode === 'direct_to_provider') {
-        const { data: cashCollection } = await writeSupabase
-          .from('booking_payment_collections')
-          .select('id')
-          .eq('booking_id', bookingId)
-          .eq('status', 'paid')
-          .maybeSingle();
+      if (parsed.data.status === 'completed') {
+        const payableSummary = await getBookingOutstandingSummary(writeSupabase, bookingId);
 
-        if (!cashCollection) {
-          throw new Error('Cash payment must be marked as received before completing this booking.');
+        if (payableSummary.outstandingInr > 0) {
+          throw new Error('Pending payable amount must be collected or paid online before completing this booking.');
         }
       }
 

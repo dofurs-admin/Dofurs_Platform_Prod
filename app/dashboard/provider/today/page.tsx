@@ -5,6 +5,11 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { getISTDateString } from '@/lib/utils/date';
 import ProviderTodayScheduleClient from '@/components/dashboard/ProviderTodayScheduleClient';
 import type { TodayBooking } from '@/components/dashboard/ProviderTodayScheduleClient';
+import {
+  extractBundledPetIdsFromNotes,
+  extractProviderServiceIdsFromNotes,
+  resolveIncludedServicesForBooking,
+} from '@/lib/bookings/included-services';
 
 function normalizeStoragePathCandidate(
   value: string | null | undefined,
@@ -86,7 +91,7 @@ export default async function ProviderTodayPage() {
   const bookingsResult = await supabase
     .from('bookings')
     .select(
-      'id, booking_date, start_time, end_time, service_type, provider_service_id, included_services, booking_mode, location_address, latitude, longitude, booking_status, price_at_booking, admin_price_reference, provider_notes, internal_notes, user_id, pets(name, breed, photo_url)',
+      'id, user_id, pet_id, booking_date, start_time, end_time, service_type, provider_service_id, booking_mode, location_address, latitude, longitude, booking_status, price_at_booking, final_price, amount, admin_price_reference, provider_notes, internal_notes, pets(name, breed, photo_url)',
     )
     .eq('provider_id', providerRow.id)
     .eq('booking_date', today)
@@ -94,13 +99,52 @@ export default async function ProviderTodayPage() {
 
   const rawBookings = bookingsResult.data ?? [];
   const userIds = Array.from(new Set(rawBookings.map((row) => row.user_id).filter(Boolean)));
+  const petIdsByBookingId = new Map<number, number[]>();
+  const petIds = new Set<number>();
+  const providerServiceIds = new Set<string>();
 
-  const [profilesResult, usersResult] = await Promise.all([
+  for (const row of rawBookings) {
+    const bookingPetIds = new Set<number>();
+
+    if (row.pet_id) {
+      bookingPetIds.add(row.pet_id);
+      petIds.add(row.pet_id);
+    }
+
+    for (const bundledPetId of [
+      ...extractBundledPetIdsFromNotes(row.provider_notes),
+      ...extractBundledPetIdsFromNotes(row.internal_notes),
+    ]) {
+      bookingPetIds.add(bundledPetId);
+      petIds.add(bundledPetId);
+    }
+
+    if (row.provider_service_id) {
+      providerServiceIds.add(row.provider_service_id);
+    }
+
+    for (const providerServiceId of [
+      ...extractProviderServiceIdsFromNotes(row.provider_notes),
+      ...extractProviderServiceIdsFromNotes(row.internal_notes),
+    ]) {
+      providerServiceIds.add(providerServiceId);
+    }
+
+    petIdsByBookingId.set(row.id, Array.from(bookingPetIds));
+  }
+
+  const [profilesResult, usersResult, petsResult, providerServicesResult] = await Promise.all([
     userIds.length > 0
       ? supabase.from('profiles').select('id, full_name, profile_photo_url').in('id', userIds)
       : Promise.resolve({ data: [], error: null }),
     userIds.length > 0
       ? supabase.from('users').select('id, name, phone').in('id', userIds)
+      : Promise.resolve({ data: [], error: null }),
+    petIds.size > 0
+      ? supabase.from('pets').select('id, name, breed, photo_url').in('id', Array.from(petIds))
+      : Promise.resolve({ data: [], error: null }),
+    providerServiceIds.size > 0
+      ? supabase.from('provider_services').select('id, service_type, base_price').in('id', Array.from(providerServiceIds))
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -109,16 +153,28 @@ export default async function ProviderTodayPage() {
     (profilesResult.data ?? []).map((profile) => [profile.id, profile.profile_photo_url ?? null]),
   );
   const userMap = new Map((usersResult.data ?? []).map((u) => [u.id, u]));
+  const petMap = new Map((petsResult.data ?? []).map((pet) => [pet.id, pet]));
+  const serviceNameByProviderServiceId = new Map(
+    (providerServicesResult.data ?? []).map((service) => [service.id, service.service_type]),
+  );
+  const serviceBasePriceByProviderServiceId = new Map(
+    (providerServicesResult.data ?? [])
+      .map((service) => [service.id, Number(service.base_price ?? NaN)] as const)
+      .filter((entry): entry is readonly [string, number] => Number.isFinite(entry[1]) && entry[1] > 0),
+  );
 
   const petPhotoPathSet = new Set<string>();
   const ownerPhotoPathSet = new Set<string>();
 
   for (const row of rawBookings) {
-    const pet = Array.isArray(row.pets) ? row.pets[0] : row.pets;
-    const petPhoto = (pet as { photo_url?: string | null } | null)?.photo_url ?? null;
-    const petPath = normalizeStoragePathCandidate(petPhoto, 'pet-photos');
-    if (petPath) {
-      petPhotoPathSet.add(petPath);
+    const bookingPetIds = petIdsByBookingId.get(row.id) ?? [];
+    for (const bookingPetId of bookingPetIds) {
+      const pet = petMap.get(bookingPetId);
+      const petPhoto = pet?.photo_url ?? null;
+      const petPath = normalizeStoragePathCandidate(petPhoto, 'pet-photos');
+      if (petPath) {
+        petPhotoPathSet.add(petPath);
+      }
     }
 
     const ownerPhoto = profilePhotoMap.get(row.user_id) ?? null;
@@ -150,13 +206,27 @@ export default async function ProviderTodayPage() {
   );
 
   const bookings: TodayBooking[] = rawBookings.map((row) => {
-    const pet = Array.isArray(row.pets) ? row.pets[0] : row.pets;
+    const relationPet = Array.isArray(row.pets) ? row.pets[0] : row.pets;
+    const bookingPetIds = petIdsByBookingId.get(row.id) ?? [];
+    const bookingPets = bookingPetIds
+      .map((petId) => petMap.get(petId))
+      .filter((pet): pet is { id: number; name: string; breed: string | null; photo_url: string | null } => Boolean(pet));
+    const petNames = Array.from(new Set(bookingPets.map((pet) => pet.name).filter(Boolean)));
+    const primaryPet = bookingPets[0] ?? relationPet;
     const owner = userMap.get(row.user_id);
     const ownerNameFromProfile = profileNameMap.get(row.user_id) ?? null;
     const ownerPhotoRaw = profilePhotoMap.get(row.user_id) ?? null;
     const ownerPhotoPath = normalizeStoragePathCandidate(ownerPhotoRaw, 'user-photos');
-    const petPhotoRaw = (pet as { photo_url?: string | null } | null)?.photo_url ?? null;
+    const petPhotoRaw = (primaryPet as { photo_url?: string | null } | null)?.photo_url ?? null;
     const petPhotoPath = normalizeStoragePathCandidate(petPhotoRaw, 'pet-photos');
+    const includedServices = resolveIncludedServicesForBooking(row, {
+      serviceNameByProviderServiceId,
+      serviceBasePriceByProviderServiceId,
+    });
+    const effectiveAmount = [row.final_price, row.amount, row.admin_price_reference, row.price_at_booking]
+      .map((value) => Number(value ?? NaN))
+      .find((value) => Number.isFinite(value) && value > 0) ?? 0;
+
     return {
       id: row.id,
       booking_date: row.booking_date,
@@ -164,18 +234,19 @@ export default async function ProviderTodayPage() {
       end_time: row.end_time,
       service_type: row.service_type ?? null,
       provider_service_id: row.provider_service_id ?? null,
-      included_services: row.included_services ?? null,
+      included_services: includedServices.length > 0 ? includedServices : null,
       booking_mode: row.booking_mode,
       location_address: row.location_address ?? null,
       latitude: row.latitude ?? null,
       longitude: row.longitude ?? null,
       booking_status: row.booking_status as TodayBooking['booking_status'],
-      price_at_booking: row.price_at_booking,
+      price_at_booking: effectiveAmount,
       admin_price_reference: row.admin_price_reference ?? null,
       provider_notes: row.provider_notes ?? null,
       internal_notes: row.internal_notes ?? null,
-      pet_name: (pet as { name?: string } | null)?.name ?? 'Unknown Pet',
-      pet_breed: (pet as { breed?: string | null } | null)?.breed ?? null,
+      pet_name: petNames.length > 0 ? petNames.join(', ') : (primaryPet as { name?: string } | null)?.name ?? 'Unknown Pet',
+      pet_breed: petNames.length <= 1 ? (primaryPet as { breed?: string | null } | null)?.breed ?? null : null,
+      pet_count: Math.max(bookingPetIds.length, petNames.length, 1),
       pet_photo_url: petPhotoPath ? petSignedUrlByPath.get(petPhotoPath) ?? petPhotoRaw : petPhotoRaw,
       owner_name: ownerNameFromProfile || owner?.name || null,
       owner_phone: owner?.phone ?? null,
