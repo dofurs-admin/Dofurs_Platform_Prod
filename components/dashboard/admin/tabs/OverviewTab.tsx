@@ -1,57 +1,48 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminOverviewView from '@/components/dashboard/admin/views/AdminOverviewView';
-import type { Service } from '@/lib/service-catalog/types';
-import type { PlatformDiscountAnalyticsSummary } from '@/lib/provider-management/types';
-
-type AdminBooking = {
-  id: number;
-  user_id?: string;
-  booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  customer_email?: string | null;
-  customer_phone?: string | null;
-};
+import { useAdminBookingRealtime, useAdminProviderApprovalRealtime } from '@/lib/hooks/useRealtime';
+import type { AdminDashboardBusinessStats } from '@/lib/admin/dashboard-stats';
 
 type OverviewTabProps = {
-  initialBookings: AdminBooking[];
-  providerCount: number;
-  initialCatalogServices: Service[];
-  initialServiceCategories: { id: string; name: string }[];
-  initialDiscountAnalytics: PlatformDiscountAnalyticsSummary;
+  initialBusinessStats: AdminDashboardBusinessStats;
 };
 
 export default function OverviewTab({
-  initialBookings,
-  providerCount,
-  initialCatalogServices,
-  initialDiscountAnalytics,
+  initialBusinessStats,
 }: OverviewTabProps) {
   const router = useRouter();
+  const [businessStats, setBusinessStats] = useState(initialBusinessStats);
 
-  const bookingRiskSummary = useMemo(() => {
-    return {
-      inProgress: initialBookings.filter((b) => {
-        const status = b.booking_status ?? b.status;
-        return status === 'pending' || status === 'confirmed';
-      }).length,
-      completed: initialBookings.filter((b) => (b.booking_status ?? b.status) === 'completed').length,
-      pending: initialBookings.filter((b) => (b.booking_status ?? b.status) === 'pending').length,
-      noShow: initialBookings.filter((b) => (b.booking_status ?? b.status) === 'no_show').length,
-      cancelled: initialBookings.filter((b) => (b.booking_status ?? b.status) === 'cancelled').length,
-    };
-  }, [initialBookings]);
+  const refreshBusinessStats = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/dashboard-stats', { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({})) as { businessStats?: AdminDashboardBusinessStats; error?: string };
 
-  const totalCustomers = useMemo(() => {
-    const keys = new Set<string>();
-    for (const booking of initialBookings) {
-      const key = booking.user_id ?? booking.customer_email ?? booking.customer_phone;
-      if (key) keys.add(key.toLowerCase());
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Unable to refresh admin dashboard statistics.');
+      }
+
+      if (payload.businessStats) {
+        setBusinessStats(payload.businessStats);
+      }
+    } catch (error) {
+      console.error('Failed to refresh admin dashboard statistics:', error);
     }
-    return keys.size;
-  }, [initialBookings]);
+  }, []);
+
+  useEffect(() => {
+    setBusinessStats(initialBusinessStats);
+  }, [initialBusinessStats]);
+
+  useEffect(() => {
+    void refreshBusinessStats();
+  }, [refreshBusinessStats]);
+
+  useAdminBookingRealtime(refreshBusinessStats);
+  useAdminProviderApprovalRealtime(refreshBusinessStats);
 
   function handleNavigate(view: 'payments' | 'subscriptions' | 'billing') {
     router.push(`/dashboard/admin/${view}`);
@@ -59,12 +50,12 @@ export default function OverviewTab({
 
   return (
     <AdminOverviewView
-      bookingCount={initialBookings.length}
-      bookingRiskSummary={bookingRiskSummary}
-      providerCount={providerCount}
-      serviceCount={initialCatalogServices.length}
-      customerCount={totalCustomers}
-      activeDiscountCount={initialDiscountAnalytics.total_active_discounts}
+      bookingCount={businessStats.bookingCount}
+      bookingRiskSummary={businessStats.bookingRiskSummary}
+      providerCount={businessStats.providerCount}
+      serviceCount={businessStats.serviceCount}
+      customerCount={businessStats.customerCount}
+      activeDiscountCount={businessStats.activeDiscountCount}
       onNavigate={handleNavigate}
     />
   );

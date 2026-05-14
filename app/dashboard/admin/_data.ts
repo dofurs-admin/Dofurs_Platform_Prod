@@ -6,8 +6,20 @@ import {
   listPlatformDiscounts,
 } from '@/lib/provider-management/service';
 import { listServiceProviderApplications } from '@/lib/provider-applications/service';
+import { loadAdminDashboardBusinessStats } from '@/lib/admin/dashboard-stats';
 
-export async function loadAdminDashboardData(supabase: SupabaseClient) {
+type LoadAdminDashboardDataOptions = {
+  includeBusinessStats?: boolean;
+};
+
+export async function loadAdminDashboardData(
+  supabase: SupabaseClient,
+  options: LoadAdminDashboardDataOptions = {},
+) {
+  const businessStatsPromise = options.includeBusinessStats
+    ? loadAdminDashboardBusinessStats(supabase)
+    : Promise.resolve(null);
+
   const [
     bookingsResult,
     providersResult,
@@ -15,6 +27,7 @@ export async function loadAdminDashboardData(supabase: SupabaseClient) {
     providerApplications,
     serviceCategoriesResult,
     catalogServicesResult,
+    businessStats,
   ] = await Promise.all([
     supabase
       .from('bookings')
@@ -33,6 +46,7 @@ export async function loadAdminDashboardData(supabase: SupabaseClient) {
       .select('*')
       .is('provider_id', null)
       .order('display_order', { ascending: true }),
+    businessStatsPromise,
   ]);
 
   const [serviceModerationSummary, platformDiscounts, discountAnalytics] = await Promise.all([
@@ -48,6 +62,7 @@ export async function loadAdminDashboardData(supabase: SupabaseClient) {
     providerApplications,
     serviceCategories: serviceCategoriesResult.data ?? [],
     catalogServices: catalogServicesResult.data ?? [],
+    businessStats,
     serviceModerationSummary,
     platformDiscounts,
     discountAnalytics,

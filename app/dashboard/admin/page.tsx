@@ -5,7 +5,7 @@ import { loadAdminDashboardData } from './_data';
 export default async function AdminDashboardPage() {
   const role = await requireRole(['admin', 'staff']);
   const { supabase } = await requireAuthenticatedUser();
-  const data = await loadAdminDashboardData(supabase);
+  const data = await loadAdminDashboardData(supabase, { includeBusinessStats: true });
 
   return (
     <AdminDashboardShell
@@ -18,6 +18,7 @@ export default async function AdminDashboardPage() {
       initialServiceSummary={data.serviceModerationSummary}
       initialDiscounts={data.platformDiscounts}
       initialDiscountAnalytics={data.discountAnalytics}
+      initialBusinessStats={data.businessStats}
       initialServiceCategories={data.serviceCategories}
       initialCatalogServices={data.catalogServices}
     />

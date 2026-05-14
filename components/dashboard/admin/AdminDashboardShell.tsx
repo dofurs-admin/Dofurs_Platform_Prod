@@ -14,6 +14,7 @@ import type {
   ServiceProviderApplication,
 } from '@/lib/provider-applications/types';
 import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
+import type { AdminDashboardBusinessStats } from '@/lib/admin/dashboard-stats';
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -69,6 +70,52 @@ type Provider = {
   id: number;
   name: string;
 };
+
+function buildFallbackBusinessStats(
+  bookings: AdminBooking[],
+  providerCount: number,
+  serviceCount: number,
+  activeDiscountCount: number,
+): AdminDashboardBusinessStats {
+  const bookingRiskSummary = {
+    inProgress: 0,
+    completed: 0,
+    pending: 0,
+    noShow: 0,
+    cancelled: 0,
+  };
+  const customerKeys = new Set<string>();
+
+  for (const booking of bookings) {
+    const status = booking.booking_status ?? booking.status;
+    if (status === 'pending') {
+      bookingRiskSummary.pending += 1;
+      bookingRiskSummary.inProgress += 1;
+    } else if (status === 'confirmed') {
+      bookingRiskSummary.inProgress += 1;
+    } else if (status === 'completed') {
+      bookingRiskSummary.completed += 1;
+    } else if (status === 'no_show') {
+      bookingRiskSummary.noShow += 1;
+    } else if (status === 'cancelled') {
+      bookingRiskSummary.cancelled += 1;
+    }
+
+    const customerKey = booking.user_id ?? booking.customer_email ?? booking.customer_phone;
+    if (customerKey) {
+      customerKeys.add(customerKey.toLowerCase());
+    }
+  }
+
+  return {
+    bookingCount: bookings.length,
+    bookingRiskSummary,
+    providerCount,
+    serviceCount,
+    customerCount: customerKeys.size,
+    activeDiscountCount,
+  };
+}
 
 // ── Lazy-loaded tab components ────────────────────────────────────────────────
 
@@ -155,6 +202,7 @@ export default function AdminDashboardShell({
   initialServiceSummary,
   initialDiscounts,
   initialDiscountAnalytics,
+  initialBusinessStats,
   initialServiceCategories = [],
   initialCatalogServices = [],
 }: {
@@ -167,6 +215,7 @@ export default function AdminDashboardShell({
   initialServiceSummary: AdminServiceModerationSummaryItem[];
   initialDiscounts: PlatformDiscount[];
   initialDiscountAnalytics: PlatformDiscountAnalyticsSummary;
+  initialBusinessStats?: AdminDashboardBusinessStats | null;
   initialServiceCategories?: ServiceCategory[];
   initialCatalogServices?: Service[];
 }) {
@@ -212,11 +261,12 @@ export default function AdminDashboardShell({
       <div className="space-y-8">
         {view === 'overview' && (
           <OverviewTab
-            initialBookings={initialBookings}
-            providerCount={moderationProviders.length > 0 ? moderationProviders.length : providers.length}
-            initialServiceCategories={initialServiceCategories}
-            initialCatalogServices={initialCatalogServices}
-            initialDiscountAnalytics={initialDiscountAnalytics}
+            initialBusinessStats={initialBusinessStats ?? buildFallbackBusinessStats(
+              initialBookings,
+              moderationProviders.length > 0 ? moderationProviders.length : providers.length,
+              initialCatalogServices.length,
+              initialDiscountAnalytics.total_active_discounts,
+            )}
           />
         )}
 
