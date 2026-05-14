@@ -4,7 +4,14 @@ import { useState } from 'react';
 import StorageBackedImage from '@/components/ui/StorageBackedImage';
 import Modal from '@/components/ui/Modal';
 import { getGroomingPackageByServiceType } from '@/lib/service-catalog/grooming-packages';
-import { MAX_PET_AGE_YEARS } from '@/lib/utils/date';
+import {
+  PET_AGE_INPUT_MAX_LENGTH,
+  PET_AGE_INPUT_PATTERN,
+  PET_AGE_VALIDATION_MESSAGE,
+  isValidPetAgeValue,
+  parsePetAgeInput,
+  sanitizePetAgeInput,
+} from '@/lib/pets/age';
 
 type Pet = { id: number; name: string; breed?: string | null; photo_url?: string | null };
 type Service = {
@@ -150,9 +157,9 @@ export default function PetAndServiceStep({
       return;
     }
 
-    const parsedAge = petForm.age.trim() ? Number.parseInt(petForm.age, 10) : null;
-    if (parsedAge !== null && (!Number.isFinite(parsedAge) || parsedAge < 0 || parsedAge > MAX_PET_AGE_YEARS)) {
-      setCreateError(`Pet age must be between 0 and ${MAX_PET_AGE_YEARS}.`);
+    const parsedAge = parsePetAgeInput(petForm.age);
+    if (parsedAge !== null && !isValidPetAgeValue(parsedAge)) {
+      setCreateError(PET_AGE_VALIDATION_MESSAGE);
       return;
     }
 
@@ -584,12 +591,12 @@ export default function PetAndServiceStep({
               <label className="mb-1.5 block text-sm font-semibold text-neutral-900">Age (years)</label>
               <input
                 type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={2}
+                inputMode="decimal"
+                pattern={PET_AGE_INPUT_PATTERN}
+                maxLength={PET_AGE_INPUT_MAX_LENGTH}
                 value={petForm.age}
-                onChange={(e) => setPetForm((f) => ({ ...f, age: e.target.value.replace(/\D/g, '').slice(0, 2) }))}
-                placeholder="e.g. 3"
+                onChange={(e) => setPetForm((f) => ({ ...f, age: sanitizePetAgeInput(e.target.value) }))}
+                placeholder="e.g. 0.5"
                 className="w-full rounded-xl border border-[#e8cfb7] bg-white px-4 py-3 text-sm transition-all focus:border-[#c7773b] focus:outline-none focus:ring-2 focus:ring-[#c7773b]/20"
               />
             </div>

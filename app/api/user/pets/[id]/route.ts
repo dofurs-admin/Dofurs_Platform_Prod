@@ -6,11 +6,18 @@ import { updatePet } from '@/lib/pets/service';
 import { getPetAccessForUser } from '@/lib/pets/share-access';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { MAX_PET_AGE_YEARS, isPetDateOfBirthWithinBounds } from '@/lib/utils/date';
+import { PET_AGE_VALIDATION_MESSAGE, isValidPetAgeValue } from '@/lib/pets/age';
+
+const petAgeSchema = z
+  .number()
+  .refine(isValidPetAgeValue, { message: PET_AGE_VALIDATION_MESSAGE })
+  .nullable()
+  .optional();
 
 const petSchema = z.object({
   name: z.string().min(1).max(120),
   breed: z.string().max(120).nullable().optional(),
-  age: z.number().int().min(0).max(MAX_PET_AGE_YEARS).nullable().optional(),
+  age: petAgeSchema,
   weight: z.number().min(0).nullable().optional(),
   gender: z
     .preprocess(

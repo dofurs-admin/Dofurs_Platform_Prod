@@ -4,6 +4,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import FormField from '@/components/dashboard/FormField';
 import SegmentedControl from '@/components/dashboard/SegmentedControl';
+import { PET_AGE_INPUT_MAX_LENGTH, PET_AGE_INPUT_PATTERN } from '@/lib/pets/age';
 import type { PetCreateForm } from './types';
 import { normalizePetGenderValue } from './utils';
 
@@ -57,12 +58,12 @@ export default function CreatePetModal({
         <FormField
           label="Age"
           type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
+          inputMode="decimal"
+          pattern={PET_AGE_INPUT_PATTERN}
+          maxLength={PET_AGE_INPUT_MAX_LENGTH}
           value={newPet.age}
           onChange={(event) => onNewPetFieldChange('age', event.target.value)}
-          placeholder="Age"
+          placeholder="e.g. 0.5"
         />
         <div className="space-y-2">
           <label className="text-sm font-semibold text-neutral-900">Gender</label>

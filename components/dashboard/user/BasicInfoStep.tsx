@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import FormField from '@/components/dashboard/FormField';
 import StorageBackedImage from '@/components/ui/StorageBackedImage';
+import { PET_AGE_INPUT_MAX_LENGTH, PET_AGE_INPUT_PATTERN } from '@/lib/pets/age';
 import { getPetDateOfBirthBounds } from '@/lib/utils/date';
 import type { PassportDraft } from './types';
 import {
@@ -100,9 +101,9 @@ export default function BasicInfoStep({
       <FormField
         label="Age"
         type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        maxLength={2}
+        inputMode="decimal"
+        pattern={PET_AGE_INPUT_PATTERN}
+        maxLength={PET_AGE_INPUT_MAX_LENGTH}
         value={draft.pet.age}
         onChange={(event) => onPetFieldChange('age', event.target.value)}
         error={getFieldError('pet.age') ?? undefined}

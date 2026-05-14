@@ -73,6 +73,33 @@ describe('POST /api/bookings/user-pets', () => {
     expect(json.pet.id).toBe(42);
   });
 
+  it('accepts decimal pet age for admin quick-add pets', async () => {
+    vi.mocked(requireApiRole).mockResolvedValue(makeAuthContext('admin') as never);
+    const adminClient = { id: 'admin-client' };
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminClient as never);
+    vi.mocked(createPet).mockResolvedValue({
+      id: 43,
+      user_id: '33333333-3333-4333-8333-333333333333',
+      name: 'Pip',
+      age: 0.5,
+    } as never);
+
+    const request = new Request('http://localhost/api/bookings/user-pets?userId=33333333-3333-4333-8333-333333333333', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Pip', age: 0.5 }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    expect(createPet).toHaveBeenCalledWith(
+      adminClient,
+      '33333333-3333-4333-8333-333333333333',
+      expect.objectContaining({ name: 'Pip', age: 0.5 }),
+    );
+  });
+
   it('prevents a regular user from creating a pet for another customer', async () => {
     vi.mocked(requireApiRole).mockResolvedValue(makeAuthContext('user') as never);
 

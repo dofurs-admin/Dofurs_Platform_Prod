@@ -8,8 +8,15 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { calculateLightweightPetCompletion } from '@/lib/utils/pet-completion';
 import { notifyPetAdded } from '@/lib/notifications/service';
 import { MAX_PET_AGE_YEARS, isPetDateOfBirthWithinBounds } from '@/lib/utils/date';
+import { PET_AGE_VALIDATION_MESSAGE, isValidPetAgeValue } from '@/lib/pets/age';
 
 const noHtmlChars = (val: string) => !/<|>|&lt;|&gt;|javascript:/i.test(val);
+
+const petAgeSchema = z
+  .number()
+  .refine(isValidPetAgeValue, { message: PET_AGE_VALIDATION_MESSAGE })
+  .nullable()
+  .optional();
 
 const petSchema = z.object({
   name: z
@@ -18,7 +25,7 @@ const petSchema = z.object({
     .max(120)
     .refine(noHtmlChars, { message: 'Pet name must not contain HTML or script characters' }),
   breed: z.string().max(120).nullable().optional(),
-  age: z.number().int().min(0).max(MAX_PET_AGE_YEARS).nullable().optional(),
+  age: petAgeSchema,
   weight: z.number().min(0).nullable().optional(),
   gender: z
     .preprocess(

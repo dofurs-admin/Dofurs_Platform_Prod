@@ -9,7 +9,14 @@ import AvailabilityCalendar from '@/components/ui/AvailabilityCalendar';
 import { apiRequest } from '@/lib/api/client';
 import { useToast } from '@/components/ui/ToastProvider';
 import { formatSavedAddress } from '@/lib/utils/address';
-import { MAX_PET_AGE_YEARS } from '@/lib/utils/date';
+import {
+  PET_AGE_INPUT_MAX_LENGTH,
+  PET_AGE_INPUT_PATTERN,
+  PET_AGE_VALIDATION_MESSAGE,
+  isValidPetAgeValue,
+  parsePetAgeInput,
+  sanitizePetAgeInput,
+} from '@/lib/pets/age';
 
 const LocationPinMap = dynamic(() => import('./LocationPinMap'), { ssr: false });
 
@@ -1680,15 +1687,15 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     }
 
     const name = quickPetName.trim();
-    const age = quickPetAge.trim() ? Number.parseInt(quickPetAge.trim(), 10) : null;
+    const age = parsePetAgeInput(quickPetAge);
 
     if (!name) {
       setQuickPetError('Pet name is required.');
       return;
     }
 
-    if (age !== null && (!Number.isFinite(age) || age < 0 || age > MAX_PET_AGE_YEARS)) {
-      setQuickPetError(`Pet age must be between 0 and ${MAX_PET_AGE_YEARS}.`);
+    if (age !== null && !isValidPetAgeValue(age)) {
+      setQuickPetError(PET_AGE_VALIDATION_MESSAGE);
       return;
     }
 
@@ -2451,8 +2458,12 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
                       <label className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
                         Age
                         <input
+                          type="text"
+                          inputMode="decimal"
+                          pattern={PET_AGE_INPUT_PATTERN}
+                          maxLength={PET_AGE_INPUT_MAX_LENGTH}
                           value={quickPetAge}
-                          onChange={(event) => setQuickPetAge(event.target.value.replace(/\D/g, '').slice(0, 2))}
+                          onChange={(event) => setQuickPetAge(sanitizePetAgeInput(event.target.value))}
                           placeholder="Optional"
                           className="mt-1 h-10 w-full rounded-xl border border-neutral-200 bg-white px-3 text-sm text-neutral-900"
                         />

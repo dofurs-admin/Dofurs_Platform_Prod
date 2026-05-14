@@ -6,6 +6,12 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { uploadCompressedImage } from '@/lib/storage/upload-client';
 import { MAX_PET_AGE_YEARS, isPetDateOfBirthWithinBounds } from '@/lib/utils/date';
 import { calculatePetCompletionFromSections } from '@/lib/utils/pet-completion';
+import {
+  PET_AGE_VALIDATION_MESSAGE,
+  isValidPetAgeValue,
+  parsePetAgeInput,
+  sanitizePetAgeInput,
+} from '@/lib/pets/age';
 import PetHeroHeader from './PetHeroHeader';
 
 import type {
@@ -120,11 +126,11 @@ export default function UserPetProfilesClient({
   // ── Completion ──────────────────────────────────��───────────────────────────
 
   const stepCompletion = useMemo(() => {
-    const age = draft.pet.age.trim() ? Number.parseInt(draft.pet.age, 10) : null;
+    const age = parsePetAgeInput(draft.pet.age);
     const weight = draft.pet.weight.trim() ? Number.parseFloat(draft.pet.weight) : null;
     const basicComplete =
       draft.pet.name.trim().length > 0 &&
-      (age === null || (Number.isFinite(age) && age >= 0 && age <= MAX_PET_AGE_YEARS)) &&
+      (age === null || isValidPetAgeValue(age)) &&
       isPetDateOfBirthWithinBounds(draft.pet.dateOfBirth) &&
       (weight === null || (Number.isFinite(weight) && weight > 0 && weight <= 300));
 
@@ -624,11 +630,11 @@ export default function UserPetProfilesClient({
     }
 
     if (stepIndex === 0) {
-      const age = draft.pet.age.trim() ? Number.parseInt(draft.pet.age, 10) : null;
+      const age = parsePetAgeInput(draft.pet.age);
       const weight = draft.pet.weight.trim() ? Number.parseFloat(draft.pet.weight) : null;
 
-      if (age !== null && (!Number.isFinite(age) || age < 0 || age > MAX_PET_AGE_YEARS)) {
-        nextErrors['pet.age'] = `Age must be between 0 and ${MAX_PET_AGE_YEARS}.`;
+      if (age !== null && !isValidPetAgeValue(age)) {
+        nextErrors['pet.age'] = PET_AGE_VALIDATION_MESSAGE;
       }
 
       if (!isPetDateOfBirthWithinBounds(draft.pet.dateOfBirth)) {
@@ -717,7 +723,7 @@ export default function UserPetProfilesClient({
         pet: {
           name: draft.pet.name.trim(),
           breed: draft.pet.breed.trim() || null,
-          age: draft.pet.age.trim() ? Number.parseInt(draft.pet.age, 10) : null,
+          age: parsePetAgeInput(draft.pet.age),
           weight: draft.pet.weight.trim() ? Number.parseFloat(draft.pet.weight) : null,
           gender: normalizePetGenderValue(draft.pet.gender) || null,
           allergies: draft.pet.allergies.trim() || null,
@@ -887,7 +893,7 @@ export default function UserPetProfilesClient({
               ...pet,
               name: draft.pet.name.trim() || pet.name,
               breed: draft.pet.breed.trim() || null,
-              age: draft.pet.age.trim() ? Number.parseInt(draft.pet.age, 10) : null,
+              age: parsePetAgeInput(draft.pet.age),
               weight: draft.pet.weight.trim() ? Number.parseFloat(draft.pet.weight) : null,
               gender: normalizePetGenderValue(draft.pet.gender) || null,
               allergies: draft.pet.allergies.trim() || null,
@@ -1069,9 +1075,9 @@ export default function UserPetProfilesClient({
       return;
     }
 
-    const parsedAge = newPet.age.trim() ? Number.parseInt(newPet.age, 10) : null;
-    if (parsedAge !== null && (!Number.isFinite(parsedAge) || parsedAge < 0 || parsedAge > MAX_PET_AGE_YEARS)) {
-      showToast(`Pet age must be between 0 and ${MAX_PET_AGE_YEARS}.`, 'error');
+    const parsedAge = parsePetAgeInput(newPet.age);
+    if (parsedAge !== null && !isValidPetAgeValue(parsedAge)) {
+      showToast(PET_AGE_VALIDATION_MESSAGE, 'error');
       return;
     }
 
@@ -1294,7 +1300,7 @@ export default function UserPetProfilesClient({
     let normalizedValue = value;
 
     if (key === 'age' && typeof value === 'string') {
-      normalizedValue = value.replace(/\D/g, '').slice(0, 2) as PassportDraft['pet'][K];
+      normalizedValue = sanitizePetAgeInput(value) as PassportDraft['pet'][K];
     }
 
     if (typeof normalizedValue === 'string' && CAPITALIZE_PET_FIELDS.includes(key)) {
@@ -1320,7 +1326,7 @@ export default function UserPetProfilesClient({
     let normalizedValue = value;
 
     if (key === 'age' && typeof value === 'string') {
-      normalizedValue = value.replace(/\D/g, '').slice(0, 2) as PetCreateForm[K];
+      normalizedValue = sanitizePetAgeInput(value) as PetCreateForm[K];
     }
 
     if (capitalize && typeof normalizedValue === 'string') {

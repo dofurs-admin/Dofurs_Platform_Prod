@@ -7,7 +7,7 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { createPet } from '@/lib/pets/service';
 import { AGGRESSION_LEVELS, PET_GENDERS } from '@/lib/pets/types';
 import { notifyPetAdded } from '@/lib/notifications/service';
-import { MAX_PET_AGE_YEARS } from '@/lib/utils/date';
+import { PET_AGE_VALIDATION_MESSAGE, isValidPetAgeValue } from '@/lib/pets/age';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -20,6 +20,12 @@ const querySchema = z.object({
   userId: z.string().uuid().optional(),
 });
 
+const petAgeSchema = z
+  .number()
+  .refine(isValidPetAgeValue, { message: PET_AGE_VALIDATION_MESSAGE })
+  .nullable()
+  .optional();
+
 const quickPetSchema = z.object({
   name: z
     .string()
@@ -28,7 +34,7 @@ const quickPetSchema = z.object({
     .max(120)
     .refine(noHtmlChars, { message: 'Pet name must not contain HTML or script characters' }),
   breed: z.string().trim().max(120).nullable().optional(),
-  age: z.number().int().min(0).max(MAX_PET_AGE_YEARS).nullable().optional(),
+  age: petAgeSchema,
   gender: z
     .preprocess(
       (value) => (typeof value === 'string' ? value.trim().toLowerCase() : value),
