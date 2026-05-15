@@ -93,7 +93,10 @@ export const viewport: Viewport = {
 };
 
 const isDevelopment = process.env.NODE_ENV === 'development';
-const gaId = process.env.NEXT_PUBLIC_GA_ID;
+const googleAdsId = 'AW-17976541101';
+const googleTagIds = Array.from(
+  new Set([googleAdsId, process.env.NEXT_PUBLIC_GA_ID].filter((id): id is string => Boolean(id))),
+);
 const clarityId = process.env.NEXT_PUBLIC_CLARITY_ID;
 
 const organizationSchema = {
@@ -241,6 +244,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-IN" suppressHydrationWarning>
       <head>
+        <Script src={`https://www.googletagmanager.com/gtag/js?id=${googleAdsId}`} strategy="afterInteractive" />
+        <Script id="google-tag" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            ${googleTagIds.map((id) => `gtag('config', ${JSON.stringify(id)});`).join('\n            ')}
+          `}
+        </Script>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
@@ -253,19 +265,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
         />
-        {gaId && (
-          <>
-            <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} strategy="afterInteractive" />
-            <Script id="google-analytics" strategy="afterInteractive">
-              {`
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${gaId}');
-              `}
-            </Script>
-          </>
-        )}
         {clarityId && (
           <Script id="microsoft-clarity" strategy="afterInteractive">
             {`
