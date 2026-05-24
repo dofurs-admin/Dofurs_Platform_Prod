@@ -1,9 +1,11 @@
-import { Bath, Dog, HeartHandshake, Stethoscope, CalendarCheck2, PawPrint, Smile } from 'lucide-react';
+import { Bath, CalendarCheck2, PawPrint, Smile } from 'lucide-react';
 
 type NavItem = {
   label: string;
   href: string;
 };
+
+type ServiceAvailability = 'active' | 'coming-soon';
 
 export const navItems: NavItem[] = [];
 
@@ -29,57 +31,39 @@ export const footerPolicyLinks = [
 
 // Navigation dropdown items — explicit hrefs to service landing pages
 export const navServiceItems = [
-  { title: 'Grooming', href: '/services/grooming', badge: 'Active' },
-  { title: 'Fur Makeover', href: '/services/grooming#fur-makeover', badge: null },
-  { title: 'Pet Birthday', href: '/services/pet-birthday', badge: null },
-  { title: 'Pet Boarding', href: '/services/pet-boarding', badge: null },
-  { title: 'Vet Visits', href: '/services/vet-visits', badge: null },
-  { title: 'Pet Sitting', href: '/services/pet-sitting', badge: null },
-  { title: 'Training', href: '/services/training', badge: null },
+  { title: 'Grooming', href: '/services/grooming/bangalore', availability: 'active', badge: 'Live' },
 ] as const;
 
-export const services = [
+type ServiceSummary = {
+  title: string;
+  description: string;
+  icon: typeof Bath;
+  availability: ServiceAvailability;
+};
+
+export const services: ServiceSummary[] = [
   {
     title: 'Grooming',
-    description: 'Professional grooming sessions that keep coats healthy, clean, and camera-ready.',
+    description: 'Doorstep grooming packages for baths, haircuts, de-shedding, nail care, ear cleaning, and hygiene trims.',
     icon: Bath,
+    availability: 'active',
   },
-  {
-    title: 'Fur Makeover',
-    description: 'A great-deal grooming refresh with hair trimming, paw hair trimming, and nail clipping.',
-    icon: Bath,
-  },
-  {
-    title: 'Vet Visits',
-    description: 'Trusted veterinary support for preventive checkups, wellness plans, and urgent needs.',
-    icon: Stethoscope,
-  },
-  {
-    title: 'Pet Sitting',
-    description: 'Reliable sitters who give your pet personalized care while you are away.',
-    icon: HeartHandshake,
-  },
-  {
-    title: 'Training',
-    description: 'Positive reinforcement training to improve behavior and strengthen your bond.',
-    icon: Dog,
-  },
-] as const;
+];
 
 export const steps = [
   {
-    title: 'Choose Service',
-    description: 'Compare verified providers and pick the right care for your pet.',
+    title: 'Choose Package',
+    description: 'Pick the grooming package that fits your pet\'s coat, comfort level, and hygiene needs.',
     icon: PawPrint,
   },
   {
-    title: 'Book Instantly',
-    description: 'Book in minutes using a smooth booking workflow and transparent details.',
+    title: 'Book Now',
+    description: 'Confirm your pet, address, pincode, slot, and package details in one flow.',
     icon: CalendarCheck2,
   },
   {
     title: 'Relax & Enjoy',
-    description: 'Get updates and peace of mind while your pet receives excellent care.',
+    description: 'A verified groomer arrives with tools, pet-safe products, and calm handling.',
     icon: Smile,
   },
 ] as const;
@@ -107,7 +91,7 @@ export const supportContact = {
 
 export const whatsappLinks = {
   support:
-    `https://wa.me/${supportContact.whatsappE164}?text=Hello%2C%20I%20have%20a%20pet%20and%20would%20like%20to%20know%20more%20about%20your%20services%20at%20DOFURS`,
+    `https://wa.me/${supportContact.whatsappE164}?text=Hello%2C%20I%20would%20like%20to%20book%20a%20Dofurs%20grooming%20session%20for%20my%20pet.`,
   subscriptionSupport:
     `https://wa.me/${supportContact.whatsappE164}?text=Hi%2C%20I%20need%20help%20with%20my%20DOFURS%20subscription%20(upgrade%2C%20cancellation%2C%20or%20refund).`,
 } as const;
@@ -122,10 +106,10 @@ export const formEmbeds = {
 
 export const reviews = [
   {
-    quote: 'Booked grooming and sitting in one flow. Clear updates and a calm, happy pup at pickup.',
+    quote: 'Booked grooming in minutes. Clear updates and a calm, happy pup after the session.',
     name: 'Rajesh Patra',
     role: 'Pet Parent',
-    service: 'Grooming & Pet Sitting',
+    service: 'Doorstep Grooming',
   },
   {
     quote: 'The provider was punctual, gentle, and professional. The booking experience felt truly seamless.',
@@ -134,9 +118,9 @@ export const reviews = [
     service: 'At-Home Grooming',
   },
   {
-    quote: 'Fast confirmation, transparent details, and excellent care quality. Dofurs made life easier.',
+    quote: 'Fast confirmation, transparent package details, and excellent coat care. Dofurs made grooming easier.',
     name: 'M Saiba',
     role: 'Cat Parent',
-    service: 'Vet Teleconsult',
+    service: 'Cat Grooming',
   },
 ] as const;

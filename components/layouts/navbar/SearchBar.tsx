@@ -17,16 +17,16 @@ export function SearchBar({ searchOpen, searchQuery, onSearchQueryChange, onOpen
       <form
         onSubmit={onSubmit}
         className="group flex h-9 min-w-0 w-[min(400px,34vw)] items-center rounded-full border border-[#e2bc9a] bg-[linear-gradient(155deg,rgba(255,252,248,0.97),rgba(255,242,228,0.94))] pl-3 pr-1.5 shadow-[0_8px_16px_rgba(148,95,59,0.09)] transition-all focus-within:border-[#d89460] focus-within:shadow-[0_10px_20px_rgba(148,95,59,0.15)]"
-        aria-label="Search services"
+        aria-label="Search grooming"
       >
         <Search className="h-4 w-4 text-[#9f7652]" aria-hidden="true" />
         <input
           type="search"
           value={searchQuery}
           onChange={(event) => onSearchQueryChange(event.target.value)}
-          placeholder="Search grooming, vet visits, pet sitting"
+          placeholder="Search grooming, bath, haircut"
           className="ml-2 w-full bg-transparent text-[13px] font-medium text-ink placeholder:text-[#ae8b6c] focus:outline-none"
-          aria-label="Search for pet services"
+          aria-label="Search for grooming packages and guides"
           autoFocus
         />
         <button

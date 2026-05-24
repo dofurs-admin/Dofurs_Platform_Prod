@@ -27,7 +27,7 @@ export default function ContentPageLayout({
   title,
   description,
   heroImageSrc = '/Birthday/partners-with-dofurs.png',
-  heroImageAlt = 'Dofurs pet care',
+  heroImageAlt = 'Dofurs pet grooming',
   heroImageFirstOnMobile = false,
   heroImageObjectPosition = 'center',
   hideHero = false,

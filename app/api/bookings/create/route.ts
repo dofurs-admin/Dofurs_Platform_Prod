@@ -16,6 +16,7 @@ import { createDiscountRedemption, evaluateDiscountForBooking } from '@/lib/book
 import { calculateBookingPriceWithSupabase } from '@/lib/bookings/engines/pricingEngine';
 import { getISTTimestamp } from '@/lib/utils/date';
 import { sanitizeAddressText } from '@/lib/utils/address';
+import { assertPublicBookableService, PUBLIC_BOOKABLE_SERVICE_ERROR } from '@/lib/service-catalog/service-policy';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -162,22 +163,37 @@ export async function POST(request: Request) {
 
   const admin = getSupabaseAdminClient();
 
+  const selectedProviderServiceIds = Array.from(
+    new Set([
+      parsed.data.providerServiceId,
+      ...(parsed.data.bundleProviderServiceIds ?? []),
+    ].map((value) => String(value ?? '').trim()).filter((value) => value.length > 0)),
+  );
+
+  const { data: selectedProviderServices, error: selectedProviderServicesError } = await admin
+    .from('provider_services')
+    .select('id, provider_id, service_type, is_active')
+    .eq('provider_id', parsed.data.providerId)
+    .eq('is_active', true)
+    .in('id', selectedProviderServiceIds)
+    .returns<Array<{ id: string; provider_id: number; service_type: string | null; is_active: boolean }>>();
+
+  if (selectedProviderServicesError || !selectedProviderServices || selectedProviderServices.length !== selectedProviderServiceIds.length) {
+    return NextResponse.json({ error: 'Selected service is unavailable.' }, { status: 404 });
+  }
+
+  try {
+    selectedProviderServices.forEach((service) => assertPublicBookableService(service));
+  } catch {
+    return NextResponse.json({ error: PUBLIC_BOOKABLE_SERVICE_ERROR }, { status: 400 });
+  }
+
+  const primaryProviderService = selectedProviderServices.find((service) => service.id === parsed.data.providerServiceId);
+
   if (parsed.data.useSubscriptionCredit) {
-    const { data: providerServiceRow, error: providerServiceError } = await admin
-      .from('provider_services')
-      .select('service_type')
-      .eq('id', parsed.data.providerServiceId)
-      .eq('provider_id', parsed.data.providerId)
-      .maybeSingle<{ service_type: string | null }>();
-
-    if (providerServiceError) {
-      return NextResponse.json({ error: 'Unable to verify subscription credit eligibility for this service.' }, { status: 500 });
-    }
-
-    const normalizedServiceType = (providerServiceRow?.service_type ?? '').toLowerCase();
-    if (normalizedServiceType.includes('birthday') || normalizedServiceType.includes('boarding')) {
+    if (!primaryProviderService?.service_type) {
       return NextResponse.json(
-        { error: 'Subscription credits can be used for regular services only. Birthday and boarding bookings are not eligible.' },
+        { error: 'Unable to verify subscription credit eligibility for this service.' },
         { status: 400 },
       );
     }

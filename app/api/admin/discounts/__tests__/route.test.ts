@@ -101,6 +101,31 @@ describe('POST /api/admin/discounts', () => {
     expect(json.error).toBeDefined();
   });
 
+  it('returns a specific validation message when a percentage exceeds 100', async () => {
+    vi.mocked(getApiAuthContext).mockResolvedValue(makeAdminContext() as never);
+
+    const request = new Request('http://localhost/api/admin/discounts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'PET500',
+        title: 'Too large percent',
+        discount_type: 'percentage',
+        discount_value: 500,
+        valid_from: '2026-04-01T00:00:00.000Z',
+        is_active: true,
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    const json = await response.json();
+    expect(json.error).toBe('Percentage discount cannot exceed 100.');
+    expect(json.details.fieldErrors.discount_value).toContain('Percentage discount cannot exceed 100.');
+    expect(upsertPlatformDiscount).not.toHaveBeenCalled();
+  });
+
   it('succeeds for a valid discount payload', async () => {
     const createdDiscount = {
       id: 5,
@@ -133,5 +158,53 @@ describe('POST /api/admin/discounts', () => {
     expect(json.success).toBe(true);
     expect(json.discount.code).toBe('FLAT50');
     expect(upsertPlatformDiscount).toHaveBeenCalledWith(expect.anything(), 'admin-user-id', expect.objectContaining({ code: 'FLAT50' }));
+  });
+
+  it('succeeds for a valid percentage discount payload', async () => {
+    const createdDiscount = {
+      id: 'discount-id',
+      code: 'PET20',
+      discount_type: 'percentage',
+      discount_value: 20,
+      max_discount_amount: 200,
+      is_active: true,
+    };
+
+    vi.mocked(getApiAuthContext).mockResolvedValue(makeAdminContext() as never);
+    vi.mocked(upsertPlatformDiscount).mockResolvedValue(createdDiscount as never);
+
+    const request = new Request('http://localhost/api/admin/discounts', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        code: 'PET20',
+        title: 'Pet 20 percent off',
+        description: null,
+        discount_type: 'percentage',
+        discount_value: 20,
+        max_discount_amount: 200,
+        min_booking_amount: null,
+        applies_to_service_type: null,
+        valid_from: '2026-04-01T00:00:00.000Z',
+        valid_until: null,
+        usage_limit_total: null,
+        usage_limit_per_user: null,
+        first_booking_only: false,
+        is_active: true,
+      }),
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(200);
+    const json = await response.json();
+    expect(json.success).toBe(true);
+    expect(json.discount.code).toBe('PET20');
+    expect(upsertPlatformDiscount).toHaveBeenCalledWith(expect.anything(), 'admin-user-id', expect.objectContaining({
+      code: 'PET20',
+      discount_type: 'percentage',
+      discount_value: 20,
+      max_discount_amount: 200,
+    }));
   });
 });

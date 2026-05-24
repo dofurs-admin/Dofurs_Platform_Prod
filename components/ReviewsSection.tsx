@@ -9,7 +9,7 @@ export default function ReviewsSection() {
       <div className={theme.layout.container}>
         <FadeInSection>
           <h2 className="text-3xl font-semibold tracking-tight text-ink md:text-4xl">What Pet Parents Say</h2>
-          <p className="mt-3 max-w-3xl text-ink/75">Real feedback from families who trust Dofurs for pet care.</p>
+          <p className="mt-3 max-w-3xl text-ink/75">Real feedback from families who trust Dofurs for doorstep grooming.</p>
           <div className="mt-8 grid gap-5 md:grid-cols-3">
             {reviews.map((item) => (
               <article key={item.name} className="group rounded-2xl border border-[#f1e6da] bg-white p-6 shadow-soft transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_20px_40px_rgba(0,0,0,0.10)]">

@@ -3,7 +3,7 @@ import { calculateBookingPriceWithSupabase } from './pricingEngine';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type PricingMockConfig = {
-  serviceRow?: { base_price: number | null; service_type: string } | null;
+  serviceRow?: { base_price: number | null; service_type: string; is_active?: boolean } | null;
   serviceRowError?: Error | null;
   serviceTypes?: Array<{ id: string; service_type: string | null; provider_id?: number | null }>;
   serviceTypesError?: Error | null;
@@ -132,21 +132,21 @@ describe('pricingEngine', () => {
 
     it('should fall back to legacy service_addons ids', async () => {
       const supabase = createPricingMockSupabase({
-        serviceRow: { base_price: 600, service_type: 'vet_consultation' },
-        serviceTypes: [{ id: 'service-vet', service_type: 'vet_consultation' }],
+        serviceRow: { base_price: 600, service_type: 'grooming_session' },
+        serviceTypes: [{ id: 'service-grooming', service_type: 'grooming_session' }],
         mappingRows: [],
         legacyRows: [
           {
             id: 'legacy-addon-1',
-            provider_service_id: 'service-vet',
-            name: 'Vaccination',
+            provider_service_id: 'service-grooming',
+            name: 'De-matting',
             price: 200,
             is_active: true,
           },
           {
             id: 'legacy-addon-2',
-            provider_service_id: 'service-vet',
-            name: 'Health Certificate',
+            provider_service_id: 'service-grooming',
+            name: 'Paw Balm',
             price: 100,
             is_active: true,
           },
@@ -156,7 +156,7 @@ describe('pricingEngine', () => {
       const result = await calculateBookingPriceWithSupabase(supabase, {
         bookingType: 'service',
         providerId: 123,
-        serviceId: 'service-vet',
+        serviceId: 'service-grooming',
         addOns: [
           { id: 'legacy-addon-1', quantity: 2 },
           { id: 'legacy-addon-2', quantity: 1 },
@@ -182,6 +182,21 @@ describe('pricingEngine', () => {
           addOns: [],
         }),
       ).rejects.toThrow('Service not found');
+    });
+
+    it('should reject non-grooming services before pricing', async () => {
+      const supabase = createPricingMockSupabase({
+        serviceRow: { base_price: 600, service_type: 'vet_consultation', is_active: true },
+      });
+
+      await expect(
+        calculateBookingPriceWithSupabase(supabase, {
+          bookingType: 'service',
+          providerId: 123,
+          serviceId: 'service-vet',
+          addOns: [],
+        }),
+      ).rejects.toThrow('Dofurs currently accepts grooming bookings only.');
     });
 
     it('should throw on incompatible mapping service type', async () => {
@@ -283,7 +298,7 @@ describe('pricingEngine', () => {
       const supabase = createPricingMockSupabase({
         serviceRow: {
           base_price: 0,
-          service_type: 'test_service',
+          service_type: 'grooming_session',
         },
       });
 

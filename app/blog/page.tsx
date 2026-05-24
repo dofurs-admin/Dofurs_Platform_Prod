@@ -11,7 +11,7 @@ const blogListingSchema = {
   '@id': `${SITE_URL}/blog#blog`,
   name: 'Dofurs Blog',
   description:
-    'Expert guides on pet grooming, vet care, training, boarding and monsoon pet care for Bangalore pet parents.',
+    'Expert grooming guides, coat-care tips, seasonal hygiene advice and practical pet care notes for Bangalore pet parents.',
   url: `${SITE_URL}/blog`,
   inLanguage: 'en-IN',
   publisher: { '@id': `${SITE_URL}/#organization` },
@@ -44,22 +44,20 @@ const blogBreadcrumbSchema = {
 };
 
 export const metadata: Metadata = {
-  title: 'Pet Care Blog — Grooming, Vet, Boarding & Training Guides for Bangalore Pet Parents | Dofurs',
+  title: 'Pet Grooming Blog — Coat Care, Hygiene & Bangalore Grooming Guides',
   description:
-    'Expert guides on pet grooming, vet care, training, boarding and monsoon pet care — written for Bangalore pet parents by the Dofurs team. Evidence-backed tips, cost guides, and decision checklists.',
+    'Expert grooming guides, coat-care tips, monsoon hygiene advice, cost guides and decision checklists for Bangalore pet parents by the Dofurs team.',
   alternates: { canonical: '/blog' },
   openGraph: {
-    title: 'Dofurs Blog — Pet Care Guides for Bangalore Pet Parents',
+    title: 'Dofurs Blog — Grooming Guides for Bangalore Pet Parents',
     description:
-      'Expert guides on grooming, vet care, training, boarding and seasonal pet care for Bangalore pet parents.',
+      'Expert grooming, coat-care, hygiene and seasonal pet care guides for Bangalore pet parents.',
     url: 'https://dofurs.in/blog',
     images: ['/logo/og-default.jpg'],
   },
   keywords: [
     'pet care blog Bangalore',
     'pet grooming tips',
-    'dog vaccination guide',
-    'pet boarding tips',
     'pet care Bangalore',
     'monsoon pet care',
   ],

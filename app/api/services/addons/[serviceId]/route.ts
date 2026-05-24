@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import { isRateLimited } from '@/lib/api/rate-limit';
+import { isPublicBookableService, PUBLIC_BOOKABLE_SERVICE_ERROR } from '@/lib/service-catalog/service-policy';
 
 const addOnsParamsSchema = z.object({
   serviceId: z.string().uuid(),
@@ -50,6 +51,10 @@ export async function GET(
     if (selectedServiceError || !selectedService) {
       const mapped = toFriendlyApiError(selectedServiceError ?? new Error('Service not found'), 'Failed to resolve selected service');
       return NextResponse.json({ success: false, error: mapped.message }, { status: selectedService ? mapped.status : 404 });
+    }
+
+    if (!isPublicBookableService(selectedService)) {
+      return NextResponse.json({ success: false, error: PUBLIC_BOOKABLE_SERVICE_ERROR }, { status: 400 });
     }
 
     const normalizedServiceType = (selectedService.service_type ?? '').trim();

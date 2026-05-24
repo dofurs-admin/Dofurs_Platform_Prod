@@ -22,7 +22,7 @@ type SubscriptionPlan = {
 
 type NewServiceRow = { service_type: string; credit_count: number };
 
-const SERVICE_TYPES = ['grooming', 'vet_consultation', 'pet_sitting', 'training'];
+const SERVICE_TYPES = ['grooming'];
 
 const EMPTY_FORM = {
   name: '',

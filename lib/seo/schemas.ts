@@ -69,7 +69,7 @@ export function buildServiceSchema(options: ServiceSchemaOptions) {
     description: options.description,
     url: options.url,
     serviceType: options.serviceType,
-    category: options.category ?? 'Pet Services',
+    category: options.category ?? 'Pet Grooming',
     image: options.image ?? `${SITE_URL}/logo/og-default.jpg`,
     provider: { '@id': ORGANIZATION_ID },
     areaServed: {

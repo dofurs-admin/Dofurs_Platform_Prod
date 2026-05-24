@@ -10,35 +10,33 @@ import { links, whatsappLinks } from '@/lib/site-data';
 const SITE_URL = 'https://dofurs.in';
 
 export const metadata: Metadata = {
-  title: 'Pet Services Across Bangalore — Neighbourhood Coverage | Dofurs',
+  title: 'Pet Grooming Across Bangalore — Neighbourhood Coverage',
   description:
-    'Dofurs delivers doorstep pet grooming, vet home visits, boarding, sitting and training across Bangalore — Indiranagar, Koramangala, HSR Layout, Whitefield, Electronic City, Jayanagar and more.',
+    'Dofurs delivers doorstep pet grooming across Bangalore neighbourhoods with verified groomers, transparent packages, and pincode-aware availability.',
   alternates: { canonical: 'https://dofurs.in/locations' },
   keywords: [
-    'pet services Bangalore',
+    'pet grooming Bangalore',
     'dog grooming Bangalore',
-    'vet home visit Bangalore',
-    'pet care Indiranagar',
-    'pet care Koramangala',
-    'pet care HSR Layout',
-    'pet care Whitefield',
-    'pet care Electronic City',
-    'pet care Jayanagar',
+    'doorstep grooming Indiranagar',
+    'dog grooming Koramangala',
+    'pet grooming HSR Layout',
+    'pet grooming Whitefield',
+    'pet grooming Electronic City',
+    'pet grooming Jayanagar',
   ],
   openGraph: {
     type: 'website',
-    title: 'Pet Services Across Bangalore | Dofurs',
-    description:
-      'Neighbourhood-by-neighbourhood pet care coverage across Bangalore. Doorstep grooming, vet visits, boarding, sitting and training from verified professionals.',
+    title: 'Pet Grooming Across Bangalore | Dofurs',
+    description: 'Neighbourhood-by-neighbourhood doorstep grooming coverage across Bangalore from verified Dofurs groomers.',
     url: `${SITE_URL}/locations`,
     siteName: 'Dofurs',
     locale: 'en_IN',
-    images: [{ url: `${SITE_URL}/logo/og-default.jpg`, alt: 'Dofurs pet services across Bangalore' }],
+    images: [{ url: `${SITE_URL}/logo/og-default.jpg`, alt: 'Dofurs pet grooming across Bangalore' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pet Services Across Bangalore | Dofurs',
-    description: 'Neighbourhood coverage for pet grooming, vet visits, boarding, sitting and training across Bangalore.',
+    title: 'Pet Grooming Across Bangalore | Dofurs',
+    description: 'Neighbourhood coverage for doorstep pet grooming across Bangalore.',
     images: [`${SITE_URL}/logo/og-default.jpg`],
   },
 };
@@ -46,12 +44,12 @@ export const metadata: Metadata = {
 const locationsItemListSchema = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
-  name: 'Dofurs Bangalore Service Areas',
-  description: 'Bangalore neighbourhoods where Dofurs delivers verified pet services at your doorstep.',
+  name: 'Dofurs Bangalore Grooming Areas',
+  description: 'Bangalore neighbourhoods where Dofurs delivers verified doorstep pet grooming.',
   itemListElement: bangaloreAreas.map((area, index) => ({
     '@type': 'ListItem',
     position: index + 1,
-    name: `Pet services in ${area.name}`,
+    name: `Pet grooming in ${area.name}`,
     url: `${SITE_URL}/locations/${area.slug}`,
   })),
 };
@@ -64,30 +62,29 @@ const locationsBreadcrumbSchema = buildBreadcrumbSchema([
 export default function LocationsIndexPage() {
   const primaryCtaClass = premiumPrimaryCtaClass('h-11 px-7 text-sm font-semibold tracking-[0.01em]');
   const secondaryCtaClass = premiumSecondaryCtaClass('h-11 px-6 text-sm font-semibold tracking-[0.01em]');
-  const bookingHref = `${links.booking}#start-your-booking`;
+  const bookingHref = `${links.booking}?serviceType=grooming&mode=home_visit#start-your-booking`;
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(locationsItemListSchema)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(locationsBreadcrumbSchema)} />
       <ContentPageLayout
-        title="Pet Services Across Bangalore"
-        description="Doorstep pet care, one neighbourhood at a time. Pick your area below to see local coverage, landmarks, and what Dofurs provides in your part of Bangalore."
+        title="Pet Grooming Across Bangalore"
+        description="Doorstep grooming, one neighbourhood at a time. Pick your area below to see local coverage, landmarks, pincodes, and grooming notes for your part of Bangalore."
         heroImageSrc="/Birthday/partners-with-dofurs.png"
-        heroImageAlt="Dofurs pet services across Bangalore neighbourhoods"
+        heroImageAlt="Dofurs pet grooming across Bangalore neighbourhoods"
         heroImageObjectPosition="center"
         belowContent={
           <FadeInSection>
             <div className="mt-8 rounded-2xl border border-[#e2c2a4] bg-[linear-gradient(135deg,#fff8f0,#fffdf9)] p-6 text-center shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-widest text-coral">Your area not listed?</p>
-              <h3 className="mt-2 text-xl font-bold text-neutral-950">We cover most of Bangalore — just ask.</h3>
+              <h3 className="mt-2 text-xl font-bold text-neutral-950">We cover most of Bangalore grooming demand — just ask.</h3>
               <p className="mx-auto mt-2 max-w-md text-sm text-neutral-600">
-                Our dedicated location pages cover our busiest neighbourhoods, but we service across Bangalore. Start a booking
-                or message us on WhatsApp and we&apos;ll confirm your pincode.
+                Our dedicated location pages cover our busiest grooming neighbourhoods. Start a booking or message us on WhatsApp and we&apos;ll confirm your pincode.
               </p>
               <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
                 <Link href={bookingHref} className={primaryCtaClass}>
-                  Start Your Booking
+                  Book Now
                 </Link>
                 <a href={whatsappLinks.support} target="_blank" rel="noopener noreferrer" className={secondaryCtaClass}>
                   Chat on WhatsApp
@@ -97,19 +94,14 @@ export default function LocationsIndexPage() {
           </FadeInSection>
         }
       >
-        {/* Intro */}
-        <h2>Verified pet care, at your door across Bangalore</h2>
+        <h2>Verified pet grooming, at your door across Bangalore</h2>
         <p>
-          Dofurs is built for the way Bangalore actually lives — long commutes, gated-community rules, traffic that turns a
-          salon trip into a 90-minute ordeal, and pets who&apos;d rather stay home anyway. Our providers cover every major
-          cluster of the city, bringing grooming, vet care, boarding, sitting and training directly to your doorstep.
+          Dofurs is built for the way Bangalore actually lives: long commutes, gated-community rules, traffic that turns a salon trip into a 90-minute ordeal, and pets who would rather stay home anyway. Our grooming network covers key clusters of the city with transparent package pricing and pincode-aware availability.
         </p>
         <p>
-          Below are our dedicated neighbourhood pages. Each one lays out the pincodes we serve, local landmarks our providers
-          know, and specific notes about caring for pets in that part of the city.
+          Below are our dedicated neighbourhood pages. Each one lays out the pincodes we serve, local landmarks our groomers know, and practical grooming notes for your part of the city.
         </p>
 
-        {/* Area cards */}
         <h2>Our Bangalore Neighbourhoods</h2>
         <div className="not-prose grid gap-4 sm:grid-cols-2">
           {bangaloreAreas.map((area) => (
@@ -125,7 +117,9 @@ export default function LocationsIndexPage() {
               <p className="mt-1 text-[12px] font-medium uppercase tracking-wider text-[#8b633f]">
                 {area.pincodes.slice(0, 3).join(' · ')}
               </p>
-              <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 line-clamp-3">{area.heroTagline}</p>
+              <p className="mt-3 text-[13px] leading-relaxed text-neutral-600 line-clamp-3">
+                Doorstep grooming coverage around {area.landmarks.slice(0, 3).join(', ')} and nearby {area.nearbyAreas.slice(0, 3).join(', ')}.
+              </p>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {area.nearbyAreas.slice(0, 4).map((nearby) => (
                   <span
@@ -140,52 +134,34 @@ export default function LocationsIndexPage() {
           ))}
         </div>
 
-        {/* Services overview */}
         <h2>What We Bring to Every Neighbourhood</h2>
         <p>
-          Every one of these service lines is live across all listed Bangalore neighbourhoods. You can combine multiple
-          services in a single booking — for example, a grooming session followed by a vet wellness check.
+          Grooming is the Dofurs focus across listed Bangalore neighbourhoods. Each location page explains coverage, local landmarks, nearby areas and practical grooming notes for pet parents.
         </p>
         <ul>
           <li>
-            <strong>Pet grooming</strong> — doorstep bath, haircut, nail trimming, de-shedding and full spa packages from ₹899.
+            <strong>Pet grooming</strong> — doorstep Monthly Care, Fur Bath Care, Fur Makeover, Essential Grooming and Complete Care packages.
           </li>
           <li>
-            <strong>Vet home visits</strong> — wellness checkups, vaccinations, preventive care and teleconsult from licensed
-            vets.
+            <strong>Local coordination</strong> — groomers receive address, pincode and building-entry context before appointments.
           </li>
           <li>
-            <strong>Pet boarding</strong> — safe overnight stays at verified partner homes from ₹999/night.
-          </li>
-          <li>
-            <strong>Pet sitting</strong> — feeding, walks, companionship and photo updates while you&apos;re away.
-          </li>
-          <li>
-            <strong>Pet training</strong> — obedience, behaviour correction, leash reactivity and puppy basics.
-          </li>
-          <li>
-            <strong>Pet birthday</strong> — decor, cake, photography and memorable celebrations from ₹1,999.
+            <strong>Hygiene-first setup</strong> — pet-safe products, grooming tools and calm handling for home sessions.
           </li>
         </ul>
 
-        {/* Why we built location pages */}
-        <h2>Why Local Matters for Pet Care</h2>
+        <h2>Why Local Matters for Grooming</h2>
         <p>
-          Pet care is hyperlocal. A groomer who knows Koramangala&apos;s apartment society rules, a vet who understands the
-          tick load around Agara Lake in July, a sitter who knows which Whitefield gate is fastest at 7 AM — these small
-          details decide whether a service goes smoothly or stressfully.
+          Pet grooming is hyperlocal. A groomer who knows society entry rules, parking patterns, lift timing and neighbourhood traffic can keep the session calmer for both pet and parent.
         </p>
         <p>
-          Our neighbourhood pages exist so you can see what we&apos;ve learned from operating in your area, check our pincode
-          coverage, and read genuine details about pet parenting where you live — not generic copy.
+          Our neighbourhood pages exist so you can check pincode coverage, see local landmarks, and understand how Dofurs handles grooming appointments where you live.
         </p>
 
-        {/* CTA block */}
         <div className="not-prose mt-2 rounded-2xl border border-[#e2c2a4] bg-[linear-gradient(135deg,#fff4e6,#fffdf9)] p-5">
           <p className="text-[15px] font-semibold text-neutral-950">Don&apos;t see your neighbourhood?</p>
           <p className="mt-1 text-[13px] text-neutral-600">
-            We probably still cover it. Start a booking — if we can&apos;t serve your pincode, you won&apos;t be charged. Or
-            message us on WhatsApp for a quick confirmation.
+            We probably still cover it. Start a grooming booking and we&apos;ll confirm availability for your pincode, or message us on WhatsApp for a quick check.
           </p>
         </div>
       </ContentPageLayout>

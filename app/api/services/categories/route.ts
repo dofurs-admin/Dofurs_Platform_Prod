@@ -17,6 +17,7 @@ import type { ServiceCategory } from "@/lib/service-catalog/types";
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import { isRateLimited } from '@/lib/api/rate-limit';
+import { filterPublicBookableCategories } from '@/lib/service-catalog/service-policy';
 
 const categoriesQuerySchema = z.object({
   featured: z.enum(['true', 'false']).optional(),
@@ -66,8 +67,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const groomingCategories = filterPublicBookableCategories((data ?? []) as ServiceCategory[]);
+
     return NextResponse.json(
-      { success: true, data: data as ServiceCategory[] },
+      { success: true, data: groomingCategories },
       { headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' } }
     );
   } catch (error) {

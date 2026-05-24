@@ -21,16 +21,16 @@ export default function HeroSection() {
       <div className={`relative ${theme.layout.container} flex min-h-[calc(100vh-6rem)] items-center`}>
         <FadeInSection className="max-w-2xl rounded-3xl bg-white/66 p-8 shadow-[0_40px_80px_rgba(0,0,0,0.08)] backdrop-blur-md md:p-10">
           <p className="mb-4 text-sm font-semibold uppercase tracking-[0.2em] text-coral">Dofurs</p>
-          <h1 className="text-4xl font-bold tracking-[-0.02em] text-ink md:text-6xl md:leading-[1.03]">Premium Pet Services, Simplified</h1>
+          <h1 className="text-4xl font-bold tracking-[-0.02em] text-ink md:text-6xl md:leading-[1.03]">Premium Pet Grooming, Simplified</h1>
           <p className="mt-5 text-lg text-ink/80 md:text-xl">
-            Connecting pet parents with trusted pet care professionals.
+            Connecting pet parents with verified grooming professionals.
           </p>
           <a
             href="#book"
             className={premiumCtaClassName}
-            aria-label="Book a Service"
+            aria-label="Book now"
           >
-            Book a Service
+            Book Now
           </a>
         </FadeInSection>
       </div>

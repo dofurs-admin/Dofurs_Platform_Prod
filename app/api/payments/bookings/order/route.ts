@@ -10,6 +10,7 @@ import { evaluateDiscountForBooking } from '@/lib/bookings/discounts';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { getCreditBalance } from '@/lib/credits/wallet';
 import { getISTTimestamp } from '@/lib/utils/date';
+import { assertPublicBookableService, PUBLIC_BOOKABLE_SERVICE_ERROR } from '@/lib/service-catalog/service-policy';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -235,6 +236,40 @@ export async function POST(request: Request) {
 
     if (providerServiceError || !providerService) {
       return NextResponse.json({ error: 'Selected service is unavailable.' }, { status: 404 });
+    }
+
+    try {
+      assertPublicBookableService(providerService);
+    } catch {
+      return NextResponse.json({ error: PUBLIC_BOOKABLE_SERVICE_ERROR }, { status: 400 });
+    }
+
+    const bundledProviderServiceIds = Array.from(
+      new Set((entry.bundleProviderServiceIds ?? []).map((value) => String(value ?? '').trim()).filter((value) => value.length > 0)),
+    );
+
+    if (bundledProviderServiceIds.length > 0) {
+      const { data: bundledServices, error: bundledServicesError } = await admin
+        .from('provider_services')
+        .select('id, provider_id, service_type, is_active')
+        .eq('provider_id', entry.providerId)
+        .eq('is_active', true)
+        .in('id', bundledProviderServiceIds)
+        .returns<Array<{ id: string; provider_id: number; service_type: string | null; is_active: boolean }>>();
+
+      if (bundledServicesError || !bundledServices || bundledServices.length !== bundledProviderServiceIds.length) {
+        return NextResponse.json({ error: 'One or more bundled services are unavailable.' }, { status: 404 });
+      }
+
+      try {
+        bundledServices.forEach((service) => assertPublicBookableService(service));
+      } catch {
+        return NextResponse.json({ error: PUBLIC_BOOKABLE_SERVICE_ERROR }, { status: 400 });
+      }
+
+      bundledServices.forEach((service) => {
+        if (service.service_type) bundleServiceTypes.add(service.service_type);
+      });
     }
 
     bundleServiceTypes.add(providerService.service_type);

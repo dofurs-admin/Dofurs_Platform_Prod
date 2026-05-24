@@ -1903,7 +1903,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
 
     const hasUnsupportedType = Array.from(requiredServiceTypes).some((type) => !providerSupportedTypes.has(type));
     if (hasUnsupportedType) {
-      showToast('Selected provider does not support all chosen pet services.', 'error');
+      showToast('Selected provider does not support all chosen grooming services.', 'error');
       return;
     }
 

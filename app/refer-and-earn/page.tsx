@@ -19,11 +19,11 @@ async function getIsAuthenticated() {
 export const metadata: Metadata = {
   title: 'Refer & Earn — Get ₹500 Dofurs Credits',
   description:
-    'Invite pet parents to Dofurs and you both earn ₹500 in credits — use them on grooming, vet visits, boarding, sitting, training and more across Bangalore.',
+    'Invite pet parents to Dofurs and you both earn ₹500 in credits — use them on eligible doorstep grooming bookings across Bangalore.',
   alternates: { canonical: 'https://dofurs.in/refer-and-earn' },
   openGraph: {
     title: 'Refer & Earn ₹500 Credits | Dofurs',
-    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on any pet service.',
+    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on eligible grooming bookings.',
     url: 'https://dofurs.in/refer-and-earn',
     type: 'website',
     images: [
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'Refer & Earn ₹500 Credits | Dofurs',
-    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on any pet service.',
+    description: 'Invite friends to Dofurs. Both of you earn ₹500 in Dofurs Credits — applicable on eligible grooming bookings.',
     images: ['/logo/og-default.jpg'],
   },
   robots: { index: true, follow: true },
@@ -50,7 +50,7 @@ export default async function ReferAndEarnPage() {
   return (
     <ContentPageLayout
       title="Refer & Earn"
-      description="Invite pet parents to Dofurs. You both earn ₹500 in Dofurs Credits — applicable on any service."
+      description="Invite pet parents to Dofurs. You both earn ₹500 in Dofurs Credits — applicable on eligible grooming bookings."
       heroImageSrc="/Birthday/partners-with-dofurs.png"
       heroImageAlt="Refer and earn with Dofurs"
       hideHero
@@ -92,12 +92,12 @@ function GuestView() {
             {
               step: '3',
               title: 'You earn ₹500 after their first booking',
-              body: '₹500 credits are added to your wallet once your friend completes their first Dofurs service booking.',
+              body: '₹500 credits are added to your wallet once your friend completes their first Dofurs grooming booking.',
             },
             {
               step: '4',
-              title: 'Use credits on any booking',
-              body: 'Apply your Dofurs Credits at checkout — grooming, vet visits, training, sitting, and more.',
+              title: 'Use credits on grooming',
+              body: 'Apply your Dofurs Credits at checkout for eligible doorstep grooming bookings.',
             },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-3">

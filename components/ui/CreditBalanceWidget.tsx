@@ -15,9 +15,6 @@ type CreditBalanceWidgetProps = {
 
 const SERVICE_ICONS: Record<string, string> = {
   grooming: '✂️',
-  vet_consultation: '🏥',
-  pet_sitting: '🏡',
-  training: '🎓',
   default: '🐾',
 };
 

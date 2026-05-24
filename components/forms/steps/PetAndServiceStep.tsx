@@ -41,7 +41,6 @@ interface PetAndServiceStepProps {
   petServiceSelections: Record<number, PetServiceSelection>;
   totalSelectedServices: number;
   searchResultSummary?: string | null;
-  bookingMode: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   isPackageBooking?: boolean;
   serviceSelectionRuleNote?: string | null;
   addOnSelectionNote?: string | null;
@@ -49,7 +48,6 @@ interface PetAndServiceStepProps {
   isPincodeValid?: boolean;
   serviceAddOns?: ServiceAddon[];
   selectedAddOns?: Record<string, number>;
-  onBookingModeChange: (mode: 'home_visit' | 'clinic_visit') => void;
   onPetServiceChange: (petId: number, serviceType: string) => void;
   onPetQuantityChange: (petId: number, serviceType: string, quantity: number) => void;
   onApplyServiceToAll: (serviceType: string) => void;
@@ -71,15 +69,13 @@ export default function PetAndServiceStep({
   petServiceSelections,
   totalSelectedServices,
   searchResultSummary,
-  bookingMode,
   isPackageBooking = false,
   serviceSelectionRuleNote = null,
-  addOnSelectionNote = 'Add-ons are optional and can be added after selecting a service. Final add-on availability depends on the selected provider.',
+  addOnSelectionNote = 'Add-ons are optional and can be added after selecting a service. Final add-on availability is confirmed for your booking.',
   isServiceSelectionBlocked,
   isPincodeValid = true,
   serviceAddOns = [],
   selectedAddOns = {},
-  onBookingModeChange,
   onPetServiceChange,
   onPetQuantityChange,
   onApplyServiceToAll,
@@ -100,7 +96,6 @@ export default function PetAndServiceStep({
 
   const canContinue =
     selectedPetIds.length > 0 &&
-    (isPackageBooking || Boolean(bookingMode)) &&
     (isPackageBooking || isPincodeValid) &&
     selectedPets.every((pet) => {
       const selections = petServiceSelections[pet.id] ?? [];
@@ -114,10 +109,6 @@ export default function PetAndServiceStep({
 
     if (selectedPetIds.length === 0) {
       return 'Select at least one pet to continue.';
-    }
-
-    if (!isPackageBooking && !bookingMode) {
-      return 'Select a booking mode to continue.';
     }
 
     const hasIncompleteSelection = selectedPets.some((pet) => {
@@ -305,47 +296,16 @@ export default function PetAndServiceStep({
           )}
         </div>
 
-        {/* ===== BOOKING MODE + SERVICE SELECTION ===== */}
+        {/* ===== SERVICE SELECTION ===== */}
         {selectedPetIds.length > 0 && (
           <>
-            {/* Hide booking mode for package services (birthday/boarding) */}
-            {!isPackageBooking && (
-              <div>
-                <label className="mb-2 block text-[13px] font-semibold text-neutral-950 sm:mb-3 sm:text-sm">Booking Mode</label>
-                <div className="grid gap-2 sm:gap-3 sm:grid-cols-2">
-                  {(['home_visit', 'clinic_visit'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => onBookingModeChange(mode)}
-                      className={`premium-lift relative rounded-xl sm:rounded-2xl border p-3 sm:p-4 text-left transition-all ${
-                        bookingMode === mode
-                          ? 'border-[#d99a66] bg-[linear-gradient(165deg,#fff8ef_0%,#fff0e3_100%)] shadow-[0_8px_20px_rgba(208,133,72,0.18)]'
-                          : 'border-[#ebdfd3] bg-white hover:border-[#d9b89a]'
-                      }`}
-                    >
-                      <h3 className="font-semibold text-neutral-950">
-                        {mode === 'home_visit' ? 'Home Visit' : 'Clinic Visit'}
-                      </h3>
-                      <p className="mt-1 text-xs text-[#6e4d35]">
-                        {mode === 'home_visit'
-                          ? 'Comfort-first care at your doorstep.'
-                          : 'Structured in-clinic care at partner centers.'}
-                      </p>
-                    </button>
-                  ))}
-                </div>
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <label className="block text-[13px] font-semibold text-neutral-950 sm:text-sm">Service Per Pet</label>
+                <p className="text-xs font-semibold text-[#8f4a1d]">{totalSelectedServices}/{MAX_SERVICE_SELECTIONS} selected</p>
               </div>
-            )}
 
-            {(bookingMode || isPackageBooking) && (
-              <div>
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <label className="block text-[13px] font-semibold text-neutral-950 sm:text-sm">Service Per Pet</label>
-                  <p className="text-xs font-semibold text-[#8f4a1d]">{totalSelectedServices}/{MAX_SERVICE_SELECTIONS} selected</p>
-                </div>
-
-                {bookingMode && firstSelectedServiceType && selectedPets.length > 1 && (
+                {firstSelectedServiceType && selectedPets.length > 1 && (
                   <div className="mb-3 rounded-xl border border-[#e8c9ad] bg-[#fff4e9] px-3 py-2">
                     <button
                       type="button"
@@ -359,7 +319,7 @@ export default function PetAndServiceStep({
 
                 {services.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-[#ddc9b6] bg-white p-4 text-center">
-                    <p className="text-sm text-neutral-500">No services available for this mode.</p>
+                    <p className="text-sm text-neutral-500">No home visit services available yet.</p>
                   </div>
                 ) : (
                   <div className="space-y-2 sm:space-y-3">
@@ -507,7 +467,6 @@ export default function PetAndServiceStep({
                   </div>
                 ) : null}
               </div>
-            )}
           </>
         )}
 

@@ -5,24 +5,26 @@ import WhatsAppFloatingButton from '@/components/WhatsAppFloatingButton';
 import AppProviders from '@/components/ui/AppProviders';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import { GOOGLE_ADS_ID } from '@/lib/analytics/google-ads';
+import { META_PIXEL_ID } from '@/lib/analytics/meta-ads';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dofurs.in'),
   title: {
-    default: 'Dofurs | Premium Pet Services in Bangalore — Grooming, Vet, Boarding',
+    default: 'Dofurs | Doorstep Pet Grooming in Bangalore',
     template: '%s | Dofurs',
   },
   description:
-    'Book trusted pet grooming, vet home visits, boarding, sitting, training, and birthday services in Bangalore. Verified professionals, transparent pricing, and doorstep convenience with Dofurs.',
+    'Book verified doorstep pet grooming in Bangalore. Dofurs offers transparent grooming packages, pet-safe products, calm handling, and WhatsApp support.',
   applicationName: 'Dofurs',
   keywords: [
-    'pet services Bangalore',
     'pet grooming Bangalore',
-    'vet home visit Bangalore',
-    'pet boarding Bangalore',
-    'pet sitting Bangalore',
-    'dog training Bangalore',
-    'pet birthday Bangalore',
+    'dog grooming at home Bangalore',
+    'cat grooming Bangalore',
+    'doorstep pet grooming Bangalore',
+    'pet groomer near me Bangalore',
+    'dog bath at home Bangalore',
+    'Dofurs grooming',
     'Dofurs',
   ],
   authors: [{ name: 'Dofurs', url: 'https://dofurs.in' }],
@@ -48,9 +50,9 @@ export const metadata: Metadata = {
     ICBM: '12.9716, 77.5946',
   },
   openGraph: {
-    title: 'Dofurs | Premium Pet Services in Bangalore',
+    title: 'Dofurs | Doorstep Pet Grooming in Bangalore',
     description:
-      'Verified pet grooming, vet home visits, boarding, sitting, training and birthday services across Bangalore. Transparent pricing. Doorstep convenience.',
+      'Verified doorstep pet grooming across Bangalore with transparent packages from ₹699, pet-safe products, and calm handling.',
     type: 'website',
     locale: 'en_IN',
     url: 'https://dofurs.in',
@@ -60,15 +62,15 @@ export const metadata: Metadata = {
         url: '/logo/og-default.jpg',
         width: 1200,
         height: 630,
-        alt: 'Dofurs — Premium Pet Services in Bangalore',
+        alt: 'Dofurs doorstep pet grooming in Bangalore',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Dofurs | Premium Pet Services in Bangalore',
+    title: 'Dofurs | Doorstep Pet Grooming in Bangalore',
     description:
-      'Verified pet grooming, vet home visits, boarding, sitting, training and birthday services across Bangalore.',
+      'Book verified doorstep grooming for dogs and cats across Bangalore, with transparent package pricing and pet-safe products.',
     images: ['/logo/og-default.jpg'],
     creator: '@dofurs',
     site: '@dofurs',
@@ -93,11 +95,12 @@ export const viewport: Viewport = {
 };
 
 const isDevelopment = process.env.NODE_ENV === 'development';
-const googleAdsId = 'AW-17976541101';
+const googleAdsId = GOOGLE_ADS_ID;
 const googleTagIds = Array.from(
   new Set([googleAdsId, process.env.NEXT_PUBLIC_GA_ID].filter((id): id is string => Boolean(id))),
 );
 const clarityId = process.env.NEXT_PUBLIC_CLARITY_ID;
+const metaPixelId = META_PIXEL_ID.trim();
 
 const organizationSchema = {
   '@context': 'https://schema.org',
@@ -114,7 +117,7 @@ const organizationSchema = {
   },
   image: 'https://dofurs.in/logo/og-default.jpg',
   description:
-    'Dofurs is a premium pet services marketplace connecting pet parents in Bangalore with verified grooming, veterinary, boarding, sitting, training and birthday professionals.',
+    'Dofurs provides doorstep pet grooming in Bangalore through verified groomers, transparent packages, pet-safe products and hygiene-first handling.',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Bangalore',
@@ -147,7 +150,7 @@ const websiteSchema = {
   '@id': 'https://dofurs.in/#website',
   url: 'https://dofurs.in',
   name: 'Dofurs',
-  description: 'Premium pet services in Bangalore',
+  description: 'Doorstep pet grooming in Bangalore',
   publisher: { '@id': 'https://dofurs.in/#organization' },
   inLanguage: 'en-IN',
   potentialAction: {
@@ -165,7 +168,7 @@ const localBusinessSchema = {
   '@type': 'LocalBusiness',
   '@id': 'https://dofurs.in/#localbusiness',
   name: 'Dofurs',
-  alternateName: 'Dofurs Pet Services',
+  alternateName: 'Dofurs Pet Grooming',
   url: 'https://dofurs.in',
   image: 'https://dofurs.in/logo/og-default.jpg',
   logo: 'https://dofurs.in/logo/brand-logo.png',
@@ -173,7 +176,7 @@ const localBusinessSchema = {
   email: 'petcare@dofurs.in',
   priceRange: '₹₹',
   description:
-    'Dofurs provides verified pet grooming, veterinary home visits, boarding, sitting, training, and birthday celebrations across Bangalore with transparent pricing and doorstep convenience.',
+    'Dofurs provides verified doorstep pet grooming across Bangalore with transparent package pricing, pet-safe products, calm handling and WhatsApp support.',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Bengaluru',
@@ -208,29 +211,19 @@ const localBusinessSchema = {
   ],
   hasOfferCatalog: {
     '@type': 'OfferCatalog',
-    name: 'Pet Services',
+    name: 'Pet Grooming Packages',
     itemListElement: [
       {
         '@type': 'OfferCatalog',
-        name: 'Grooming',
+        name: 'Doorstep Pet Grooming',
         itemListElement: [
-          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Doorstep Pet Grooming' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Monthly Care' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Fur Bath Care' } },
           { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Fur Makeover' } },
-          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Salon Grooming' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Essential Grooming' } },
+          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Complete Care' } },
         ],
       },
-      {
-        '@type': 'OfferCatalog',
-        name: 'Veterinary',
-        itemListElement: [
-          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Vet Home Visit' } },
-          { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Vet Teleconsult' } },
-        ],
-      },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Pet Boarding' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Pet Sitting' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Dog Training' } },
-      { '@type': 'Offer', itemOffered: { '@type': 'Service', name: 'Pet Birthday Celebrations' } },
     ],
   },
   sameAs: [
@@ -273,6 +266,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
                   y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
               })(window, document, "clarity", "script", "${clarityId}");
+            `}
+          </Script>
+        )}
+        {metaPixelId && (
+          <Script id="meta-pixel" strategy="afterInteractive">
+            {`
+              !function(f,b,e,v,n,t,s){
+                if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                n.queue=[];t=b.createElement(e);t.async=!0;
+                t.src=v;s=b.getElementsByTagName(e)[0];
+                s.parentNode.insertBefore(t,s)
+              }(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+              fbq('init', ${JSON.stringify(metaPixelId)});
+              fbq('track', 'PageView');
             `}
           </Script>
         )}

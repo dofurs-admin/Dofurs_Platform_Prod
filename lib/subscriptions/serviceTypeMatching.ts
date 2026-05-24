@@ -1,3 +1,5 @@
+import { normalizeServiceFamily } from '@/lib/service-catalog/service-policy';
+
 function normalizeToken(value: string) {
   return value
     .trim()
@@ -8,22 +10,7 @@ function normalizeToken(value: string) {
 }
 
 function toServiceFamily(value: string) {
-  const normalized = normalizeToken(value);
-
-  if (!normalized) {
-    return '';
-  }
-
-  if (normalized.includes('groom')) return 'grooming';
-  if (normalized.includes('vet') || normalized.includes('consult')) return 'vet_consultation';
-  if (normalized.includes('train')) return 'training';
-  if (normalized.includes('board')) return 'boarding';
-  if (normalized.includes('sit')) return 'sitting';
-  if (normalized.includes('walk')) return 'walking';
-  if (normalized.includes('birthday') || normalized.includes('bday')) return 'birthday';
-  if (normalized.includes('daycare') || normalized.includes('day_care')) return 'daycare';
-
-  return normalized;
+  return normalizeServiceFamily(value);
 }
 
 export function isServiceTypeMatch(left: string, right: string) {
@@ -34,9 +21,12 @@ export function isServiceTypeMatch(left: string, right: string) {
     return false;
   }
 
-  if (leftNormalized === rightNormalized) {
-    return true;
+  const leftFamily = toServiceFamily(leftNormalized);
+  const rightFamily = toServiceFamily(rightNormalized);
+
+  if (leftFamily !== 'grooming' || rightFamily !== 'grooming') {
+    return false;
   }
 
-  return toServiceFamily(leftNormalized) === toServiceFamily(rightNormalized);
+  return leftNormalized === rightNormalized || leftFamily === rightFamily;
 }

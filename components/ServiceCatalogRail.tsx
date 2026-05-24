@@ -9,6 +9,7 @@ import { GROOMING_PACKAGES } from '@/lib/service-catalog/grooming-packages';
 type GroomingPackage = {
   title: string;
   price: string | number;
+  mrp?: number;
   features: string[];
   badge?: string;
   badgeVariant?: 'popular' | 'best-value' | 'premium' | 'deal' | 'special' | 'coming-soon';
@@ -42,7 +43,7 @@ function CheckIcon() {
 }
 
 function PackageCard({ pkg }: { pkg: GroomingPackage }) {
-  const { title, price, features, badge, badgeVariant = 'popular', isBookable = true } = pkg;
+  const { title, price, mrp, features, badge, badgeVariant = 'popular', isBookable = true } = pkg;
 
   return (
     <div className="w-[210px] shrink-0 self-stretch">
@@ -58,13 +59,21 @@ function PackageCard({ pkg }: { pkg: GroomingPackage }) {
 
         <h3 className="text-[13px] font-semibold leading-snug text-neutral-950">{title}</h3>
 
-        <div className="mt-1.5 flex items-baseline gap-1">
-          <span className="text-[18px] font-bold leading-none tracking-tight text-neutral-950">
-            {formatPrice(price)}
-          </span>
-          {typeof price === 'number' && (
-            <span className="text-[10px] text-[#9a7258]">/ session</span>
-          )}
+        <div className="mt-1.5 space-y-1">
+          {mrp ? (
+            <p className="text-[10px] font-medium leading-none text-[#9a7258]">
+              MRP <span className="line-through decoration-[#b78258]/70 decoration-1">{formatPrice(mrp)}</span>
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            {mrp ? <span className="text-[10px] font-semibold uppercase text-[#c7773b]">Now</span> : null}
+            <span className="text-[18px] font-bold leading-none text-neutral-950">
+              {formatPrice(price)}
+            </span>
+            {typeof price === 'number' && (
+              <span className="text-[10px] text-[#9a7258]">/ session</span>
+            )}
+          </div>
         </div>
 
         <div className="my-2.5 border-t border-[#f0e4d6]" />
@@ -146,7 +155,7 @@ export default function ServiceCatalogRail() {
         ref={railRef}
         className="overflow-x-auto pb-4 pt-4 touch-manipulation [scrollbar-width:thin] [scrollbar-color:#d8b79a_transparent] [-webkit-overflow-scrolling:touch]"
       >
-        <div className="flex items-stretch gap-4 px-1 pb-1">
+        <div className="flex w-max min-w-full items-stretch justify-center gap-4 px-1 pb-1">
           {PACKAGES.map((pkg) => (
             <PackageCard key={pkg.title} pkg={pkg} />
           ))}

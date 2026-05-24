@@ -10,10 +10,10 @@ export default function FaqsPage() {
 
   return (
     <ContentPageLayout
-      title="Pet Services FAQs — Dofurs Bangalore"
-      description="Everything you need to know about bookings, providers, payments, coverage areas, and support for pet care services on Dofurs in Bangalore."
+      title="Pet Grooming FAQs — Dofurs Bangalore"
+      description="Everything you need to know about doorstep grooming bookings, packages, groomer verification, payments, coverage areas, and support on Dofurs in Bangalore."
       heroImageSrc="/Birthday/faqs_new.png"
-      heroImageAlt="Dofurs pet services FAQs for Bangalore pet parents"
+      heroImageAlt="Dofurs pet grooming FAQs for Bangalore pet parents"
       heroImageFirstOnMobile
     >
       <div className="grid gap-4">

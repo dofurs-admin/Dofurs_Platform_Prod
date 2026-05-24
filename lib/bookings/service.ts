@@ -13,6 +13,7 @@ import { reserveCreditForBooking, consumeOrRestoreCreditForBookingTransition } f
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
 import { buildServiceInvoiceLineItemsForBooking } from '@/lib/payments/serviceInvoiceItems';
 import { getAddonEffectivePrice, recalculateBookingAddonTotals } from '@/lib/addons/service';
+import { assertPublicBookableService, PUBLIC_BOOKABLE_SERVICE_ERROR } from '@/lib/service-catalog/service-policy';
 import type {
   BookingRecord,
   BookingStatus,
@@ -1203,6 +1204,32 @@ async function createBookingWithLegacyServiceFallback(
 
   if (providerServiceError || !providerService) {
     throw providerServiceError ?? new Error('Service not found or is inactive.');
+  }
+
+  assertPublicBookableService(providerService);
+
+  const bundleProviderServiceIds = Array.from(
+    new Set((input.bundleProviderServiceIds ?? []).map((value) => String(value ?? '').trim()).filter((value) => value.length > 0)),
+  );
+
+  if (bundleProviderServiceIds.length > 0) {
+    const { data: bundledServices, error: bundledServicesError } = await supabase
+      .from('provider_services')
+      .select('id, provider_id, service_type, is_active')
+      .eq('provider_id', input.providerId)
+      .eq('is_active', true)
+      .in('id', bundleProviderServiceIds)
+      .returns<Array<{ id: string; provider_id: number; service_type: string | null; is_active: boolean }>>();
+
+    if (bundledServicesError || !bundledServices || bundledServices.length !== bundleProviderServiceIds.length) {
+      throw bundledServicesError ?? new Error('One or more bundled services are unavailable.');
+    }
+
+    try {
+      bundledServices.forEach((service) => assertPublicBookableService(service));
+    } catch {
+      throw new Error(PUBLIC_BOOKABLE_SERVICE_ERROR);
+    }
   }
 
   let legacyService: { id: number; price: number; duration_minutes: number; buffer_minutes: number } | null = null;

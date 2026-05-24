@@ -156,7 +156,7 @@ export async function GET(request: Request) {
     return auth.response;
   }
 
-  const { user, role, supabase } = auth.context;
+  const { user, role } = auth.context;
   const adminSupabase = getSupabaseAdminClient();
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
@@ -174,7 +174,7 @@ export async function GET(request: Request) {
   const limit = parsed.data.limit ?? 200;
 
   try {
-    const { data, error } = await supabase.rpc('admin_search_bookings', {
+    const { data, error } = await adminSupabase.rpc('admin_search_bookings', {
       p_query: query,
       p_filter: filter,
       p_limit: limit,
@@ -231,7 +231,7 @@ export async function GET(request: Request) {
       throw error;
     }
 
-    const fallback = await supabase
+    const fallback = await adminSupabase
       .from('bookings')
       .select('id, user_id, provider_id, booking_start, booking_date, start_time, end_time, status, booking_status, booking_mode, service_type, payment_mode, users(name, email, phone), providers(name), provider_booking_completion_tasks(task_status, due_at, completed_at)')
       .order('booking_start', { ascending: false })

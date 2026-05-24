@@ -13,7 +13,6 @@ type Service = {
   source: 'provider_services' | 'services';
 };
 type Pet = { id: number; name: string; breed?: string | null };
-type Provider = { id: number; name: string; provider_type?: string | null; type?: string | null };
 type PricingBreakdown = {
   base_total: number;
   addon_total: number;
@@ -58,7 +57,6 @@ interface ReviewConfirmStepProps {
   selectedService: Service | undefined;
   selectedPet: Pet | undefined;
   selectedPets?: Pet[];
-  selectedProvider: Provider | undefined;
   bookingDate: string;
   slotStartTime: string;
   bookingMode: 'home_visit' | 'clinic_visit' | 'teleconsult';
@@ -90,7 +88,6 @@ interface ReviewConfirmStepProps {
   onPrev: () => void;
   onChangeSelectedService: () => void;
   onChangePet: () => void;
-  onChangeProvider: () => void;
   onChangeAddress: () => void;
   onChangeDateTime: () => void;
   onConfirm: () => void;
@@ -101,7 +98,6 @@ export default function ReviewConfirmStep({
   selectedService,
   selectedPet,
   selectedPets = [],
-  selectedProvider,
   bookingDate,
   slotStartTime,
   bookingMode,
@@ -131,7 +127,6 @@ export default function ReviewConfirmStep({
   onPrev,
   onChangeSelectedService,
   onChangePet,
-  onChangeProvider,
   onChangeAddress,
   onChangeDateTime,
   onConfirm,
@@ -377,24 +372,6 @@ export default function ReviewConfirmStep({
           </button>
         </div>
 
-        {/* Provider card — hidden for package bookings */}
-        {!isPackageBooking && (
-          <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2 sm:p-4">
-            <p className="text-[10px] sm:text-xs font-semibold text-neutral-600 uppercase">Provider</p>
-            <p className="mt-0.5 text-[11px] font-semibold text-neutral-950 break-words sm:mt-1 sm:text-base sm:line-clamp-2">{selectedProvider?.name}</p>
-            <p className="mt-0.5 text-[10px] sm:text-xs text-neutral-600">
-              {selectedProvider?.provider_type || selectedProvider?.type || 'Provider'}
-            </p>
-            <button
-              type="button"
-              onClick={onChangeProvider}
-              className="mt-2 inline-flex rounded-full border border-[#e6c7af] bg-[#fff7f0] px-3 py-1.5 text-[11px] sm:text-xs font-semibold text-[#9a5a2f] transition-colors hover:bg-[#ffeedf]"
-            >
-              Change provider
-            </button>
-          </div>
-        )}
-
         {/* Date & Time card */}
         <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2 sm:p-4">
           <p className="text-[10px] sm:text-xs font-semibold text-neutral-600 uppercase">
@@ -427,17 +404,10 @@ export default function ReviewConfirmStep({
 
       {/* Location and notes */}
       <div className="space-y-1.5 sm:space-y-3">
-        <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2.5 max-[380px]:p-2 sm:p-4">
-          <p className="text-[10px] sm:text-xs font-semibold text-neutral-600 uppercase">Booking Mode</p>
-          <p className="mt-1 text-sm sm:text-base font-semibold text-neutral-950">
-            {bookingMode === 'home_visit' && 'Home Visit'}
-            {bookingMode === 'clinic_visit' && 'Clinic Visit'}
-            {bookingMode === 'teleconsult' && 'Teleconsult'}
-          </p>
-          {bookingMode === 'home_visit' && locationAddress && (
+        {bookingMode === 'home_visit' && locationAddress ? (
+          <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2.5 max-[380px]:p-2 sm:p-4">
+            <p className="text-[10px] sm:text-xs font-semibold text-neutral-600 uppercase">Service Address</p>
             <p className="mt-1 text-[11px] sm:text-xs text-neutral-600 line-clamp-2">{locationAddress}</p>
-          )}
-          {bookingMode === 'home_visit' && (
             <button
               type="button"
               onClick={onChangeAddress}
@@ -445,8 +415,8 @@ export default function ReviewConfirmStep({
             >
               Change address
             </button>
-          )}
-        </div>
+          </div>
+        ) : null}
 
         {providerNotes && (
           <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-3 sm:p-4">

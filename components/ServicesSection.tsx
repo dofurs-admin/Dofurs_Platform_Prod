@@ -5,9 +5,6 @@ import { theme } from '@/lib/theme';
 
 const serviceBackgrounds: Record<string, string> = {
   Grooming: '/Birthday/grooming_service.png',
-  'Vet Visits': '/Birthday/vet%20visit_service.png',
-  'Pet Sitting': '/Birthday/pet%20sitting_service.png',
-  Training: '/Birthday/training_service.png',
 };
 
 export default function ServicesSection() {
@@ -15,9 +12,9 @@ export default function ServicesSection() {
     <section id="services" className={`${theme.layout.sectionSpacing} scroll-mt-24 bg-[#fdf8f4]`}>
       <div className={theme.layout.container}>
         <FadeInSection>
-          <h2 className="text-center text-3xl font-semibold tracking-tight text-ink md:text-4xl">Services for Every Stage of Pet Care</h2>
+          <h2 className="text-center text-3xl font-semibold tracking-tight text-ink md:text-4xl">Doorstep Grooming for Bangalore Pets</h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-ink/80">
-            Discover top-rated care providers across grooming, health, companionship, and behavior support.
+            Discover verified groomers, transparent packages, and hygiene-first home appointments.
           </p>
         </FadeInSection>
 
@@ -40,9 +37,16 @@ export default function ServicesSection() {
                     <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(253,248,244,0.26)_0%,rgba(246,239,233,0.12)_45%,rgba(253,248,244,0.3)_100%)]" />
                   </div>
 
-                  <span className="relative z-10 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-coral/12 text-coral transition-all duration-300 group-hover:scale-110 group-hover:bg-coral group-hover:text-white">
-                    <Icon size={22} aria-hidden="true" />
-                  </span>
+                  <div className="relative z-10 flex items-start justify-between gap-3">
+                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-coral/12 text-coral transition-all duration-300 group-hover:scale-110 group-hover:bg-coral group-hover:text-white">
+                      <Icon size={22} aria-hidden="true" />
+                    </span>
+                    {service.availability === 'coming-soon' ? (
+                      <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-amber-700">
+                        Coming Soon
+                      </span>
+                    ) : null}
+                  </div>
                   <h3 className="relative z-10 mt-4 text-xl font-semibold text-ink">{service.title}</h3>
                   <p className="relative z-10 mt-2 text-sm leading-6 text-ink/90">{service.description}</p>
                 </article>

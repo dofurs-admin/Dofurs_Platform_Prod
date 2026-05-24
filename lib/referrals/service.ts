@@ -189,7 +189,7 @@ export async function redeemReferralCode(
         user_id: refereeUserId,
         type: 'referral_welcome_credit',
         title: `₹${refereeRewardInr} Dofurs Credits Added!`,
-        body: `Welcome to Dofurs! ₹${refereeRewardInr} credits have been added to your wallet. Use them on any pet care booking.`,
+        body: `Welcome to Dofurs! ₹${refereeRewardInr} credits have been added to your wallet. Use them on eligible grooming bookings.`,
         data: { amount_inr: refereeRewardInr },
       });
     } catch (err) {

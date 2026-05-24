@@ -390,11 +390,11 @@ export default function UserDashboardClient({
         <div className="space-y-2 sm:space-y-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-brand-700 sm:text-xs sm:tracking-[0.16em]">Dofurs Customer Dashboard</p>
           <h1 className="text-2xl font-semibold text-neutral-950 sm:text-page-title sm:mb-2">Welcome back, {userName}</h1>
-          <p className="text-sm leading-relaxed text-neutral-600 sm:text-body sm:max-w-2xl">Plan care, track services, and keep pet passports complete.</p>
+          <p className="text-sm leading-relaxed text-neutral-600 sm:text-body sm:max-w-2xl">Plan grooming, track bookings, and keep pet passports complete.</p>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3">
-          <Link href="/forms/customer-booking" className="block">
-            <Button variant="premium" className="h-11 w-full px-4 text-sm tracking-[0.01em] sm:w-auto sm:px-6">Book a Service</Button>
+          <Link href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking" className="block">
+            <Button variant="premium" className="h-11 w-full px-4 text-sm tracking-[0.01em] sm:w-auto sm:px-6">Book Now</Button>
           </Link>
           <Button
             variant="premium"
@@ -453,11 +453,11 @@ export default function UserDashboardClient({
       {pets.length === 0 && bookings.length === 0 && view === 'home' && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-5">
           <h3 className="text-base font-semibold text-amber-900">Complete your profile to get started</h3>
-          <p className="mt-1 text-sm text-amber-800/80">Add your pets and book your first service to unlock the full Dofurs experience.</p>
+          <p className="mt-1 text-sm text-amber-800/80">Add your pets and book your first grooming appointment to unlock the full Dofurs experience.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="premium" size="sm" type="button" onClick={() => openPetManagerModal(null)}>Add Your First Pet</Button>
-            <Link href="/forms/customer-booking">
-              <Button variant="premium" size="sm" type="button">Book a Service</Button>
+            <Link href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking">
+              <Button variant="premium" size="sm" type="button">Book Now</Button>
             </Link>
             <Link href="/dashboard/user/profile">
               <Button variant="premium" size="sm" type="button">Complete Profile</Button>

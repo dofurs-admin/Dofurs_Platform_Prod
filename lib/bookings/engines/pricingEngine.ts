@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PricingBreakdown } from '../types';
 import { applyDiscount } from './discountEngine';
+import { assertPublicBookableService } from '@/lib/service-catalog/service-policy';
 
 export type PriceBreakdown = PricingBreakdown;
 
@@ -206,14 +207,21 @@ export async function calculateBookingPriceWithSupabase(
   if (params.bookingType === 'service' && params.serviceId) {
     const { data: service, error } = await supabase
       .from('provider_services')
-      .select('base_price, service_type')
+      .select('base_price, service_type, is_active')
       .eq('id', params.serviceId)
       .eq('provider_id', params.providerId)
-      .single<{ base_price: number | null; service_type: string }>();
+      .eq('is_active', true)
+      .single<{ base_price: number | null; service_type: string; is_active?: boolean }>();
 
     if (error || !service) {
       throw new Error('Service not found');
     }
+
+    if (service.is_active === false) {
+      throw new Error('Service not found');
+    }
+
+    assertPublicBookableService(service);
 
     basePrice = Number(service.base_price ?? 0);
     breakdown.push(`${service.service_type}: ₹${basePrice}`);

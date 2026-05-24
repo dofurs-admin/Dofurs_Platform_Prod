@@ -99,10 +99,10 @@ export default function BookingsTab({
           description={
             bookingFilter === 'active'
               ? 'You are all caught up. Create a new booking when you are ready.'
-              : 'Start by booking a service for your pet.'
+                : 'Start by booking grooming for your pet.'
           }
-          ctaLabel={bookingFilter === 'active' ? undefined : 'Book a Service'}
-          ctaHref={bookingFilter === 'active' ? undefined : '/forms/customer-booking'}
+          ctaLabel={bookingFilter === 'active' ? undefined : 'Book Now'}
+              ctaHref={bookingFilter === 'active' ? undefined : '/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking'}
         />
       ) : (
         <div className="space-y-2.5 sm:space-y-3">

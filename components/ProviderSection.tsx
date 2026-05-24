@@ -40,20 +40,20 @@ export default function ProviderSection() {
                 </h2>
 
                 <p className="mx-auto mt-4 max-w-[520px] text-base leading-relaxed text-[#6b6b6b] sm:text-lg lg:mx-0">
-                  Grow your pet care business with quality leads, reliable tools, and a platform built around trust. Join
-                  our network of verified service providers and connect with pet parents who value excellence.
+                  Grow your grooming business with quality leads, reliable tools, and a platform built around trust. Join
+                  our network of verified grooming partners and connect with pet parents who value excellence.
                 </p>
 
                 <div className="mt-8 flex flex-col items-center gap-4 lg:items-start">
                   <Link
                     href={links.provider}
                     className="inline-flex w-full items-center justify-center rounded-full bg-[linear-gradient(90deg,_#f4a261_0%,_#e76f51_100%)] px-8 py-3.5 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(227,154,93,0.35)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:scale-[1.03] hover:brightness-95 hover:shadow-[0_14px_30px_rgba(227,154,93,0.42)] sm:w-auto"
-                    aria-label="Apply as Service Provider"
+                    aria-label="Apply as grooming partner"
                   >
-                    Apply as Service Provider
+                    Apply as Grooming Partner
                   </Link>
 
-                  <p className="text-sm text-[#7a7a7a]">Trusted by 200+ verified service professionals</p>
+                  <p className="text-sm text-[#7a7a7a]">Trusted by verified grooming professionals</p>
                 </div>
               </div>
             </div>

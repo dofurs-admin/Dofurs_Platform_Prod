@@ -54,6 +54,7 @@ describe('GET /api/admin/bookings', () => {
 
     const mockSupabase = makeMockSupabase({ data: mockBookings, error: null });
     const adminSupabase = {
+      rpc: vi.fn().mockResolvedValue({ data: mockBookings, error: null }),
       from: vi.fn((table: string) => {
         if (table === 'bookings') {
           const queryState = {
@@ -130,7 +131,7 @@ describe('GET /api/admin/bookings', () => {
     expect(json.bookings[0].payment_mode).toBe('direct_to_provider');
     expect(json.bookings[0].cash_collected).toBe(true);
     expect(json.bookings[0].included_services).toEqual(['grooming']);
-    expect(mockSupabase.rpc).toHaveBeenCalledWith('admin_search_bookings', expect.objectContaining({ p_filter: 'all' }));
+    expect(adminSupabase.rpc).toHaveBeenCalledWith('admin_search_bookings', expect.objectContaining({ p_filter: 'all' }));
   });
 
   it('returns 400 for invalid filter value', async () => {

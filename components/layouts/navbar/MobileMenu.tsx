@@ -78,9 +78,9 @@ export function MobileMenu({
             type="search"
             value={searchQuery}
             onChange={(event) => onSearchQueryChange(event.target.value)}
-            placeholder="Search premium services"
+            placeholder="Search grooming packages"
             className="ml-2 w-full bg-transparent text-[13px] font-medium text-ink placeholder:text-[#ae8b6c] focus:outline-none"
-            aria-label="Search for pet services"
+            aria-label="Search for grooming packages and guides"
           />
           <button type="submit" className="inline-flex h-7 items-center justify-center rounded-lg bg-[#cf7a43] px-3 text-[11px] font-semibold text-white transition hover:bg-[#be6a35]">
             Go
@@ -114,15 +114,15 @@ export function MobileMenu({
 
           {!isBookingPage ? (
             <Link
-              href="/forms/customer-booking#start-your-booking"
+              href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
               className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#d6884f,#bf6c37)] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(190,106,53,0.32)] transition hover:bg-[linear-gradient(135deg,#ca7b42,#b05f2c)]"
-              aria-label="Go to customer booking page"
+              aria-label="Go to grooming booking page"
               onClick={(event) => {
                 onClose();
                 onBookingAnchorClick(event);
               }}
             >
-              Book now
+              Book Now
             </Link>
           ) : null}
         </div>
@@ -193,9 +193,17 @@ export function MobileMenu({
                     }}
                   >
                     {item.title}
-                    {item.badge === 'Active' && (
-                      <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700">Live</span>
-                    )}
+                    {item.badge ? (
+                      <span
+                        className={`ml-3 shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${
+                          item.availability === 'active'
+                            ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                            : 'border-amber-200 bg-amber-50 text-amber-700'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    ) : null}
                   </Link>
                 ))}
               </div>

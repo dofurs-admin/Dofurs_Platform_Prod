@@ -7,6 +7,7 @@ import { toFriendlyApiError } from '@/lib/api/errors';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { claimPendingPetShares, listAccessiblePetsForUser } from '@/lib/pets/share-access';
 import { getISTTimestamp } from '@/lib/utils/date';
+import { filterPublicBookableServices, isGroomingServiceType } from '@/lib/service-catalog/service-policy';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -15,6 +16,7 @@ const RATE_LIMIT = {
 
 const querySchema = z.object({
   userId: z.string().uuid().optional(),
+  includeLegacyServices: z.enum(['true', 'false']).optional(),
 });
 
 type BookableUser = {
@@ -77,6 +79,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsed = querySchema.safeParse({
     userId: url.searchParams.get('userId') ?? undefined,
+    includeLegacyServices: url.searchParams.get('includeLegacyServices') ?? undefined,
   });
 
   if (!parsed.success) {
@@ -84,6 +87,8 @@ export async function GET(request: Request) {
   }
 
   const canBookForUsers = effectiveRole === 'admin' || effectiveRole === 'staff' || effectiveRole === 'provider';
+  const includeLegacyServices = (effectiveRole === 'admin' || effectiveRole === 'staff')
+    && parsed.data.includeLegacyServices === 'true';
 
   if (parsed.data.userId && !canBookForUsers && parsed.data.userId !== user.id) {
     return forbidden();
@@ -242,7 +247,8 @@ export async function GET(request: Request) {
     }
   }
 
-  const providerServices = providerServicesResult.data ?? [];
+  const rawProviderServices = providerServicesResult.data ?? [];
+  const providerServices = includeLegacyServices ? rawProviderServices : filterPublicBookableServices(rawProviderServices);
   const providerRows = providersResult.data ?? [];
 
   let resolvedProviders = providerRows;
@@ -311,7 +317,9 @@ export async function GET(request: Request) {
     services: mergedServices,
     pets,
     addresses: ((addressesResult.data ?? []) as CatalogAddress[]),
-    discounts: ((discountsData ?? []) as Array<CatalogDiscount & { is_active: boolean; valid_from: string }>).map((item) => ({
+    discounts: ((discountsData ?? []) as Array<CatalogDiscount & { is_active: boolean; valid_from: string }>)
+      .filter((item) => !item.applies_to_service_type || isGroomingServiceType(item.applies_to_service_type))
+      .map((item) => ({
       id: item.id,
       code: item.code,
       title: item.title,

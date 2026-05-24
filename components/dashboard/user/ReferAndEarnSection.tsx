@@ -234,7 +234,7 @@ export default function ReferAndEarnSection() {
           </div>
         </div>
         <p className="mt-3 text-xs text-ink/50">
-          Credits can be applied at checkout for any Dofurs service booking.
+          Credits can be applied at checkout for eligible Dofurs grooming bookings.
         </p>
       </div>
 
@@ -256,12 +256,12 @@ export default function ReferAndEarnSection() {
             {
               step: '3',
               title: 'You earn ₹500 after their first booking',
-              body: 'Once your friend completes their first Dofurs service booking, ₹500 is credited to your wallet.',
+              body: 'Once your friend completes their first Dofurs grooming booking, ₹500 is credited to your wallet.',
             },
             {
               step: '4',
-              title: 'Use credits on any booking',
-              body: 'Apply your credits at checkout for grooming, vet visits, training, or any other service.',
+              title: 'Use credits on grooming',
+              body: 'Apply your credits at checkout for eligible doorstep grooming bookings.',
             },
           ].map((item) => (
             <div key={item.step} className="flex items-start gap-3">
@@ -280,14 +280,14 @@ export default function ReferAndEarnSection() {
         </p>
       </div>
 
-      {/* Book a service CTA */}
+      {/* Book now CTA */}
       <div className="rounded-3xl border border-[#f1e6da] bg-[#fffdfb] p-5 text-center shadow-soft-sm">
         <p className="text-sm text-ink/70">Ready to use your credits?</p>
         <Link
-          href="/forms/customer-booking"
+          href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
           className="mt-3 inline-flex items-center gap-2 rounded-full bg-coral px-7 py-3 text-sm font-semibold text-white shadow-soft-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#cf8448] hover:shadow-[0_14px_28px_rgba(227,154,93,0.32)]"
         >
-          Book a Service
+          Book Now
         </Link>
       </div>
     </div>

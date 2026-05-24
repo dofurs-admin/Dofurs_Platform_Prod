@@ -17,6 +17,7 @@ import type { Service } from "@/lib/service-catalog/types";
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import { isRateLimited } from '@/lib/api/rate-limit';
+import { filterPublicBookableServices } from '@/lib/service-catalog/service-policy';
 
 const byCategoryQuerySchema = z.object({
   categoryId: z.string().uuid(),
@@ -68,8 +69,10 @@ export async function GET(
       );
     }
 
+    const groomingServices = filterPublicBookableServices((data ?? []) as Service[]);
+
     return NextResponse.json(
-      { success: true, data: data as Service[] },
+      { success: true, data: groomingServices },
       { headers: { 'Cache-Control': 'public, max-age=300, stale-while-revalidate=3600' } }
     );
   } catch (error) {

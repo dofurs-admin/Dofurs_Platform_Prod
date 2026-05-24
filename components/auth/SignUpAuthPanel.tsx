@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { BellRing, Loader2, MailCheck, Scissors, ShieldPlus, Sparkles, Stethoscope } from 'lucide-react';
+import { CalendarCheck2, Loader2, MailCheck, Scissors, ShieldCheck, Sparkles } from 'lucide-react';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 import { useToast } from '@/components/ui/ToastProvider';
 import type { FlowState } from '@/lib/flows/contracts';
@@ -15,19 +15,19 @@ type SignUpStep = 'collect' | 'verify' | 'done';
 const welcomeOfferBenefits = [
   {
     icon: Scissors,
-    label: 'Grooming at Your Door step',
+    label: 'Doorstep dog and cat grooming',
   },
   {
-    icon: ShieldPlus,
-    label: 'Lifetime Pet Health Passport',
+    icon: ShieldCheck,
+    label: 'Sanitized tools and pet-safe products',
   },
   {
-    icon: BellRing,
-    label: 'Smart Vaccination Reminders',
+    icon: Sparkles,
+    label: 'Bath, haircut, nail care and de-shedding',
   },
   {
-    icon: Stethoscope,
-    label: 'Vet Care at Home or Clinic',
+    icon: CalendarCheck2,
+    label: 'Easy slot confirmation and reminders',
   },
 ] as const;
 
@@ -548,10 +548,10 @@ export default function SignUpAuthPanel() {
               <Sparkles className="h-3.5 w-3.5" />
               Welcome Offer
             </div>
-            <h2 className="mt-4 whitespace-nowrap text-[1.56rem] font-bold leading-tight text-ink">🎉 Add 2+ Years to Your Pet&apos;s Life 🐾</h2>
+            <h2 className="mt-4 whitespace-nowrap text-[1.56rem] font-bold leading-tight text-ink">Save on Your First Grooming</h2>
             {activeCampaignRewardLabel ? (
               <p className="mt-2 inline-flex rounded-full border border-[#efc8a8] bg-[#ffe8d2] px-3 py-1 text-sm font-bold text-[#c06120]">
-                + Get {activeCampaignRewardLabel} Free on Signup
+                Get {activeCampaignRewardLabel} Grooming Credit
               </p>
             ) : null}
             {activeCampaignReferralCode ? (
@@ -560,7 +560,7 @@ export default function SignUpAuthPanel() {
               </p>
             ) : null}
             <p className="mt-2.5 text-sm leading-relaxed text-[#67584a]">
-              Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
+              Create your Dofurs account and use your welcome credit toward a verified doorstep grooming appointment in Bangalore.
             </p>
             <ul className="mt-3.5 space-y-2 text-sm text-[#45372b]">
               {welcomeOfferBenefits.map(({ icon: Icon, label }) => (

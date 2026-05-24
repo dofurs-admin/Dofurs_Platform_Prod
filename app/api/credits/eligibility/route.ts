@@ -3,6 +3,7 @@ import { requireApiRole } from '@/lib/auth/api-auth';
 import { getActiveSubscriptionForService } from '@/lib/subscriptions/subscriptionService';
 import { isServiceTypeMatch } from '@/lib/subscriptions/serviceTypeMatching';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { isGroomingServiceType } from '@/lib/service-catalog/service-policy';
 
 export async function GET(request: Request) {
   const auth = await requireApiRole(['user', 'provider', 'admin', 'staff']);
@@ -37,8 +38,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'serviceType is required.' }, { status: 400 });
   }
 
-  const normalizedServiceType = serviceType.toLowerCase();
-  if (normalizedServiceType.includes('birthday') || normalizedServiceType.includes('boarding')) {
+  if (!isGroomingServiceType(serviceType)) {
     return NextResponse.json({
       eligible: false,
       subscriptionId: null,
@@ -46,7 +46,7 @@ export async function GET(request: Request) {
       matchedCreditServiceType: null,
       availableCredits: 0,
       totalCredits: 0,
-      reason: 'Subscription credits are not applicable for birthday or boarding services.',
+      reason: 'Subscription credits are available for grooming services only.',
     });
   }
 

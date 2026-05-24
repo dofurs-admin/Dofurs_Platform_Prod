@@ -1,6 +1,7 @@
 export type GroomingPackage = {
   title: string;
   price: string | number;
+  mrp?: number;
   features: string[];
   badge?: string;
   badgeVariant?: 'popular' | 'best-value' | 'premium' | 'deal' | 'special' | 'coming-soon';
@@ -11,52 +12,68 @@ export type GroomingPackage = {
 
 export const GROOMING_PACKAGES: GroomingPackage[] = [
   {
-    title: 'Doorstep Pet Grooming',
-    price: 'Starts from 899',
+    title: 'Monthly Care',
+    price: 699,
+    mrp: 899,
     features: [
-      'Nail clipping',
-      'Paw Hair Trimming',
-      'Knot Removal & De-shedding',
+      'Nail Clipping',
+      'Nail Grinding',
+      'Knot Removal',
       'Eye & Ear Cleaning',
+      'Paw Hair Trimming & Cleaning',
+      'De-shedding',
     ],
     badge: 'Popular',
     badgeVariant: 'popular',
-    serviceTypeKeywords: ['doorstep pet grooming', 'basic package'],
+    serviceTypeKeywords: ['monthly care', 'monthly hygiene', 'doorstep pet grooming', 'basic package'],
   },
   {
-    title: 'Summer Bonanza',
-    price: 1199,
+    title: 'Fur Bath Care',
+    price: 999,
+    mrp: 1399,
     features: [
-      'Bathing, Drying & Conditioning',
-      'Shampoo & Conditioner',
-      'Brushing & De-shedding',
-      'De-matting',
-      'Nail Clipping & Paw Hair Trimming',
+      'Anti-Tick Medicated Bath',
+      'Drying',
+      'Brushing',
+      'De-shedding',
+      'De-matting (Knot Removal)',
     ],
     badge: 'Great Deal',
     badgeVariant: 'deal',
-    serviceTypeKeywords: ['summer bonanza', 'offer package'],
+    serviceTypeKeywords: ['fur bath care', 'summer pack', 'summer bonanza', 'offer package'],
   },
   {
     title: 'Fur Makeover',
     price: 1199,
-    features: ['Hair Trimming', 'Paw Hair Trimming', 'Nail Clipping'],
+    mrp: 1499,
+    features: [
+      'Hair Cut',
+      'Paw Hair Cleaning',
+      'Sanitary Area Hair Cleaning',
+      'De-matting',
+      'Brushing',
+      'Ear & Eye Cleaning',
+      'De-shedding',
+    ],
     badge: 'Great Deal',
     badgeVariant: 'deal',
     serviceTypeKeywords: ['fur makeover', 'fur makeover package'],
   },
   {
     title: 'Essential Grooming',
-    price: 1799,
+    price: 1599,
+    mrp: 1799,
     features: [
-      'Bathing, Drying & Conditioning',
+      'Bathing & Drying',
+      'Shampoo & Conditioning',
       'Nail Clipping',
-      'Paw Hair Trimming',
-      'Sanitary Area Hair Trimming',
+      'Paw Hair Cleaning',
+      'Sanitary Area Cleaning (Hygiene Trim)',
       'Brushing & De-shedding',
-      'De-matting',
-      'Paw Massage',
-      'Eye Cleaning',
+      'De-matting (Knot Removal)',
+      'Eye Cleaning / Eye Stain Cleaning',
+      'Paw Moisturizing / Paw Massage',
+      'Machine Trim (Max 15mm)',
     ],
     badge: 'Best Value',
     badgeVariant: 'best-value',
@@ -65,46 +82,47 @@ export const GROOMING_PACKAGES: GroomingPackage[] = [
   },
   {
     title: 'Complete Care',
-    price: 2299,
+    price: 1999,
+    mrp: 2299,
     features: [
-      'Bathing, Drying & Conditioning',
-      'Nail Clipping & Grinding',
-      'Paw Care & Massage',
-      'Sanitary Area Hair Trimming',
+      'Bathing & Drying',
+      'Shampoo & Conditioning',
       'Brushing & De-shedding',
-      'De-matting',
-      'Custom Haircut',
-      'Face Styling',
-      'Eye, Ear & Nose Cleaning',
+      'De-matting (Knot Removal)',
+      'Scissor Haircut (as per your preference)',
+      'Face Styling & Eye Area Trimming',
+      'Hygiene Trim / Sanitary Area Cleaning',
+      'Paw Hair Cleaning',
+      'Nail Clipping & Grinding (Smooth Finish)',
+      'Paw Moisturizing / Paw Massage',
+      'Eye Stain & Ear Cleaning',
+      'Nose Cleaning & Moisturizing',
+      'Machine Trim (Upto Zero)',
     ],
     badge: 'Premium',
     badgeVariant: 'premium',
     serviceTypeKeywords: ['complete care'],
   },
-  {
-    title: 'Pet Birthday Package',
-    price: 1999,
-    features: ['Custom Party Setup', 'Treats & Decorations', 'Photoshoots'],
-    badge: 'COMING SOON',
-    badgeVariant: 'coming-soon',
-    isBookable: false,
-    serviceTypeKeywords: ['pet birthday package', 'birthday package', 'birthday'],
-  },
-  {
-    title: 'Pet Boarding',
-    price: 999,
-    features: ['Safe Stay', 'Comfortable Environment', 'Stress-Free Care'],
-    badge: 'COMING SOON',
-    badgeVariant: 'coming-soon',
-    isBookable: false,
-    serviceTypeKeywords: ['pet boarding', 'boarding'],
-  },
 ];
+
+const LEGACY_SERVICE_PRICE_OVERRIDES = [
+  { keywords: ['doorstep pet grooming', 'basic package'], price: 899 },
+  { keywords: ['summer bonanza'], price: 1199 },
+  { keywords: ['fur makeover package'], price: 1199 },
+] as const;
 
 function normalizeServiceType(value: string): string {
   return value
     .toLowerCase()
     .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -118,4 +136,40 @@ export function getGroomingPackageByServiceType(serviceType: string): GroomingPa
   );
 
   return matchedPackage ?? null;
+}
+
+export function getGroomingPackagePriceByServiceType(serviceType: string): number | null {
+  const normalizedServiceType = normalizeSearchText(serviceType);
+
+  const legacyPriceOverride = LEGACY_SERVICE_PRICE_OVERRIDES.find((override) =>
+    override.keywords.some((keyword) => normalizedServiceType.includes(normalizeSearchText(keyword))),
+  );
+
+  if (legacyPriceOverride) {
+    return legacyPriceOverride.price;
+  }
+
+  const matchedPackage = getGroomingPackageByServiceType(serviceType);
+
+  if (!matchedPackage) {
+    return null;
+  }
+
+  if (typeof matchedPackage.price === 'number' && Number.isFinite(matchedPackage.price)) {
+    return Math.max(0, Math.round(matchedPackage.price));
+  }
+
+  if (typeof matchedPackage.price === 'string') {
+    const match = matchedPackage.price.match(/(\d[\d,]*)/);
+    if (!match?.[1]) {
+      return null;
+    }
+
+    const parsed = Number.parseInt(match[1].replace(/,/g, ''), 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      return parsed;
+    }
+  }
+
+  return null;
 }

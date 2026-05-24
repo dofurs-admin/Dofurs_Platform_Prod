@@ -30,8 +30,6 @@ type FormErrors = Partial<Record<keyof FormState, string>>;
 const SERVICE_MODES = [
   { id: 'home_visit', label: 'Home Visit' },
   { id: 'clinic_visit', label: 'Clinic/Centre' },
-  { id: 'teleconsult', label: 'Teleconsult' },
-  { id: 'emergency', label: 'Emergency Support' },
 ] as const;
 
 const INITIAL_STATE: FormState = {
@@ -337,7 +335,7 @@ export default function ServiceProviderApplicationForm() {
           <div className="space-y-2">
             <h3 className="text-2xl font-semibold text-emerald-900">Application received</h3>
             <p className="max-w-2xl text-sm text-emerald-800/90">
-              Thanks for applying to become a Dofurs Service Provider. Your application is now in our admin operations
+              Thanks for applying to become a Dofurs grooming partner. Your application is now in our admin operations
               queue under <span className="font-semibold">Service Provider Applications</span> and will be reviewed by
               the onboarding team.
             </p>
@@ -458,7 +456,7 @@ export default function ServiceProviderApplicationForm() {
               label={isBusiness ? 'Business Type' : 'Provider Type'}
               value={form.provider_type}
               onChange={(event) => updateField('provider_type', event.target.value)}
-              placeholder={isBusiness ? 'Grooming Center / Vet Clinic / Boarding' : 'Veterinarian / Groomer / Trainer'}
+              placeholder={isBusiness ? 'Grooming studio / mobile grooming team' : 'Professional groomer'}
               required
               error={fieldError('provider_type')}
             />
@@ -618,7 +616,7 @@ export default function ServiceProviderApplicationForm() {
             )}
             <div className="rounded-2xl border border-white/15 bg-white/5 p-4">
               <p className="text-sm font-semibold text-white">Growth + Trust Signal</p>
-              <p className="mt-1 text-xs text-neutral-300">Position your {isBusiness ? 'center' : 'business'} with a premium, reliability-driven pet care brand.</p>
+              <p className="mt-1 text-xs text-neutral-300">Position your {isBusiness ? 'grooming center' : 'grooming business'} with a premium, reliability-driven brand.</p>
             </div>
           </div>
 

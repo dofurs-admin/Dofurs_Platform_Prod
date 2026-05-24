@@ -4,13 +4,13 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import { links, whatsappLinks } from '@/lib/site-data';
 
 export const metadata: Metadata = {
-  title: 'Contact Dofurs — Pet Services Support in Bangalore',
+  title: 'Contact Dofurs — Pet Grooming Support in Bangalore',
   description:
-    'Contact the Dofurs team for booking help, service partnerships, or feedback. WhatsApp and email support for pet parents and providers across Bangalore.',
+    'Contact the Dofurs team for grooming booking help, grooming partnerships, or feedback. WhatsApp and email support for pet parents and grooming partners across Bangalore.',
   alternates: { canonical: '/contact-us' },
   openGraph: {
-    title: 'Contact Dofurs — Pet Services Support in Bangalore',
-    description: 'Reach the Dofurs team via WhatsApp or email for booking help and partnerships.',
+    title: 'Contact Dofurs — Pet Grooming Support in Bangalore',
+    description: 'Reach the Dofurs team via WhatsApp or email for grooming booking help and partnerships.',
     url: 'https://dofurs.in/contact-us',
     images: ['/logo/og-default.jpg'],
   },
@@ -20,7 +20,7 @@ export default function ContactUsPage() {
   return (
     <ContentPageLayout
       title="Contact Us"
-      description="Have a question, feedback, or partnership request? We are here to help."
+      description="Have a grooming question, booking issue, feedback, or partnership request? We are here to help."
       heroImageSrc="/Birthday/contact%20us_new.png"
       heroImageAlt="Contact Dofurs"
     >
@@ -61,13 +61,13 @@ export default function ContactUsPage() {
           href={links.booking}
           className="inline-flex rounded-full bg-coral px-7 py-3 text-sm font-semibold text-white shadow-soft-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#cf8448] hover:shadow-[0_14px_28px_rgba(227,154,93,0.32)]"
         >
-          Customer Booking Form
+          Book Now
         </Link>
         <Link
           href={links.provider}
           className="inline-flex rounded-full bg-coral px-7 py-3 text-sm font-semibold text-white shadow-soft-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#cf8448] hover:shadow-[0_14px_28px_rgba(227,154,93,0.32)]"
         >
-          Provider Application Form
+          Grooming Partner Application
         </Link>
       </div>
     </ContentPageLayout>

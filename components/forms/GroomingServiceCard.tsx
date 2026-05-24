@@ -6,6 +6,7 @@ import PremiumCard from '@/components/PremiumCard';
 export type GroomingService = {
   title: string;
   price: string | number;
+  mrp?: number;
   features: string[];
   badge?: string;
   badgeVariant?: 'popular' | 'best-value' | 'premium' | 'deal' | 'special' | 'coming-soon';
@@ -53,7 +54,7 @@ interface GroomingServiceCardProps {
 }
 
 export default function GroomingServiceCard({ service, index }: GroomingServiceCardProps) {
-  const { title, price, features, badge, badgeVariant = 'popular' } = service;
+  const { title, price, mrp, features, badge, badgeVariant = 'popular' } = service;
 
   return (
     <motion.div
@@ -77,13 +78,21 @@ export default function GroomingServiceCard({ service, index }: GroomingServiceC
 
       <h3 className="text-[13px] font-semibold leading-snug text-neutral-950">{title}</h3>
 
-      <div className="mt-1.5 flex items-baseline gap-1">
-        <span className="text-[18px] font-bold leading-none tracking-tight text-neutral-950">
-          {formatPrice(price)}
-        </span>
-        {typeof price === 'number' && (
-          <span className="text-[10px] text-[#9a7258]">/ session</span>
-        )}
+      <div className="mt-1.5 space-y-1">
+        {mrp ? (
+          <p className="text-[10px] font-medium leading-none text-[#9a7258]">
+            MRP <span className="line-through decoration-[#b78258]/70 decoration-1">{formatPrice(mrp)}</span>
+          </p>
+        ) : null}
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+          {mrp ? <span className="text-[10px] font-semibold uppercase text-[#c7773b]">Now</span> : null}
+          <span className="text-[18px] font-bold leading-none text-neutral-950">
+            {formatPrice(price)}
+          </span>
+          {typeof price === 'number' && (
+            <span className="text-[10px] text-[#9a7258]">/ session</span>
+          )}
+        </div>
       </div>
 
       <div className="my-2.5 border-t border-[#f0e4d6]" />

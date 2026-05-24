@@ -8,6 +8,19 @@ import {
 } from '@/lib/provider-management/service';
 import { adminDiscountUpsertSchema } from '@/lib/provider-management/validation';
 
+type ValidationErrorWithFlatten = {
+  flatten: () => {
+    formErrors: string[];
+    fieldErrors: Record<string, string[] | undefined>;
+  };
+};
+
+function getFirstValidationMessage(error: ValidationErrorWithFlatten): string {
+  const details = error.flatten();
+  const fieldMessage = Object.values(details.fieldErrors).flatMap((messages) => messages ?? [])[0];
+  return fieldMessage ?? details.formErrors[0] ?? 'Invalid discount payload';
+}
+
 export async function GET() {
   const { role, user, supabase } = await getApiAuthContext();
 
@@ -46,7 +59,7 @@ export async function POST(request: Request) {
   const parsed = adminDiscountUpsertSchema.safeParse(payload);
 
   if (!parsed.success) {
-    return NextResponse.json({ error: 'Invalid payload', details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json({ error: getFirstValidationMessage(parsed.error), details: parsed.error.flatten() }, { status: 400 });
   }
 
   try {

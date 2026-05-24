@@ -441,20 +441,20 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
         <div className="relative mx-auto w-full max-w-[430px]">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#ecd1b8] bg-white/80 px-3 py-1 text-xs font-semibold text-[#8e5630] shadow-[inset_0_1px_0_rgba(255,255,255,0.85)]">
             <Sparkles className="h-3.5 w-3.5" />
-            Trusted Pet Care Platform
+            Trusted Grooming Platform
           </div>
 
-          <h2 className="mt-3 text-[1.48rem] font-bold leading-tight text-ink">Manage every pet-care moment from one premium dashboard.</h2>
+          <h2 className="mt-3 text-[1.48rem] font-bold leading-tight text-ink">Manage every grooming booking from one premium dashboard.</h2>
 
           <p className="mt-2 text-sm leading-relaxed text-[#67584a]">
-            From grooming and vet bookings to reminders and updates, Dofurs keeps your pet&apos;s care journey simple, secure, and always in sync.
+            From grooming bookings to reminders and updates, Dofurs keeps your pet&apos;s care journey simple, secure, and always in sync.
           </p>
 
           <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] font-semibold text-[#6d4a2f]">
-            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Home & clinic visits</div>
+            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Doorstep grooming</div>
             <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Live booking timeline</div>
             <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Smart care reminders</div>
-            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Verified providers</div>
+            <div className="rounded-xl border border-[#ecd4bf] bg-white/85 px-3 py-1.5">Verified groomers</div>
           </div>
 
           <ul className="mt-3 space-y-2 text-sm text-[#45372b]">
@@ -463,7 +463,7 @@ function SignInFormPanel({ signUpHref }: { signUpHref: string }) {
                 <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[linear-gradient(160deg,#ffc998_0%,#e99244_100%)] text-white shadow-sm">
                   <CalendarClock className="h-3 w-3" />
                 </span>
-                Book grooming, vet, and training in minutes
+                Book doorstep grooming in minutes
               </span>
             </li>
             <li className="rounded-xl border border-[#ecd4bf] bg-white/82 px-3 py-1.5 shadow-[0_6px_14px_rgba(147,90,47,0.1)]">

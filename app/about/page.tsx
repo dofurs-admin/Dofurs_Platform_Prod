@@ -4,14 +4,14 @@ import { BadgeCheck, Home, ShieldCheck } from 'lucide-react';
 import { supportContact } from '@/lib/site-data';
 
 export const metadata: Metadata = {
-  title: 'About Dofurs — Trusted Pet Services Platform for Bangalore Pet Parents',
+  title: 'About Dofurs — Trusted Pet Grooming for Bangalore Pet Parents',
   description:
-    'Dofurs is a Bangalore-based pet services marketplace built around verified professionals, transparent pricing, and a safety-first approach. Meet the team behind 100+ trusted pet care experiences.',
+    'Dofurs is a Bangalore-based doorstep pet grooming platform built around verified groomers, transparent pricing, and a safety-first approach. Meet the team behind trusted grooming experiences.',
   alternates: { canonical: '/about' },
   openGraph: {
-    title: 'About Dofurs — Trusted Pet Services Platform for Bangalore',
+    title: 'About Dofurs — Trusted Pet Grooming for Bangalore',
     description:
-      'Verified professionals, transparent pricing, and a safety-first approach to pet care across Bangalore.',
+      'Verified groomers, transparent pricing, and a safety-first approach to doorstep grooming across Bangalore.',
     url: 'https://dofurs.in/about',
     images: ['/logo/og-default.jpg'],
   },
@@ -21,7 +21,7 @@ export default function AboutPage() {
   return (
     <ContentPageLayout
       title="About Dofurs"
-      description="Premium pet care, simplified for modern pet parents. Trusted, transparent, and built with a pet-first mindset."
+      description="Premium doorstep grooming, simplified for modern pet parents. Trusted, transparent, and built with a pet-first mindset."
       heroImageSrc="/Birthday/about%20us_new.png"
       heroImageAlt="About Dofurs"
     >
@@ -32,7 +32,7 @@ export default function AboutPage() {
       <section className="mx-auto mt-3 max-w-4xl rounded-3xl border border-[#f1e6da] bg-[linear-gradient(180deg,_#fffdfb_0%,_#fdf6ef_100%)] px-6 py-7 text-center shadow-soft-sm md:px-10 md:py-9">
         <h2 className="text-2xl font-semibold text-ink">Our Mission</h2>
         <p className="mx-auto mt-3 max-w-3xl text-[#666] md:text-[16px] md:leading-7">
-          We are building India’s most trusted pet care platform where every pet parent can discover verified professionals,
+          We are building Bangalore’s most trusted doorstep pet grooming platform where every pet parent can discover verified groomers,
           book confidently, and receive dependable support.
         </p>
       </section>
@@ -59,18 +59,18 @@ export default function AboutPage() {
         <section className="h-full rounded-3xl border border-[#f1e6da] bg-white/80 p-6 shadow-soft-sm">
           <h2 className="text-2xl font-semibold text-ink">Who We Are</h2>
           <p className="mt-3 text-[15.5px] leading-7 text-ink/80">
-            Dofurs is a Bengaluru-based pet care services platform built on a simple belief: pets deserve better, and so do
-            the people who love them. We are a team of pet lovers, technologists, and care professionals focused on making
-            trusted pet care easier to find and book.
+            Dofurs is a Bengaluru-based doorstep grooming platform built on a simple belief: pets deserve better, and so do
+            the people who love them. We are a team of pet lovers, technologists, and grooming professionals focused on making
+            trusted grooming easier to find and book.
           </p>
         </section>
 
         <section className="h-full rounded-3xl border border-[#f1e6da] bg-white/80 p-6 shadow-soft-sm">
           <h2 className="text-2xl font-semibold text-ink">Our Story</h2>
           <p className="mt-3 text-[15.5px] leading-7 text-ink/80">
-            Dofurs was born from a real pet-parent experience: urgent care needs, long waits, and unreliable options. We
-            started in Bengaluru with a clear mission to build a platform where pet parents can book verified, premium pet
-            care services without chaos or compromise.
+            Dofurs was born from a real pet-parent experience: long waits, inconsistent hygiene, and unreliable options. We
+            started in Bengaluru with a clear mission to build a platform where pet parents can book verified, premium grooming
+            without chaos or compromise.
           </p>
         </section>
 
@@ -78,16 +78,16 @@ export default function AboutPage() {
           <h2 className="text-2xl font-semibold text-ink">What We Do</h2>
           <ul className="mt-3 list-disc space-y-2 pl-6 text-[15px] leading-7 text-ink/80">
             <li>
-              <strong>Grooming:</strong> Professional grooming at trusted studios or at home.
+              <strong>Doorstep grooming:</strong> Professional grooming at home across Bangalore neighbourhoods.
             </li>
             <li>
-              <strong>Veterinary Services:</strong> Access to licensed vets for in-clinic and online consultations.
+              <strong>Transparent packages:</strong> Clear grooming inclusions, starting prices, and add-on options before booking.
             </li>
             <li>
-              <strong>Pet Home Visits:</strong> Groomers and care providers at your doorstep.
+              <strong>Verified groomers:</strong> Grooming partners reviewed for experience, hygiene, handling, and reliability.
             </li>
             <li>
-              <strong>Online Vet Consultations:</strong> Real-time veterinary guidance from home.
+              <strong>Booking support:</strong> Pincode-aware availability, reminders, receipts, and WhatsApp support.
             </li>
           </ul>
         </section>
@@ -99,7 +99,7 @@ export default function AboutPage() {
               <strong>Trust:</strong> Verified professionals and backed bookings.
             </li>
             <li>
-              <strong>Convenience:</strong> One platform for complete pet care journeys.
+              <strong>Convenience:</strong> Grooming that comes home, with less travel and less stress.
             </li>
             <li>
               <strong>Pets Deserve Better:</strong> A pet-first lens behind every decision.
@@ -121,7 +121,7 @@ export default function AboutPage() {
           <h2 className="text-2xl font-semibold text-ink">Where We Are Headed</h2>
           <p className="mt-3 text-[15.5px] leading-7 text-ink/80">
             We launched in Bengaluru and are expanding across neighbourhoods before growing to other Indian cities. Our
-            vision is to become India’s most trusted pet care platform.
+            vision is to become India’s most trusted doorstep pet grooming platform.
           </p>
         </section>
 

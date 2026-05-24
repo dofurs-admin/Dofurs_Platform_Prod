@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/ToastProvider';
 import AsyncState from '@/components/ui/AsyncState';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
@@ -290,6 +290,7 @@ const BOOKING_SUCCESS_EVENT = 'dofurs:booking-confirmation-visibility';
 const BOOKING_FLOW_ACTIVE_KEY = 'dofurs.booking.flow-active';
 const BOOKING_FLOW_ACTIVE_EVENT = 'dofurs:booking-flow-activity';
 const MAX_SERVICE_SELECTIONS = 2;
+const DEFAULT_CUSTOMER_BOOKING_MODE = 'home_visit' as const;
 
 type BookingDraftSnapshot = {
   currentStep: BookingStep;
@@ -315,6 +316,7 @@ type BookingDraftSnapshot = {
 };
 
 export default function PremiumUserBookingFlow() {
+  const router = useRouter();
   const stepContainerRef = useRef<HTMLDivElement | null>(null);
   const hasMountedRef = useRef(false);
   const hasHydratedDraftRef = useRef(false);
@@ -324,12 +326,10 @@ export default function PremiumUserBookingFlow() {
 
   const searchQueryRaw = (searchParams.get('search') ?? '').trim();
   const serviceTypeQueryRaw = (searchParams.get('serviceType') ?? '').trim();
-  const providerNameQueryRaw = (searchParams.get('providerName') ?? '').trim();
   const searchQuery = searchQueryRaw.toLowerCase();
   const serviceTypeQuery = serviceTypeQueryRaw.toLowerCase();
-  const providerNameQuery = providerNameQueryRaw.toLowerCase();
   const modeQuery = searchParams.get('mode');
-  const requestedMode = modeQuery === 'clinic_visit' || modeQuery === 'home_visit' ? modeQuery : null;
+  const requestedMode = modeQuery === DEFAULT_CUSTOMER_BOOKING_MODE ? DEFAULT_CUSTOMER_BOOKING_MODE : null;
   const rescheduleQuery = searchParams.get('reschedule');
   const rescheduleBookingId = useMemo(() => {
     if (!rescheduleQuery) {
@@ -340,8 +340,8 @@ export default function PremiumUserBookingFlow() {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }, [rescheduleQuery]);
   const isRescheduleMode = rescheduleBookingId !== null;
-  const filterTokens = [searchQuery, serviceTypeQuery, providerNameQuery].filter((value) => value.length > 0);
-  const filterTerms = [searchQueryRaw, serviceTypeQueryRaw, providerNameQueryRaw].filter((value) => value.length > 0);
+  const filterTokens = [searchQuery, serviceTypeQuery].filter((value) => value.length > 0);
+  const filterTerms = [searchQueryRaw, serviceTypeQueryRaw].filter((value) => value.length > 0);
 
   // Catalog data
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -365,7 +365,7 @@ export default function PremiumUserBookingFlow() {
   const [bookingDate, setBookingDate] = useState('');
   const [bookingEndDate, setBookingEndDate] = useState('');
   const [slotStartTime, setSlotStartTime] = useState('');
-  const [bookingMode, setBookingMode] = useState<'home_visit' | 'clinic_visit' | 'teleconsult' | null>(null);
+  const [bookingMode, setBookingMode] = useState<'home_visit' | 'clinic_visit' | 'teleconsult' | null>(DEFAULT_CUSTOMER_BOOKING_MODE);
   const [locationAddress, setLocationAddress] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -486,8 +486,8 @@ export default function PremiumUserBookingFlow() {
         setSelectedPetIds([]);
         setPetServiceSelections({});
 
-        // Preserve deep-linked booking mode when supplied from landing page links.
-        setBookingMode(requestedMode ?? null);
+        // Customer-facing booking is currently home visit only.
+        setBookingMode(requestedMode ?? DEFAULT_CUSTOMER_BOOKING_MODE);
 
         const defaultAddress = (payload.addresses ?? []).find((item) => item.is_default) ?? (payload.addresses ?? [])[0];
         if (defaultAddress) {
@@ -577,7 +577,7 @@ export default function PremiumUserBookingFlow() {
 
       // Auto-detect package bookings and set mode
       if (isPackageServiceType(matchingService.service_type)) {
-        setBookingMode('home_visit');
+        setBookingMode(DEFAULT_CUSTOMER_BOOKING_MODE);
       }
     };
 
@@ -1070,7 +1070,7 @@ export default function PremiumUserBookingFlow() {
   // Auto-set booking mode to home_visit for package services (birthday/boarding).
   useEffect(() => {
     if (isPackageBooking && !bookingMode) {
-      setBookingMode('home_visit');
+      setBookingMode(DEFAULT_CUSTOMER_BOOKING_MODE);
     }
   }, [isPackageBooking, bookingMode]);
 
@@ -1959,9 +1959,9 @@ export default function PremiumUserBookingFlow() {
         matchedCreditServiceType: null,
         availableCredits: 0,
         totalCredits: 0,
-        reason: 'Subscription credits are not available for birthday or boarding services.',
+        reason: 'Subscription credits are available for grooming services only.',
       });
-      setSubscriptionCreditUnavailableReason('Subscription credits are not available for birthday or boarding services.');
+      setSubscriptionCreditUnavailableReason('Subscription credits are available for grooming services only.');
       return;
     }
 
@@ -2146,7 +2146,7 @@ export default function PremiumUserBookingFlow() {
       }
 
       if (parsedDraft.bookingMode === 'home_visit' || parsedDraft.bookingMode === 'clinic_visit' || parsedDraft.bookingMode === 'teleconsult') {
-        setBookingMode(parsedDraft.bookingMode);
+        setBookingMode(DEFAULT_CUSTOMER_BOOKING_MODE);
       }
 
       if (typeof parsedDraft.bookingDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(parsedDraft.bookingDate)) {
@@ -2189,7 +2189,7 @@ export default function PremiumUserBookingFlow() {
       }
 
       if (typeof parsedDraft.selectedAutoProvider === 'boolean') {
-        setSelectedAutoProvider(parsedDraft.selectedAutoProvider);
+        setSelectedAutoProvider(true);
       }
 
       if (typeof parsedDraft.providerId === 'number' && Number.isFinite(parsedDraft.providerId) && parsedDraft.providerId > 0) {
@@ -2297,8 +2297,8 @@ export default function PremiumUserBookingFlow() {
             quantity: 1,
           }],
         });
-        setBookingMode(resolvedMode);
-        setSelectedAutoProvider(false);
+        setBookingMode(resolvedMode === DEFAULT_CUSTOMER_BOOKING_MODE ? resolvedMode : DEFAULT_CUSTOMER_BOOKING_MODE);
+        setSelectedAutoProvider(true);
         setProviderId(sourceBooking.provider_id);
         setServiceId(resolvedService.id);
         setBookingDate('');
@@ -2501,7 +2501,7 @@ export default function PremiumUserBookingFlow() {
 
   const handlePetServiceChange = useCallback((selectedPetId: number, selectedServiceType: string) => {
     if (isServiceSelectionBlocked(selectedPetId, selectedServiceType)) {
-      showToast('Pet Birthday Package and Pet Boarding must be booked individually. Remove other selected services to continue.', 'error');
+      showToast('Dofurs currently accepts grooming bookings only. Remove unavailable services to continue.', 'error');
       return;
     }
 
@@ -2580,7 +2580,7 @@ export default function PremiumUserBookingFlow() {
   const handleApplyServiceToAll = useCallback(
     (serviceType: string) => {
       if (selectedPetIds.some((selectedPetId) => isServiceSelectionBlocked(selectedPetId, serviceType))) {
-        showToast('Pet Birthday Package and Pet Boarding must be booked individually. Remove other selected services to continue.', 'error');
+        showToast('Dofurs currently accepts grooming bookings only. Remove unavailable services to continue.', 'error');
         return;
       }
 
@@ -2641,13 +2641,7 @@ export default function PremiumUserBookingFlow() {
         return;
       }
       if (!bookingMode) {
-        if (isPackageBooking) {
-          // Auto-set for package services
-          setBookingMode('home_visit');
-        } else {
-          showToast('Please select a service mode (home visit or clinic visit)', 'error');
-          return;
-        }
+        setBookingMode(DEFAULT_CUSTOMER_BOOKING_MODE);
       }
       const hasIncompleteSelection = selectedPetIds.some((selectedPetId) => {
         const selections = petServiceSelections[selectedPetId] ?? [];
@@ -2658,7 +2652,7 @@ export default function PremiumUserBookingFlow() {
         return;
       }
       if (hasMixedExclusivePackageSelection) {
-        showToast('Pet Birthday Package and Pet Boarding must be booked individually. Remove mixed services to continue.', 'error');
+        showToast('Dofurs currently accepts grooming bookings only. Remove unavailable services to continue.', 'error');
         return;
       }
       if (!isPackageBooking && !/^[1-9]\d{5}$/.test(availabilityPincode)) {
@@ -2719,7 +2713,7 @@ export default function PremiumUserBookingFlow() {
       // Provider validation (skip for package services — auto-selected)
       if (!isPackageBooking) {
         if (!providerId || !serviceId) {
-          showToast(`Please select a ${bookingMode === 'clinic_visit' ? 'clinic' : 'provider'} for the selected slot`, 'error');
+          showToast('No professional is available for the selected slot. Please choose another time.', 'error');
           return;
         }
       }
@@ -2738,7 +2732,7 @@ export default function PremiumUserBookingFlow() {
 
       const hasUnsupportedType = Array.from(selectedServiceTypes).some((type) => !providerSupportedTypes.has(type));
       if (hasUnsupportedType) {
-        showToast('Selected provider does not support every service in your bundle', 'error');
+        showToast('No available professional supports every service in your bundle.', 'error');
         return;
       }
     }
@@ -2776,11 +2770,6 @@ export default function PremiumUserBookingFlow() {
   const handleChangePet = useCallback(() => {
     setWalletCreditsToApply(0);
     setCurrentStep('pet-service');
-  }, []);
-
-  const handleChangeProvider = useCallback(() => {
-    setWalletCreditsToApply(0);
-    setCurrentStep('datetime');
   }, []);
 
   const handleChangeAddress = useCallback(() => {
@@ -2833,7 +2822,7 @@ export default function PremiumUserBookingFlow() {
 
     if (isBundleSelection) {
       if (!resolvedProviderId) {
-        showToast('Select a provider before applying discount', 'error');
+        showToast('Choose a date and time before applying discount', 'error');
         return false;
       }
 
@@ -2942,6 +2931,15 @@ export default function PremiumUserBookingFlow() {
     });
   };
 
+  const navigateToBookingConfirmation = useCallback((bookingId: number | null | undefined) => {
+    if (!bookingId || bookingId <= 0) {
+      return;
+    }
+
+    const conversionQuery = isRescheduleMode ? '' : '?conversion=booking';
+    router.replace(`/forms/customer-booking/confirmation/${bookingId}${conversionQuery}`);
+  }, [isRescheduleMode, router]);
+
   const addMinutesToTime = (time: string, minutesToAdd: number) => {
     const [hours, minutes] = time.split(':').map((value) => Number(value));
     const base = new Date();
@@ -3010,15 +3008,12 @@ export default function PremiumUserBookingFlow() {
     }
 
     if (!bookingMode) {
-      if (isPackageBooking) {
-        setBookingMode('home_visit');
-      } else {
-        showToast('Please select a booking mode', 'error');
-        return;
-      }
+      setBookingMode(DEFAULT_CUSTOMER_BOOKING_MODE);
     }
 
-    if (!isPackageBooking && bookingMode === 'home_visit' && (!locationAddress.trim() || !latitude || !longitude)) {
+    const selectedBookingMode = bookingMode ?? DEFAULT_CUSTOMER_BOOKING_MODE;
+
+    if (!isPackageBooking && selectedBookingMode === 'home_visit' && (!locationAddress.trim() || !latitude || !longitude)) {
       showToast('For home visit, add your address and use location detection.', 'error');
       return;
     }
@@ -3031,7 +3026,6 @@ export default function PremiumUserBookingFlow() {
     setFlowState('submitting');
     setIsPending(true);
 
-    const selectedBookingMode = bookingMode ?? 'home_visit';
     const resolvedProviderId =
       providerId ??
       availability.providers.find((provider) => provider.recommended && provider.availableForSelectedSlot)?.providerId ??
@@ -3042,7 +3036,7 @@ export default function PremiumUserBookingFlow() {
     if (!resolvedProviderId) {
       setFlowState('error');
       setIsPending(false);
-      showToast('No provider available for selected services. Please try again later.', 'error');
+      showToast('No professional is available for selected services. Please try again later.', 'error');
       return;
     }
 
@@ -3374,6 +3368,7 @@ export default function PremiumUserBookingFlow() {
                     : `Payment verified and ${scheduledBundleEntries.length} bundled services scheduled`,
                   'success',
                 );
+                navigateToBookingConfirmation(verification.booking?.id);
               } catch (verifyError) {
                 const message =
                   verifyError instanceof Error
@@ -3465,6 +3460,7 @@ export default function PremiumUserBookingFlow() {
             : 'Bundled services scheduled successfully in a single booking',
           'success',
         );
+        navigateToBookingConfirmation(created.booking.id);
         setIsPending(false);
         return;
       } catch (error) {
@@ -3549,6 +3545,7 @@ export default function PremiumUserBookingFlow() {
 
         setFlowState('success');
         showToast(isRescheduleMode ? 'Booking rescheduled successfully' : 'Booking created successfully', 'success');
+        navigateToBookingConfirmation(created.booking.id);
         setIsPending(false);
         return;
       }
@@ -3588,6 +3585,7 @@ export default function PremiumUserBookingFlow() {
             : 'Booking created. Please pay in cash after service.',
           'success',
         );
+        navigateToBookingConfirmation(created.booking.id);
         setIsPending(false);
         return;
       }
@@ -3668,6 +3666,7 @@ export default function PremiumUserBookingFlow() {
               isRescheduleMode ? 'Payment verified and booking rescheduled' : 'Payment verified and booking scheduled',
               'success',
             );
+            navigateToBookingConfirmation(verification.booking?.id);
           } catch (verifyError) {
             const message =
               verifyError instanceof Error
@@ -3740,7 +3739,7 @@ export default function PremiumUserBookingFlow() {
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900">
               <p className="font-semibold">Set your pincode to continue</p>
               <p className="mt-1 text-amber-800">
-                Select a valid 6-digit Bangalore pincode from the location icon in the header to unlock provider availability and scheduling.
+                Select a valid 6-digit Bangalore pincode from the location icon in the header to unlock service availability and scheduling.
               </p>
             </div>
           ) : null}
@@ -3763,22 +3762,13 @@ export default function PremiumUserBookingFlow() {
               petServiceSelections={petServiceSelections}
               totalSelectedServices={totalSelectedServices}
               searchResultSummary={searchResultSummary}
-              bookingMode={bookingMode}
               isPackageBooking={isPackageBooking}
-              serviceSelectionRuleNote="You can add up to 2 total services per booking in any combination. Pet Birthday Package and Pet Boarding must be booked separately and cannot be combined with any other service in the same booking."
-              addOnSelectionNote="Add-ons are optional and can be selected after choosing your service. Final add-on availability is confirmed for your selected provider."
+              serviceSelectionRuleNote="You can add up to 2 total services per booking in any combination."
+              addOnSelectionNote="Add-ons are optional and can be selected after choosing your service. Final add-on availability is confirmed for your booking."
               isServiceSelectionBlocked={isServiceSelectionBlocked}
               isPincodeValid={isPackageBooking || /^[1-9]\d{5}$/.test(availabilityPincode)}
               serviceAddOns={serviceAddOns}
               selectedAddOns={selectedAddOns}
-              onBookingModeChange={(mode) => {
-                setBookingMode(mode);
-                setSelectedAutoProvider(true);
-                setBookingDate('');
-                setSlotStartTime('');
-                setProviderId(null);
-                setServiceId(null);
-              }}
               onPetServiceChange={handlePetServiceChange}
               onPetQuantityChange={handlePetQuantityChange}
               onApplyServiceToAll={handleApplyServiceToAll}
@@ -3790,13 +3780,11 @@ export default function PremiumUserBookingFlow() {
           {currentStep === 'datetime' && (
             <DateTimeSlotStep
               slotOptions={availability.slotOptions}
-              providers={availability.providers}
               selectedProviderId={providerId}
               selectedProviderServiceId={serviceId}
-              selectedAutoProvider={selectedAutoProvider}
               selectedDate={bookingDate}
               selectedSlot={slotStartTime}
-              bookingMode={bookingMode ?? 'home_visit'}
+              bookingMode={bookingMode ?? DEFAULT_CUSTOMER_BOOKING_MODE}
               locationAddress={locationAddress}
               latitude={latitude}
               longitude={longitude}
@@ -3827,22 +3815,6 @@ export default function PremiumUserBookingFlow() {
               selectedAddressCoverageError={selectedAddressCoverageError}
               onDateChange={setBookingDate}
               onSlotChange={setSlotStartTime}
-              onProviderSelect={(providerServiceId, nextProviderId) => {
-                setServiceId(providerServiceId);
-                setProviderId(nextProviderId);
-              }}
-              onAutoProviderSelect={(auto) => {
-                setSelectedAutoProvider(auto);
-
-                if (auto) {
-                  const autoProvider = availability.providers.find((provider) => provider.recommended && provider.availableForSelectedSlot)
-                    ?? availability.providers.find((provider) => provider.availableForSelectedSlot)
-                    ?? null;
-
-                  setProviderId(autoProvider?.providerId ?? null);
-                  setServiceId(autoProvider?.providerServiceId ?? null);
-                }
-              }}
               onLocationChange={setLocationAddress}
               onLatitudeChange={setLatitude}
               onLongitudeChange={setLongitude}
@@ -3881,10 +3853,9 @@ export default function PremiumUserBookingFlow() {
                 name: pet.name,
                 breed: pet.breed,
               }))}
-              selectedProvider={providers.find((p) => p.id === providerId)}
               bookingDate={bookingDate}
               slotStartTime={slotStartTime || (isPackageBooking ? '09:00' : '')}
-              bookingMode={bookingMode ?? 'home_visit'}
+              bookingMode={bookingMode ?? DEFAULT_CUSTOMER_BOOKING_MODE}
               locationAddress={locationAddress}
               providerNotes={providerNotes}
               priceCalculation={priceCalculation}
@@ -3926,7 +3897,6 @@ export default function PremiumUserBookingFlow() {
               onPrev={handlePreviousStep}
               onChangeSelectedService={handleChangeSelectedService}
               onChangePet={handleChangePet}
-              onChangeProvider={handleChangeProvider}
               onChangeAddress={handleChangeAddress}
               onChangeDateTime={handleChangeDateTime}
               onConfirm={submitBooking}
@@ -3979,6 +3949,7 @@ export default function PremiumUserBookingFlow() {
                     });
                     setFlowState('success');
                     showToast('Payment verified and booking confirmed.', 'success');
+                    navigateToBookingConfirmation(verification.booking?.id);
                   } catch (retryError) {
                     const msg = retryError instanceof Error ? retryError.message : 'Verification still failing. Please contact support.';
                     showToast(msg, 'error');

@@ -13,5 +13,6 @@ describe('isServiceTypeMatch', () => {
 
   it('does not match unrelated services', () => {
     expect(isServiceTypeMatch('grooming', 'vet_consultation')).toBe(false);
+    expect(isServiceTypeMatch('training', 'TRAINING')).toBe(false);
   });
 });

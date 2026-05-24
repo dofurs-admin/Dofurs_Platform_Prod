@@ -30,7 +30,7 @@ export default async function CustomerBookingFormPage({ searchParams }: Customer
   const rescheduleId = Number.parseInt(rescheduleIdRaw ?? '', 10);
   const isRescheduleMode = Number.isInteger(rescheduleId) && rescheduleId > 0;
 
-  const pageTitle = isRescheduleMode ? 'Reschedule Your Booking' : 'Book Premium Pet Care in Minutes';
+  const pageTitle = isRescheduleMode ? 'Reschedule Your Grooming Booking' : 'Book Doorstep Grooming in Minutes';
   const pageDescription = isRescheduleMode
     ? 'Pick a new date and time slot to update your existing booking.'
     : 'Certified groomers. Doorstep service. 100% hygiene-first protocols.';
@@ -40,7 +40,7 @@ export default async function CustomerBookingFormPage({ searchParams }: Customer
       title={pageTitle}
       description={pageDescription}
       heroImageSrc="/Birthday/book-a-service.png"
-      heroImageAlt="Book pet care with Dofurs"
+      heroImageAlt="Book doorstep pet grooming with Dofurs"
       heroImageFirstOnMobile
       hideHero
     >

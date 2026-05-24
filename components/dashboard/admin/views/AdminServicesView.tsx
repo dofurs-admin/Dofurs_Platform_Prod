@@ -57,7 +57,7 @@ export default function AdminServicesView({
         subtitle="Build canonical service templates, then roll them out in the Providers view"
         steps={[
           { title: 'Switch Panels', description: 'Use "Service Types" for categories, "Services" for catalog templates, and "Add-ons" for reusable extras.' },
-          { title: 'Service Types', description: 'Create and edit top-level categories such as Grooming, Vet Visit, and Training.' },
+          { title: 'Service Types', description: 'Create and edit grooming categories, packages, and package families.' },
           { title: 'Catalog Services', description: 'Create service templates with default price, duration, media, and requirements.' },
           { title: 'Add-ons', description: 'Create add-on templates, then attach them to services from the Add-ons panel.' },
           { title: 'Provider Rollout', description: 'Assign templates and serviceable pincodes from the Providers tab only.' },

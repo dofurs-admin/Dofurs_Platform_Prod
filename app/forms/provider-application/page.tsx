@@ -21,8 +21,8 @@ export default function ProviderApplicationFormPage() {
 
   return (
     <ContentPageLayout
-      title="Scale Your Pet Care Brand With Dofurs"
-      description="A premium partner network for independent professionals, clinics, and grooming centers ready to grow with curated demand and modern operations."
+      title="Scale Your Grooming Business With Dofurs"
+      description="A premium partner network for independent groomers, mobile grooming teams, and grooming centers ready to grow with curated demand and modern operations."
       heroImageSrc="/Birthday/partners-with-dofurs.png"
       heroImageAlt="Partner with Dofurs"
     >
@@ -36,10 +36,10 @@ export default function ProviderApplicationFormPage() {
             Dofurs Partner Network
           </p>
           <h2 className="max-w-3xl text-3xl font-semibold leading-tight text-ink md:text-4xl">
-            Independent Professional or Pet Care Business — Grow With Dofurs
+            Independent Groomer or Grooming Business — Grow With Dofurs
           </h2>
           <p className="max-w-2xl text-sm text-[#5f5f5f] md:text-base">
-            Whether you&apos;re a freelance groomer, vet, or trainer — or run a clinic, salon, or boarding center — we equip you with visibility, booking momentum, and long-term brand trust.
+            Whether you&apos;re a freelance groomer, mobile grooming team, or grooming studio, we equip you with visibility, booking momentum, and long-term brand trust.
           </p>
           <button
             type="button"
@@ -56,12 +56,12 @@ export default function ProviderApplicationFormPage() {
         <div className="group rounded-2xl border border-[#ecd5c2] bg-gradient-to-b from-white to-[#fff9f2] p-6 shadow-premium transition-all duration-200 hover:-translate-y-1 hover:shadow-premium-lg">
           <UserRound className="h-7 w-7 text-neutral-900 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />
           <h3 className="mt-3 text-lg font-semibold text-neutral-950">For Independents</h3>
-          <p className="mt-2 text-sm text-[#626262]">Freelance groomers, vets, trainers, and sitters get a steady stream of verified pet parent requests.</p>
+          <p className="mt-2 text-sm text-[#626262]">Freelance groomers get a steady stream of verified pet parent requests for doorstep grooming.</p>
         </div>
         <div className="group rounded-2xl border border-[#ecd5c2] bg-gradient-to-b from-white to-[#fff9f2] p-6 shadow-premium transition-all duration-200 hover:-translate-y-1 hover:shadow-premium-lg">
           <Building2 className="h-7 w-7 text-neutral-900 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />
-          <h3 className="mt-3 text-lg font-semibold text-neutral-950">For Clinics & Centers</h3>
-          <p className="mt-2 text-sm text-[#626262]">List your clinic, grooming salon, or boarding center — manage staff, services, and bookings from one dashboard.</p>
+          <h3 className="mt-3 text-lg font-semibold text-neutral-950">For Grooming Centers</h3>
+          <p className="mt-2 text-sm text-[#626262]">List your grooming salon or mobile team, manage staff, packages, and bookings from one dashboard.</p>
         </div>
         <div className="group rounded-2xl border border-[#ecd5c2] bg-gradient-to-b from-white to-[#fff9f2] p-6 shadow-premium transition-all duration-200 hover:-translate-y-1 hover:shadow-premium-lg">
           <ShieldCheck className="h-7 w-7 text-neutral-900 transition-transform duration-300 group-hover:scale-105" aria-hidden="true" />

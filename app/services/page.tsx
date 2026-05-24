@@ -1,115 +1,56 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Bath, CheckCircle2, MapPin, ShieldCheck, Sparkles } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { GROOMING_PACKAGES } from '@/lib/service-catalog/grooming-packages';
+import { links } from '@/lib/site-data';
+
+const SITE_URL = 'https://dofurs.in';
+const GROOMING_URL = `${SITE_URL}/services/grooming/bangalore`;
 
 export const metadata: Metadata = {
-  title: 'Pet Services in Bangalore — Grooming, Boarding, Vet, Sitting & More | Dofurs',
+  title: 'Doorstep Pet Grooming Services in Bangalore',
   description:
-    'Explore premium pet services in Bangalore: professional doorstep grooming from ₹899, Fur Makeover trims from ₹1,199, pet boarding from ₹999/night, birthday packages from ₹1,999, vet home visits, in-home sitting, and positive-reinforcement training from verified specialists.',
+    'Explore Dofurs grooming packages in Bangalore: Monthly Care, Fur Bath Care, Fur Makeover, Essential Grooming, and Complete Care from verified doorstep groomers.',
   alternates: { canonical: '/services' },
   openGraph: {
-    title: 'Pet Services in Bangalore | Dofurs',
+    title: 'Doorstep Pet Grooming Services in Bangalore | Dofurs',
     description:
-      'Professional grooming, boarding, birthday packages, vet visits, sitting and training from verified pet care specialists across Bangalore.',
-    url: 'https://dofurs.in/services',
+      'Compare grooming packages, transparent prices, package inclusions, and doorstep grooming support across Bangalore.',
+    url: `${SITE_URL}/services`,
     images: ['/logo/og-default.jpg'],
   },
   keywords: [
-    'pet services Bangalore',
-    'pet grooming Bangalore',
-    'pet boarding Bangalore',
-    'pet birthday party Bangalore',
-    'vet home visit Bangalore',
-    'dog training Bangalore',
-    'pet sitting Bangalore',
+    'pet grooming services Bangalore',
+    'dog grooming at home Bangalore',
+    'cat grooming Bangalore',
+    'doorstep pet grooming Bangalore',
+    'Dofurs grooming packages',
   ],
 };
 
-const SERVICE_CATEGORIES = [
-  {
-    slug: 'grooming',
-    label: 'Pet Grooming',
-    description:
-      'Professional doorstep baths, Fur Makeover trims, haircuts, nail trimming, and full grooming sessions. Verified groomers, safe products, at-home convenience.',
-    icon: '✂️',
-    color: 'border-orange-200 bg-orange-50/60',
-    iconBg: 'bg-orange-100',
-    isActive: true,
-    priceFrom: '₹899',
-  },
-  {
-    slug: 'pet-birthday',
-    label: 'Pet Birthday',
-    description:
-      'Celebrate your pet\'s special day with custom party setups, pet-safe treats, festive decor, and photoshoots. Unforgettable memories made easy.',
-    icon: '🎂',
-    color: 'border-pink-200 bg-pink-50/60',
-    iconBg: 'bg-pink-100',
-    isActive: true,
-    priceFrom: '₹1,999',
-  },
-  {
-    slug: 'pet-boarding',
-    label: 'Pet Boarding',
-    description:
-      'Safe, comfortable overnight stays with vetted caregivers. Your pet gets a stress-free home away from home while you travel.',
-    icon: '🏡',
-    color: 'border-teal-200 bg-teal-50/60',
-    iconBg: 'bg-teal-100',
-    isActive: true,
-    priceFrom: '₹999',
-  },
-  {
-    slug: 'vet-visits',
-    label: 'Vet Visits',
-    description:
-      'Trusted vets for wellness checkups, vaccinations, preventive care, and health consultations — at home or at partner clinics.',
-    icon: '🩺',
-    color: 'border-blue-200 bg-blue-50/60',
-    iconBg: 'bg-blue-100',
-    isActive: false,
-    priceFrom: null,
-  },
-  {
-    slug: 'pet-sitting',
-    label: 'Pet Sitting',
-    description:
-      'Reliable sitters who provide personalized in-home care for your pet while you travel or work. Trusted, background-verified.',
-    icon: '🐾',
-    color: 'border-emerald-200 bg-emerald-50/60',
-    iconBg: 'bg-emerald-100',
-    isActive: false,
-    priceFrom: null,
-  },
-  {
-    slug: 'training',
-    label: 'Dog Training',
-    description:
-      'Positive reinforcement training to improve behavior, build confidence, and strengthen the bond between you and your dog.',
-    icon: '🎓',
-    color: 'border-amber-200 bg-amber-50/60',
-    iconBg: 'bg-amber-100',
-    isActive: false,
-    priceFrom: null,
-  },
-];
+function formatPriceInr(price: string | number): string {
+  if (typeof price === 'number') {
+    return `₹${price.toLocaleString('en-IN')}`;
+  }
 
-const SITE_URL = 'https://dofurs.in';
+  const normalized = price.trim();
+  return normalized.startsWith('₹') ? normalized : `₹${normalized}`;
+}
 
 const servicesItemListSchema = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
   '@id': `${SITE_URL}/services#list`,
-  name: 'Pet Services in Bangalore',
-  description:
-    'Premium pet services in Bangalore: grooming, birthday, boarding, sitting, vet visits and training — from verified specialists.',
+  name: 'Dofurs Grooming Packages in Bangalore',
+  description: 'Doorstep pet grooming packages in Bangalore from verified Dofurs groomers.',
   url: `${SITE_URL}/services`,
-  itemListElement: SERVICE_CATEGORIES.map((service, index) => ({
+  itemListElement: GROOMING_PACKAGES.map((pkg, index) => ({
     '@type': 'ListItem',
     position: index + 1,
-    url: `${SITE_URL}/services/${service.slug}`,
-    name: service.label,
+    url: GROOMING_URL,
+    name: pkg.title,
   })),
 };
 
@@ -118,11 +59,13 @@ const servicesBreadcrumbSchema = {
   '@type': 'BreadcrumbList',
   itemListElement: [
     { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
-    { '@type': 'ListItem', position: 2, name: 'Services', item: `${SITE_URL}/services` },
+    { '@type': 'ListItem', position: 2, name: 'Grooming Services', item: `${SITE_URL}/services` },
   ],
 };
 
 export default function ServicesPage() {
+  const bookingHref = `${links.booking}?serviceType=grooming&mode=home_visit#start-your-booking`;
+
   return (
     <>
       <script
@@ -134,111 +77,121 @@ export default function ServicesPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(servicesBreadcrumbSchema) }}
       />
       <Navbar />
-      <main className="dofurs-mobile-main min-h-screen bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_40%,#fffcf9_100%)] pt-20">
+      <main className="dofurs-mobile-main min-h-screen bg-[linear-gradient(180deg,#fffcf8_0%,#fffaf6_42%,#fffcf9_100%)] pt-20">
         <div className="mx-auto w-full max-w-[1200px] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-          {/* Page header */}
-          <div className="space-y-3 text-center">
-            <p className="text-xs font-semibold uppercase tracking-widest text-coral">Dofurs Services</p>
-            <h1 className="text-3xl font-bold text-neutral-950 sm:text-4xl">
-              Premium Pet Care for Every Need
-            </h1>
-            <p className="mx-auto max-w-xl text-base text-neutral-600">
-              From everyday grooming to birthday celebrations — browse our full range of verified pet services across Bangalore.
-            </p>
-          </div>
-
-          {/* Active services */}
-          <div className="mt-6">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[#e7c4a7]" />
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
-                Currently Available
-              </span>
-              <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[#e7c4a7]" />
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {SERVICE_CATEGORIES.filter((c) => c.isActive).map((cat) => (
+          <section className="grid gap-8 lg:grid-cols-[1fr_0.82fr] lg:items-center">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-coral">Dofurs Grooming</p>
+              <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-[-0.01em] text-neutral-950 sm:text-5xl">
+                Doorstep Pet Grooming Services in Bangalore
+              </h1>
+              <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-600">
+                Dofurs now focuses on grooming only: verified groomers, transparent package pricing, pet-safe products,
+                and home appointments built for Bangalore apartments and neighbourhoods.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Link
-                  key={cat.slug}
-                  href={`/services/${cat.slug}`}
-                  className={`group flex flex-col gap-4 rounded-3xl border p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${cat.color}`}
+                  href={bookingHref}
+                  className="inline-flex h-11 items-center justify-center rounded-full bg-[linear-gradient(135deg,#e49a57,#cf8347)] px-6 text-sm font-semibold text-white shadow-sm transition hover:opacity-90"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-2xl ${cat.iconBg}`}>
-                      {cat.icon}
-                    </div>
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
-                      Available
+                  Book Now
+                </Link>
+                <Link
+                  href="/services/grooming/bangalore#packages"
+                  className="inline-flex h-11 items-center justify-center rounded-full border border-[#e2c2a4] bg-white px-6 text-sm font-semibold text-[#6e4123] transition hover:border-coral/50 hover:text-coral"
+                >
+                  View Packages
+                </Link>
+              </div>
+            </div>
+
+            <div className="grid gap-3 rounded-3xl border border-[#ead5c0] bg-white/82 p-5 shadow-premium">
+              {[
+                { icon: Bath, title: 'Full grooming packages', body: 'Bath, haircut, de-shedding, nail care, ear cleaning, hygiene trims and paw care.' },
+                { icon: ShieldCheck, title: 'Verified groomers', body: 'Identity-checked professionals with hygiene-first handling standards.' },
+                { icon: MapPin, title: 'Bangalore coverage', body: 'Serving key neighbourhoods with pincode-aware availability.' },
+                { icon: Sparkles, title: 'Transparent pricing', body: 'Package inclusions and prices are visible before booking.' },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.title} className="flex gap-3 rounded-2xl border border-[#f0e4d7] bg-[#fffaf6] p-4">
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-coral">
+                      <Icon className="h-4 w-4" aria-hidden="true" />
                     </span>
+                    <div>
+                      <p className="text-sm font-bold text-neutral-950">{item.title}</p>
+                      <p className="mt-1 text-[13px] leading-5 text-neutral-600">{item.body}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900 group-hover:text-coral">{cat.label}</h2>
-                    <p className="mt-1 text-sm text-neutral-600">{cat.description}</p>
-                  </div>
-                  <div className="mt-auto flex items-center justify-between">
-                    {cat.priceFrom && (
-                      <span className="text-sm font-semibold text-neutral-700">
-                        From {cat.priceFrom}
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="mt-12">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-widest text-coral">Packages & pricing</p>
+                <h2 className="mt-2 text-3xl font-bold text-neutral-950">Choose the grooming session your pet needs</h2>
+              </div>
+              <Link href="/services/grooming/bangalore" className="text-sm font-semibold text-coral underline-offset-4 hover:underline">
+                Open full grooming page
+              </Link>
+            </div>
+
+            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {GROOMING_PACKAGES.map((pkg) => (
+                <article
+                  key={pkg.title}
+                  className="flex min-h-[360px] flex-col rounded-3xl border border-[#f0e0d1] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-coral/30 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+                        Available
                       </span>
-                    )}
-                    <span className="ml-auto text-sm font-semibold text-coral group-hover:translate-x-0.5 transition-transform">
-                      Explore →
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Coming soon services */}
-          <div className="mt-10">
-            <div className="mb-4 flex items-center gap-2">
-              <span className="h-px flex-1 bg-gradient-to-r from-transparent to-[#e7c4a7]" />
-              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-amber-700">
-                Coming Soon
-              </span>
-              <span className="h-px flex-1 bg-gradient-to-l from-transparent to-[#e7c4a7]" />
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {SERVICE_CATEGORIES.filter((c) => !c.isActive).map((cat) => (
-                <Link
-                  key={cat.slug}
-                  href={`/services/${cat.slug}`}
-                  className={`group flex flex-col gap-4 rounded-3xl border p-6 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md ${cat.color} opacity-85`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-2xl text-2xl ${cat.iconBg}`}>
-                      {cat.icon}
+                      <h3 className="mt-3 text-lg font-bold text-neutral-950">{pkg.title}</h3>
                     </div>
-                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-700 border border-amber-200">
-                      Coming Soon
-                    </span>
+                    <div className="text-right">
+                      {pkg.mrp ? (
+                        <p className="text-[12px] text-neutral-500 line-through">{formatPriceInr(pkg.mrp)}</p>
+                      ) : null}
+                      <p className="text-2xl font-bold text-neutral-950">{formatPriceInr(pkg.price)}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-neutral-900 group-hover:text-coral">{cat.label}</h2>
-                    <p className="mt-1 text-sm text-neutral-600">{cat.description}</p>
-                  </div>
-                  <span className="mt-auto text-sm font-semibold text-coral">
-                    Learn More →
-                  </span>
-                </Link>
+
+                  <ul className="mt-4 flex-1 space-y-2 border-t border-[#f0e4d7] pt-4">
+                    {pkg.features.slice(0, 6).map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 text-[13px] leading-5 text-neutral-700">
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <Link
+                    href={`${links.booking}?serviceType=${encodeURIComponent(pkg.title)}&mode=home_visit#start-your-booking`}
+                    className="mt-5 inline-flex h-10 items-center justify-center rounded-full border border-[#dfbea0] bg-white px-4 text-[12px] font-semibold text-[#765136] transition hover:border-coral hover:text-coral"
+                  >
+                    Book {pkg.title}
+                  </Link>
+                </article>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Booking CTA */}
-          <div className="mt-14 rounded-3xl border border-brand-200 bg-[linear-gradient(135deg,#fff8f0_0%,#fffcf8_100%)] p-8 text-center shadow-sm">
-            <h2 className="text-xl font-bold text-neutral-900">Ready to book?</h2>
-            <p className="mt-2 text-sm text-neutral-600">
-              Start the booking flow to select your service, time slot, and care specialist in one seamless experience.
+          <section className="mt-14 rounded-3xl border border-brand-200 bg-[linear-gradient(135deg,#fff8f0_0%,#fffcf8_100%)] p-8 text-center shadow-sm">
+            <h2 className="text-xl font-bold text-neutral-900">Ready to book grooming?</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-sm leading-6 text-neutral-600">
+              Start the booking flow to select your grooming package, pet, address, time slot, and payment preference.
             </p>
             <Link
-              href="/forms/customer-booking"
+              href={bookingHref}
               className="mt-5 inline-block rounded-xl bg-[linear-gradient(135deg,#e49a57,#cf8347)] px-6 py-3 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
             >
-              Book a Service
+              Book Now
             </Link>
-          </div>
+          </section>
         </div>
       </main>
       <Footer />

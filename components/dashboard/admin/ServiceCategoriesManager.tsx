@@ -290,7 +290,7 @@ export default function ServiceCategoriesManager({ initialCategories }: ServiceC
             <input
               value={categoryDraft.name}
               onChange={(event) => setCategoryNameWithSlug(event.target.value)}
-              placeholder="e.g., Grooming, Veterinary, Training"
+              placeholder="e.g., Grooming, Bath Care, Full Grooming"
               className="w-full rounded-xl border border-[#e8ccb3] px-3 py-2 text-xs"
             />
             <p className="text-[10px] text-[#6b6b6b]">Display name for this category</p>

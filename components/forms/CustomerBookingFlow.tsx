@@ -133,8 +133,7 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
   const serviceTypeQueryRaw = (searchParams.get('serviceType') ?? '').trim();
   const providerNameQueryRaw = (searchParams.get('providerName') ?? '').trim();
   const modeParam = searchParams.get('mode');
-  const requestedMode =
-    modeParam === 'home_visit' || modeParam === 'clinic_visit' || modeParam === 'teleconsult' ? modeParam : null;
+  const requestedMode = modeParam === 'home_visit' ? modeParam : null;
   const filterTerms = [searchQueryRaw, serviceTypeQueryRaw, providerNameQueryRaw].filter((value) => value.length > 0);
   const filterTokens = [searchQueryRaw, serviceTypeQueryRaw, providerNameQueryRaw]
     .map((value) => value.toLowerCase())
@@ -327,11 +326,11 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
     return providers.filter((provider) => {
       const providerType = (provider.provider_type || provider.type || '').toLowerCase();
       if (bookingMode === 'clinic_visit') {
-        return providerType.includes('clinic') || providerType.includes('center') || providerType.includes('grooming');
+        return providerType.includes('clinic') || providerType.includes('center');
       }
 
       if (bookingMode === 'home_visit') {
-        return !providerType.includes('clinic') && !providerType.includes('center') && !providerType.includes('grooming');
+        return !providerType.includes('clinic') && !providerType.includes('center');
       }
 
       return true;
@@ -1524,9 +1523,7 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
           onChange={(event) => setBookingMode(event.target.value as 'home_visit' | 'clinic_visit' | 'teleconsult')}
           className={controlClassName}
         >
-          <option value="home_visit">Home Visit</option>
-          <option value="clinic_visit">Clinic Visit</option>
-          <option value="teleconsult">Teleconsult</option>
+          <option value="home_visit">Home Grooming</option>
         </select>
 
         <input

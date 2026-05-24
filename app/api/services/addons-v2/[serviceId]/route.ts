@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import { isRateLimited } from '@/lib/api/rate-limit';
 import { toFriendlyApiError } from '@/lib/api/errors';
+import { isPublicBookableService, PUBLIC_BOOKABLE_SERVICE_ERROR } from '@/lib/service-catalog/service-policy';
 
 const paramsSchema = z.object({
   serviceId: z.string().uuid(),
@@ -42,6 +43,10 @@ export async function GET(
 
     if (!selectedService) {
       return NextResponse.json({ success: false, error: 'Service not found.' }, { status: 404 });
+    }
+
+    if (!isPublicBookableService(selectedService)) {
+      return NextResponse.json({ success: false, error: PUBLIC_BOOKABLE_SERVICE_ERROR }, { status: 400 });
     }
 
     const { data: directMappings, error: directMappingsError } = await supabase

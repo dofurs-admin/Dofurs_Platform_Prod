@@ -274,16 +274,15 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         ))}
 
         <div className="mt-3 rounded-3xl border border-[#f2dfcf] bg-[linear-gradient(135deg,_#fdf8f4_0%,_#f6efe9_100%)] p-6 shadow-soft-sm">
-          <h2 className="text-xl font-semibold text-ink">Need help with pet care right now?</h2>
+          <h2 className="text-xl font-semibold text-ink">Need help with grooming right now?</h2>
           <p className="mt-2 text-ink/75">
-            Book a verified pet care service in Bangalore in minutes — grooming, vet visits, boarding, sitting, training, or
-            birthday packages — delivered to your door.
+            Book verified doorstep grooming in Bangalore in minutes, with transparent packages and pet-safe products.
           </p>
           <Link
-            href="/forms/customer-booking#start-your-booking"
+            href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
             className="mt-4 inline-flex rounded-full bg-coral px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#cf8448] hover:shadow-[0_10px_22px_rgba(227,154,93,0.35)]"
           >
-            Book Premium Pet Care
+            Book Now
           </Link>
         </div>
 

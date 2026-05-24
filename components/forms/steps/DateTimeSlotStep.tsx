@@ -15,21 +15,6 @@ type AvailabilitySlot = {
   availableProviderCount: number;
   recommended: boolean;
 };
-type AvailabilityProvider = {
-  providerId: number;
-  providerName: string;
-  providerType: string | null;
-  providerServiceId: string;
-  availableForSelectedSlot: boolean;
-  availableSlotCount: number;
-  recommended: boolean;
-  basePrice: number;
-  serviceDurationMinutes: number;
-  averageRating?: number | null;
-  totalBookings?: number | null;
-  backgroundVerified?: boolean;
-  isVerified?: boolean;
-};
 type SavedAddress = {
   id: string;
   label: 'Home' | 'Office' | 'Other' | null;
@@ -65,10 +50,8 @@ type PetSummary = {
 
 interface DateTimeSlotStepProps {
   slotOptions: AvailabilitySlot[];
-  providers: AvailabilityProvider[];
   selectedProviderId: number | null;
   selectedProviderServiceId: string | null;
-  selectedAutoProvider: boolean;
   selectedDate: string;
   selectedSlot: string;
   bookingMode: 'home_visit' | 'clinic_visit' | 'teleconsult';
@@ -103,8 +86,6 @@ interface DateTimeSlotStepProps {
   selectedAddressCoverageError: string | null;
   onDateChange: (date: string) => void;
   onSlotChange: (slot: string) => void;
-  onProviderSelect: (providerServiceId: string, providerId: number) => void;
-  onAutoProviderSelect: (auto: boolean) => void;
   onLocationChange: (address: string) => void;
   onLatitudeChange: (lat: string) => void;
   onLongitudeChange: (lng: string) => void;
@@ -117,10 +98,8 @@ interface DateTimeSlotStepProps {
 
 export default function DateTimeSlotStep({
   slotOptions,
-  providers,
   selectedProviderId,
   selectedProviderServiceId,
-  selectedAutoProvider,
   selectedDate,
   selectedSlot,
   bookingMode,
@@ -154,8 +133,6 @@ export default function DateTimeSlotStep({
   selectedAddressCoverageError,
   onDateChange,
   onSlotChange,
-  onProviderSelect,
-  onAutoProviderSelect,
   onLocationChange,
   onLatitudeChange,
   onLongitudeChange,
@@ -192,35 +169,6 @@ export default function DateTimeSlotStep({
     [allAddresses, selectedSavedAddressId],
   );
 
-  const availableProvidersForSlot = useMemo(
-    () => providers.filter((provider) => provider.availableForSelectedSlot),
-    [providers],
-  );
-
-  const providersForDisplay = useMemo(() => {
-    const source = isBoardingBooking ? providers : availableProvidersForSlot;
-
-    return [...source].sort((a, b) => {
-      if (a.recommended !== b.recommended) {
-        return a.recommended ? -1 : 1;
-      }
-
-      const aRating = typeof a.averageRating === 'number' ? a.averageRating : 0;
-      const bRating = typeof b.averageRating === 'number' ? b.averageRating : 0;
-      if (aRating !== bRating) {
-        return bRating - aRating;
-      }
-
-      const aVerified = a.isVerified ? 1 : 0;
-      const bVerified = b.isVerified ? 1 : 0;
-      if (aVerified !== bVerified) {
-        return bVerified - aVerified;
-      }
-
-      return a.basePrice - b.basePrice;
-    });
-  }, [availableProvidersForSlot, isBoardingBooking, providers]);
-
   const canProceed = isPackageBooking
     ? selectedDate && (!isBoardingBooking || bookingEndDate) && providerSupportsSelectedServices
     : selectedDate &&
@@ -251,7 +199,9 @@ export default function DateTimeSlotStep({
     }
 
     if (!isPackageBooking && (!selectedProviderId || !selectedProviderServiceId)) {
-      return 'Select a provider to continue.';
+      return selectedSlot
+        ? 'That time is no longer available. Choose another time.'
+        : 'Select a time slot to continue.';
     }
 
     if (!isPackageBooking && bookingMode === 'home_visit' && (!locationAddress.trim() || !latitude || !longitude)) {
@@ -259,7 +209,7 @@ export default function DateTimeSlotStep({
     }
 
     if (!providerSupportsSelectedServices) {
-      return 'Select a provider that supports all selected services.';
+      return 'No available professional supports all selected services for this slot.';
     }
 
     return 'Complete this step to continue.';
@@ -1118,7 +1068,7 @@ export default function DateTimeSlotStep({
           <label className="mb-2 block text-[13px] font-semibold text-neutral-950 sm:mb-3 sm:text-sm">Available Times</label>
 
           <div className="space-y-2">
-            <p className="text-xs font-medium text-neutral-600">Suggested slots (based on provider availability)</p>
+            <p className="text-xs font-medium text-neutral-600">Choose the time that works best for you.</p>
             <div className="flex flex-wrap gap-1.5 sm:gap-2">
               {slotOptions.length === 0 ? (
                 <p className="text-sm text-neutral-500">No slots available for this date</p>
@@ -1134,7 +1084,7 @@ export default function DateTimeSlotStep({
                     }`}
                   >
                     <span className="block font-semibold">{formatSlotLabel(slot.startTime, slot.endTime)}</span>
-                    <span className="text-[10px] text-neutral-500">{slot.availableProviderCount} providers available</span>
+                    <span className="text-[10px] text-neutral-500">Available</span>
                     {slot.recommended ? <span className="text-[10px] font-semibold text-coral">Recommended</span> : null}
                   </button>
                 ))
@@ -1144,79 +1094,10 @@ export default function DateTimeSlotStep({
         </div>
       )}
 
-      {/* Provider selection — shown for regular bookings and boarding (hidden for birthday packages) */}
-      {(!isPackageBooking || isBoardingBooking) && selectedDate ? (
-        <div>
-          <label className="mb-2 block text-[13px] font-semibold text-neutral-950 sm:mb-3 sm:text-sm">
-            Select {bookingMode === 'clinic_visit' ? 'Clinic or Center' : 'Provider'}
-          </label>
-
-          {providersForDisplay.length > 0 ? (
-            <div className="mb-2 rounded-xl border border-[#ecd8c5] bg-[#fff9f3] px-3 py-2 text-[11px] text-[#754f33] sm:text-xs">
-              <span className="font-semibold">Sorted for quick decision:</span>{' '}
-              recommended first, then rating and trust indicators.
-            </div>
-          ) : null}
-
-          {!isBoardingBooking && !selectedSlot ? (
-            <div className="rounded-2xl border border-dashed border-[#ddc9b6] bg-white p-4 text-center">
-              <p className="text-sm text-neutral-500">Select a time slot first to see available providers.</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid gap-1.5 sm:gap-2 sm:grid-cols-2">
-                <button
-                  onClick={() => onAutoProviderSelect(true)}
-                  className={`premium-lift relative rounded-lg sm:rounded-xl border p-2.5 sm:p-3 text-left transition-all ${
-                    selectedAutoProvider
-                      ? 'border-[#d99a66] bg-[linear-gradient(165deg,#fff8ef_0%,#fff0e3_100%)] shadow-[0_8px_20px_rgba(208,133,72,0.18)]'
-                      : 'border-[#ebdfd3] bg-white hover:border-[#d9b89a]'
-                  }`}
-                >
-                  <h3 className="text-sm font-semibold text-neutral-950">Auto-Select</h3>
-                  <p className="mt-0.5 text-[11px] text-[#6e4d35]">Best available provider is selected automatically{isBoardingBooking ? '.' : ' for this slot.'}</p>
-                </button>
-
-                {providersForDisplay.map((provider) => (
-                  <button
-                    key={provider.providerServiceId}
-                    onClick={() => {
-                      onAutoProviderSelect(false);
-                      onProviderSelect(provider.providerServiceId, provider.providerId);
-                    }}
-                    className={`premium-lift relative rounded-lg sm:rounded-xl border p-2 sm:p-2.5 text-left transition-all ${
-                      !selectedAutoProvider && selectedProviderServiceId === provider.providerServiceId
-                        ? 'border-[#d99a66] bg-[linear-gradient(165deg,#fff8ef_0%,#fff0e3_100%)] shadow-[0_8px_20px_rgba(208,133,72,0.18)]'
-                        : 'border-[#ebdfd3] bg-white hover:border-[#d9b89a]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <h3 className="text-sm font-semibold text-neutral-950">{provider.providerName}</h3>
-                      {provider.isVerified ? (
-                        <span className="shrink-0 rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[9px] font-semibold text-green-700">
-                          ✓ Verified
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 text-[11px] text-[#6e4d35]">{provider.providerType || 'Provider'}</p>
-                  </button>
-                ))}
-              </div>
-
-              {providersForDisplay.length === 0 ? (
-                <div className="mt-3 rounded-2xl border border-[#efc6c6] bg-[#fff4f4] p-4 text-center">
-                  <p className="text-sm text-[#9f2f2f]">{isBoardingBooking ? 'No providers available for boarding. Please try another service or date.' : 'No providers are available for this slot. Please choose another service or slot.'}</p>
-                </div>
-              ) : null}
-            </>
-          )}
-        </div>
-      ) : null}
-
       {/* Additional notes — hidden for package bookings */}
       {!isPackageBooking && (
         <div>
-          <label className="mb-2 block text-[13px] font-semibold text-neutral-950 sm:mb-3 sm:text-sm">Notes for Provider (Optional)</label>
+          <label className="mb-2 block text-[13px] font-semibold text-neutral-950 sm:mb-3 sm:text-sm">Service Notes (Optional)</label>
           <textarea
             value={providerNotes}
             onChange={(e) => onNotesChange(e.target.value)}

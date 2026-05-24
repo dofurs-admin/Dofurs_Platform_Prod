@@ -92,10 +92,45 @@ function makeAdminSupabase(options?: {
     maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
   };
 
+  const providerServiceRows = [
+    {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      provider_id: 12,
+      service_type: 'grooming',
+      is_active: true,
+      base_price: 1000,
+    },
+    {
+      id: '550e8400-e29b-41d4-a716-446655440010',
+      provider_id: 12,
+      service_type: 'grooming',
+      is_active: true,
+      base_price: 1000,
+    },
+    {
+      id: '550e8400-e29b-41d4-a716-446655440011',
+      provider_id: 12,
+      service_type: 'grooming',
+      is_active: true,
+      base_price: 1000,
+    },
+  ];
+
+  let providerServiceFilterIds: string[] | null = null;
   const providerServicesQuery = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: { service_type: 'grooming' }, error: null }),
+    in: vi.fn((_column: string, values: string[]) => {
+      providerServiceFilterIds = values;
+      return providerServicesQuery;
+    }),
+    returns: vi.fn().mockImplementation(async () => ({
+      data: providerServiceFilterIds
+        ? providerServiceRows.filter((row) => providerServiceFilterIds?.includes(row.id))
+        : providerServiceRows,
+      error: null,
+    })),
+    maybeSingle: vi.fn().mockResolvedValue({ data: { service_type: 'grooming', base_price: 1000 }, error: null }),
   };
 
   const creditLinksQuery = {

@@ -24,7 +24,7 @@ export type BlogPost = {
   sections: BlogSection[];
 };
 
-export const blogPosts: BlogPost[] = [
+const allBlogPosts: BlogPost[] = [
   {
     slug: 'first-time-pet-grooming-checklist',
     title: 'First-Time Pet Grooming Checklist: What Pet Parents Should Confirm Before Booking',
@@ -326,7 +326,7 @@ export const blogPosts: BlogPost[] = [
         paragraphs: [
           'Bangalore\'s climate — warm, humid for much of the year, and increasingly dense in urban pet populations — creates conditions where infectious disease spreads more easily. Pets that visit parks, interact with other animals, or are boarded during travel face ongoing exposure risk.',
           'Vaccination is not a one-time event at adoption. It is a recurring protocol with core vaccines, boosters, and annual reviews. A vet who knows your pet\'s history and local disease patterns is best placed to advise on the right schedule. If you are unsure whether your pet\'s records are current, that is worth checking today — not at the next appointment.',
-          'At Dofurs, our home vet consultations include vaccine record review as part of the visit. Book a consultation if you want a clear picture of where your pet\'s protection currently stands.'
+          'Dofurs currently focuses on doorstep grooming. For vaccine record reviews or medical decisions, speak with a licensed veterinarian and keep those records updated in your pet profile for grooming context.'
         ]
       }
     ]
@@ -373,7 +373,7 @@ export const blogPosts: BlogPost[] = [
         paragraphs: [
           'The most common reason for missed vaccines is not cost or access — it is forgetting. Vaccination schedules are not intuitive, intervals vary by vaccine type and risk category, and without a reminder system most pet parents simply lose track.',
           'The practical fix is simple: keep vaccination records in one accessible place, ask your vet to explain the upcoming schedule clearly at every visit, and set calendar reminders for the next due date before you leave the clinic. If you are unsure what your pet is currently protected against, a vet consultation is the fastest way to get clarity.',
-          'Dofurs home vet visits include a vaccination and preventive care review. Our vets can check your pet\'s current records, identify any gaps, and administer overdue vaccines during the same visit — so you do not have to make a separate trip.'
+          'Dofurs currently focuses on doorstep grooming. For vaccination and preventive-care reviews, consult a licensed veterinarian and keep the updated records handy for any future grooming appointment.'
         ]
       }
     ]
@@ -420,7 +420,7 @@ export const blogPosts: BlogPost[] = [
         paragraphs: [
           'Start by locating your pet\'s current vaccination card or clinic records. Photograph or digitise them so they are not vulnerable to being misplaced. Ask your vet at the next visit to walk you through the upcoming schedule — what is due, when, and why — and set phone reminders for each date before you leave.',
           'If your pet\'s records have gaps or you are unsure what was administered and when, a dedicated health consultation is worth scheduling. A vet who can review records, fill gaps, and put a clear forward schedule in place is the most efficient way to reset your baseline.',
-          'Dofurs offers home vet consultations specifically designed for this kind of preventive care review. Our vets bring the visit to your home, review your pet\'s complete health history, and administer any overdue vaccines on the spot — so your pet\'s protection is current without the stress of a clinic trip. Book a consultation to get started.'
+          'Dofurs currently focuses on doorstep grooming. If your pet needs a preventive-care review or overdue vaccines, speak with a licensed veterinarian first and book grooming only when your pet is medically comfortable for handling.'
         ]
       }
     ]
@@ -611,7 +611,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'When professional support helps',
         paragraphs: [
           'A pre-summer vet check is one of the highest-value appointments of the year. A vet can assess your pet\'s weight, heart and respiratory health, hydration baseline, and breed-specific heat sensitivity — then advise on exercise limits and any red flags to monitor. This is especially important for brachycephalic breeds (Pugs, Bulldogs, Persians) and senior pets, who carry disproportionate heat risk.',
-          'Dofurs offers home vet visits across Bangalore for pre-summer wellness reviews. If you want a professional assessment without a clinic trip in the heat, book a consultation — our vets come to you with a full preventive-care workflow for summer.',
+          'Dofurs currently focuses on doorstep grooming across Bangalore. For pre-summer wellness reviews, consult a licensed veterinarian, then use grooming to keep the coat, paws and hygiene areas easier to manage through the season.',
         ],
       },
     ],
@@ -620,7 +620,7 @@ export const blogPosts: BlogPost[] = [
     slug: 'pet-boarding-vs-pet-sitting-bangalore',
     title: 'Pet Boarding vs. Pet Sitting in Bangalore: Which Is Right for Your Pet?',
     excerpt:
-      'A side-by-side decision guide comparing pet boarding and in-home pet sitting in Bangalore — cost, comfort, safety, socialisation, and what works best for different pet personalities.',
+      'A side-by-side decision guide comparing pet boarding and in-home pet sitting in Bangalore — comfort, safety, socialisation, and what works best for different pet personalities.',
     category: 'Pet Sitting',
     readTime: '9 min read',
     publishedOn: '20 Apr 2026',
@@ -648,14 +648,14 @@ export const blogPosts: BlogPost[] = [
         heading: 'How pet boarding works in Bangalore',
         paragraphs: [
           'With pet boarding, your pet stays at a caregiver\'s home or at a dedicated boarding facility for the duration of your trip. Care is continuous — the caregiver is present for feeding, walks, play, and overnight supervision. Many professional Bangalore boarding providers now follow a home-style model rather than traditional kennels, with limited pet capacity and structured routines.',
-          'Typical pricing in Bangalore falls between ₹999–₹2,500 per night depending on the caregiver\'s experience, the environment, and the specific services included (medication administration, multiple daily walks, grooming add-ons). Some facilities add a small pick-up/drop-off fee if you do not want to transport your pet yourself.',
+          'Care details vary by provider, including caregiver experience, environment, medication support, walk frequency, and whether pick-up/drop-off is available. Compare those inclusions before choosing a stay.',
           'Boarding works well for dogs that are socially confident and adapt easily to new environments. It is usually not the right fit for pets with severe separation anxiety, senior pets with established routines, or cats (who almost always do better at home).',
         ],
         bullets: [
           'Continuous 24/7 supervision in the caregiver\'s environment.',
           'Good for social dogs that enjoy new company.',
           'Typically includes feeding, walks, and basic grooming.',
-          'Per-night pricing, usually with discounts for longer stays.',
+          'Stay terms usually vary by duration and care complexity.',
           'Not ideal for cats or anxiety-prone pets.',
         ],
       },
@@ -663,14 +663,14 @@ export const blogPosts: BlogPost[] = [
         heading: 'How in-home pet sitting works',
         paragraphs: [
           'With in-home pet sitting, a verified caregiver comes to your home — either for scheduled visits (for example, morning, afternoon, and evening) or for a full live-in stay. Your pet remains in their familiar environment, sleeps in their own bed, eats from their own bowl, and keeps their normal walk routine.',
-          'In-home sitting is typically priced per visit or per day. A 45-minute visit usually runs ₹400–₹800, while a full-day or live-in arrangement ranges from ₹1,200–₹2,500 depending on the number of pets, care complexity, and household size. Most sitters handle feeding, walks, medication, basic grooming maintenance, and daily photo or video updates.',
+          'In-home sitting is usually structured by visit length or full-day coverage. The right setup depends on the number of pets, care complexity, household size, and whether the sitter handles feeding, walks, medication, grooming maintenance, and daily photo or video updates.',
           'This setup is ideal for cats (who thrive on environmental stability), senior pets, medication-dependent pets, pets with behavioural or noise sensitivity, and homes with more than one pet.',
         ],
         bullets: [
           'Pet stays in its own home, on its own routine.',
           'Ideal for cats, seniors, and anxious pets.',
           'Often includes home-security touches (lights, plants).',
-          'Per-visit or per-day pricing.',
+          'Visit-based or day-based care structures.',
           'Requires a small home walk-through before the first booking.',
         ],
       },
@@ -684,7 +684,7 @@ export const blogPosts: BlogPost[] = [
           'Supervision: Boarding = continuous; Sitting = continuous (live-in) or scheduled.',
           'Social interaction: Boarding = often with other pets; Sitting = one-to-one.',
           'Routine disruption: Boarding = higher; Sitting = minimal.',
-          'Cost structure: Boarding = per-night; Sitting = per-visit or per-day.',
+          'Care structure: Boarding = overnight stay; Sitting = scheduled visits or live-in coverage.',
           'Best for: Boarding = confident, social dogs; Sitting = cats, seniors, anxious pets, medical cases.',
           'Not ideal for: Boarding = cats or anxious pets; Sitting = pets who need active group-play environments.',
         ],
@@ -693,7 +693,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Which is cheaper overall?',
         paragraphs: [
           'Neither option is reliably cheaper — it depends entirely on trip length and pet count. Boarding tends to be more economical for longer trips (5+ nights) with a single dog, because the per-night rate is predictable. Sitting tends to be more economical for homes with multiple pets, because one sitter can care for two or three pets at the same rate structure.',
-          'For a 3-night Bangalore trip with one social dog, expect boarding total of ₹3,000–₹6,000. For the same trip with two cats at home, expect sitting visits totalling ₹2,400–₹4,500. Running the numbers for your specific pet count and trip length usually reveals the better value within minutes.',
+          'For a short Bangalore trip with one social dog, boarding may be simpler because care is continuous. For the same trip with two cats at home, sitting visits may be calmer because the pets stay in their familiar space. Compare the care model against your specific pet count, routine, and trip length.',
         ],
       },
       {
@@ -723,8 +723,8 @@ export const blogPosts: BlogPost[] = [
       {
         heading: 'Booking with confidence on Dofurs',
         paragraphs: [
-          'Dofurs offers both verified pet boarding and in-home pet sitting across Bangalore. Every caregiver is background-verified, trained on emergency protocols, and insured for in-service incidents. You can share your pet\'s medical history, feeding schedule, and behavioural profile once, and it flows into every future booking.',
-          'If you are unsure which service to pick, our team can recommend based on your pet\'s temperament, your trip length, and your home setup. Book a consultation and we will match you with the right caregiver.',
+          'Dofurs currently focuses on doorstep grooming, so use this guide as an independent checklist when evaluating boarding or sitting providers. Check verification, emergency protocols, insurance, daily updates, and how your pet\'s feeding and medical details will be handled.',
+          'Before travel, a grooming session can still help your pet feel cleaner and more comfortable. For boarding or sitting decisions, speak directly with shortlisted caregivers and compare their answers against your pet\'s temperament, trip length, and home setup.',
         ],
       },
     ],
@@ -840,7 +840,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Getting set up in Bangalore',
         paragraphs: [
           'If you have just brought home a puppy in Bangalore, the first step is a foundational vet consultation within the first week. Your vet will confirm the puppy\'s starting weight, overall health, and set the vaccination plan with exact dates based on the puppy\'s age. If previous doses were given by the breeder, bring any records so they can be verified and integrated.',
-          'Dofurs offers home vet visits across Bangalore specifically for puppy wellness and vaccination series. Our vets arrive with the cold-chain-managed vaccine, review the puppy\'s health, administer the correct dose, and set up reminders for the next one — so the schedule is handled start to finish without a single missed date. Book a puppy vaccination visit and we will bring the care to your home.',
+          'Dofurs currently focuses on doorstep grooming. For puppy wellness and vaccination series, work with a licensed veterinarian, then book grooming once your puppy is cleared for handling and comfortable with a home appointment.',
         ],
       },
     ],
@@ -1058,10 +1058,10 @@ export const blogPosts: BlogPost[] = [
         ],
       },
       {
-        heading: 'Dofurs home vet consultations in Bangalore',
+        heading: 'How Dofurs fits into your care plan',
         paragraphs: [
-          'Dofurs offers home vet visits with verified, registered veterinarians across Bangalore. Every visit includes a structured wellness review — examination, vaccine record check, preventive care discussion, and next-step planning — in your pet\'s own environment.',
-          'If you are setting up a new primary vet relationship or want a second opinion on current care, book a home consultation. Our team will match you with a vet whose experience fits your pet\'s profile.',
+          'Dofurs currently focuses on doorstep grooming across Bangalore. For medical concerns, work with a verified, registered veterinarian; for grooming, share relevant health context so the groomer can keep handling calm and appropriate.',
+          'If you are setting up a new primary vet relationship or want a second opinion on current care, use the checks in this guide to evaluate clinics or independent veterinarians before booking medical care.',
         ],
       },
     ],
@@ -1166,7 +1166,7 @@ export const blogPosts: BlogPost[] = [
         heading: 'Building Bangalore around your pet',
         paragraphs: [
           'Pet-friendly Bangalore is real, and it is growing. The more pet parents use these spaces — thoughtfully, with well-prepared pets — the more venues will welcome pets in the years ahead. Every good visit is a vote for the kind of city you want to live in with your pet.',
-          'If you are planning a big outing, a weekend trip, or a first-time café visit and want your pet\'s grooming, vaccination, or confidence levels dialled in beforehand, Dofurs can help with pre-trip wellness checks, grooming, and training sessions delivered to your home. Book a pre-travel pet care package — and enjoy the outing without the prep becoming the task.',
+          'If you are planning a big outing, a weekend trip, or a first-time cafe visit, Dofurs can help with doorstep grooming beforehand so your pet is cleaner, more comfortable, and easier to manage. For vaccination or training needs, coordinate with a qualified veterinarian or trainer separately.',
         ],
       },
     ],
@@ -1297,19 +1297,31 @@ export const blogPosts: BlogPost[] = [
         heading: 'Knowing where to go — before you need it',
         paragraphs: [
           'The single most impactful thing you can do right now — before any emergency — is save three phone numbers: your primary vet, the nearest 24-hour emergency clinic to your home, and a 24-hour clinic near any location you commonly visit (workplace, weekend destinations). Map the fastest route to each. You do not want to be searching Google at midnight with a distressed pet in your arms.',
-          'Save the Dofurs contact number as well for home vet support during non-emergency medical issues. For true emergencies, always go directly to a 24-hour clinic with surgical capability — home visits are for stable care, not critical intervention.',
+          'Save the Dofurs contact number for grooming support and the numbers for your primary vet and nearest emergency clinic. For true emergencies, always go directly to a 24-hour clinic with surgical capability.',
         ],
       },
       {
         heading: 'After the emergency — the follow-up matters',
         paragraphs: [
           'Post-emergency follow-up care often determines long-term outcomes. Keep every discharge note, lab result, and prescription. Attend every follow-up visit even if your pet seems fully recovered — internal healing is rarely complete on the timeline external symptoms suggest.',
-          'A Dofurs home vet visit is a good option for follow-up care: your pet recovers in familiar surroundings, and the vet can observe recovery in the environment they actually live in. Book a recovery consultation once your pet is stable and discharged from emergency care.',
+          'For follow-up medical care, speak with the treating veterinarian and keep your pet in a calm recovery environment. Book grooming only after your vet confirms your pet is stable enough for handling, bathing or trimming.',
         ],
       },
     ],
   },
 ];
+
+const publicGroomingBlogSlugs = new Set([
+  'first-time-pet-grooming-checklist',
+  'pet-care-during-bengaluru-monsoon',
+  'reduce-pet-anxiety-before-grooming',
+  'pet-grooming-frequency-india-guide',
+  'pet-grooming-cost-bangalore-2026',
+  'summer-pet-care-bangalore',
+  'golden-retriever-grooming-bangalore',
+]);
+
+export const blogPosts: BlogPost[] = allBlogPosts.filter((post) => publicGroomingBlogSlugs.has(post.slug));
 
 export const blogPostBySlug = Object.fromEntries(blogPosts.map((post) => [post.slug, post]));
 

@@ -4,7 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 export const metadata: Metadata = {
   title: 'Terms & Conditions',
   description:
-    'Terms and conditions governing your use of the Dofurs pet services platform — bookings, payments, cancellations, provider relationships, and user responsibilities.',
+    'Terms and conditions governing your use of the Dofurs pet grooming platform — bookings, payments, cancellations, provider relationships, and user responsibilities.',
   alternates: { canonical: 'https://dofurs.in/terms-conditions' },
   openGraph: {
     title: 'Terms & Conditions | Dofurs',
@@ -19,7 +19,7 @@ export default function TermsConditionsPage() {
   return (
     <ContentPageLayout
       title="Terms & Conditions"
-      description="Legally binding terms governing access to and use of the Dofurs platform and services."
+      description="Legally binding terms governing access to and use of the Dofurs grooming platform and services."
       heroImageSrc="/Birthday/terms%20%26%20conditions%20_new.png"
       heroImageAlt="Terms and conditions"
     >
@@ -43,7 +43,7 @@ export default function TermsConditionsPage() {
 
       <h2 className="mt-4 text-2xl font-semibold text-ink">3. Services and Platform Role</h2>
       <ul className="list-disc space-y-2 pl-6">
-        <li>Dofurs facilitates grooming, veterinary, online consultation, and home-visit bookings.</li>
+        <li>Dofurs currently facilitates doorstep grooming bookings.</li>
         <li>Dofurs acts as an intermediary connecting users with independent service providers.</li>
         <li>Dofurs does not directly employ all listed professionals and is not liable for independent provider conduct.</li>
         <li>For emergencies, users should seek immediate in-person veterinary care.</li>

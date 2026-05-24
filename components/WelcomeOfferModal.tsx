@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BellRing, Scissors, ShieldPlus, Stethoscope, X } from 'lucide-react';
+import { CalendarCheck2, Scissors, ShieldCheck, Sparkles, X } from 'lucide-react';
 import { DEFAULT_BUSINESS_REFEREE_REWARD_INR } from '@/lib/referrals/business-campaign-config';
 
 const WELCOME_MODAL_STORAGE_KEY = 'dofurs.welcome-offer-modal.v1.seen';
@@ -21,19 +21,19 @@ type BusinessSignupOffer = {
 const benefits = [
   {
     icon: Scissors,
-    label: 'Grooming at Your Door step',
+    label: 'Doorstep dog and cat grooming',
   },
   {
-    icon: ShieldPlus,
-    label: 'Lifetime Pet Health Passport',
+    icon: ShieldCheck,
+    label: 'Sanitized tools and pet-safe products',
   },
   {
-    icon: BellRing,
-    label: 'Smart Vaccination Reminders',
+    icon: Sparkles,
+    label: 'Bath, haircut, nail care and de-shedding',
   },
   {
-    icon: Stethoscope,
-    label: 'Vet Care at Home or Clinic',
+    icon: CalendarCheck2,
+    label: 'Easy slot confirmation and reminders',
   },
 ] as const;
 
@@ -259,13 +259,13 @@ export default function WelcomeOfferModal({ signupHref, onSignup }: WelcomeOffer
             id="welcome-offer-title"
             className="mt-2 pr-12 text-[1.3rem] font-extrabold leading-[1.18] tracking-[-0.02em] text-[#2a180b] sm:mt-3 sm:pr-10 sm:text-[1.85rem] sm:leading-tight sm:whitespace-nowrap"
           >
-            🎉 Add 2+ Years to Your Pet&apos;s Life 🐾
+            Save on Your First Grooming
           </h2>
           <p className="mt-2 inline-flex rounded-full border border-[#efc9a7] bg-[#ffe9d5] px-3 py-1 text-lg font-bold text-[#af5118] shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:mt-3">
-            + Get {rewardLabel} Free on Signup
+            Get {rewardLabel} Grooming Credit
           </p>
           <p id="welcome-offer-description" className="mt-3 text-sm leading-relaxed text-[#5b3f2b] sm:text-[15px]">
-            Never miss vaccinations. Prevent life-threatening diseases. Give your pet the care they deserve — at home.
+            Create your Dofurs account and use your welcome credit toward a verified doorstep grooming appointment in Bangalore.
           </p>
 
           <ul className="mt-5 space-y-3 border-l-2 border-[#eabf97] pl-4">

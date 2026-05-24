@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { getISTTimestamp } from '@/lib/utils/date';
 
 type SchemaHealthCheck = {
@@ -30,9 +31,9 @@ export async function GET() {
     return auth.response;
   }
 
-  const { supabase } = auth.context;
+  const adminSupabase = getSupabaseAdminClient();
 
-  const { data, error } = await supabase.rpc('get_platform_schema_health');
+  const { data, error } = await adminSupabase.rpc('get_platform_schema_health');
 
   if (error) {
     const syntheticFailedCheck: SchemaHealthCheck = {

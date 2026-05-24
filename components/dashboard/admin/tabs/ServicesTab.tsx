@@ -83,6 +83,19 @@ type BusinessReferralCampaignDraft = {
   notes: string;
 };
 
+type ApiErrorPayload = {
+  error?: string;
+  details?: {
+    formErrors?: string[];
+    fieldErrors?: Record<string, string[] | undefined>;
+  };
+};
+
+type OptionalNumberParseResult = {
+  value: number | null;
+  error?: string;
+};
+
 const adminRawFieldClass =
   'rounded-xl border border-neutral-200/60 px-3 py-2 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-300 focus-visible:ring-offset-1';
 const adminToggleFieldClass =
@@ -96,6 +109,58 @@ function formatAdminDateTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return ADMIN_DATE_TIME_FORMATTER.format(date);
+}
+
+function formatApiErrorMessage(payload: ApiErrorPayload | null): string {
+  const validationMessages = [
+    ...(payload?.details?.formErrors ?? []),
+    ...Object.values(payload?.details?.fieldErrors ?? {}).flatMap((messages) => messages ?? []),
+  ].filter((message) => message.trim().length > 0);
+
+  return validationMessages[0] ?? payload?.error ?? 'Request failed';
+}
+
+function parseOptionalNumberField(
+  rawValue: string,
+  label: string,
+  options: { integer?: boolean; min: number; exclusiveMin?: boolean },
+): OptionalNumberParseResult {
+  const trimmedValue = rawValue.trim();
+
+  if (!trimmedValue) {
+    return { value: null };
+  }
+
+  const numericValue = Number(trimmedValue);
+
+  if (!Number.isFinite(numericValue)) {
+    return { value: null, error: `${label} must be a valid number.` };
+  }
+
+  if (options.integer && !Number.isInteger(numericValue)) {
+    return { value: null, error: `${label} must be a whole number.` };
+  }
+
+  const isBelowMinimum = options.exclusiveMin ? numericValue <= options.min : numericValue < options.min;
+
+  if (isBelowMinimum) {
+    return {
+      value: null,
+      error: options.exclusiveMin
+        ? `${label} must be greater than ${options.min}.`
+        : `${label} must be at least ${options.min}.`,
+    };
+  }
+
+  return { value: numericValue };
+}
+
+function formatDiscountValue(discount: PlatformDiscount): string {
+  if (discount.discount_type === 'percentage') {
+    return `${discount.discount_value}% off`;
+  }
+
+  return `₹${discount.discount_value} off`;
 }
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -236,8 +301,8 @@ export default function ServicesTab({
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
       cache: 'no-store',
     });
-    const payload = await response.json().catch(() => null) as { error?: string } | null;
-    if (!response.ok) throw new Error(payload?.error ?? 'Request failed');
+    const payload = await response.json().catch(() => null) as ApiErrorPayload | null;
+    if (!response.ok) throw new Error(formatApiErrorMessage(payload));
     return payload as T;
   }, []);
 
@@ -474,11 +539,36 @@ export default function ServicesTab({
       showToast('Discount code and title are required.', 'error'); return;
     }
     const discountValue = Number(discountDraft.discount_value);
-    if (!Number.isFinite(discountValue) || discountValue <= 0) { showToast('Discount value must be positive.', 'error'); return; }
+    if (!Number.isFinite(discountValue) || discountValue <= 0) {
+      showToast(
+        discountDraft.discount_type === 'percentage'
+          ? 'Discount percentage must be a positive number.'
+          : 'Discount amount must be a positive number.',
+        'error',
+      );
+      return;
+    }
+    if (discountDraft.discount_type === 'percentage' && discountValue > 100) {
+      showToast('Discount percentage must be 100 or less.', 'error'); return;
+    }
+
+    const maxDiscountAmount = parseOptionalNumberField(discountDraft.max_discount_amount, 'Max discount amount', { min: 0, exclusiveMin: true });
+    const minBookingAmount = parseOptionalNumberField(discountDraft.min_booking_amount, 'Min booking amount', { min: 0 });
+    const usageLimitTotal = parseOptionalNumberField(discountDraft.usage_limit_total, 'Usage limit total', { min: 0, exclusiveMin: true, integer: true });
+    const usageLimitPerUser = parseOptionalNumberField(discountDraft.usage_limit_per_user, 'Usage limit per user', { min: 0, exclusiveMin: true, integer: true });
+
+    const optionalNumberErrors = [maxDiscountAmount.error, minBookingAmount.error, usageLimitTotal.error, usageLimitPerUser.error]
+      .filter((message): message is string => Boolean(message));
+
+    if (optionalNumberErrors[0]) {
+      showToast(optionalNumberErrors[0], 'error'); return;
+    }
+
     const validFromDate = new Date(discountDraft.valid_from);
     const validUntilDate = discountDraft.valid_until.trim() ? new Date(discountDraft.valid_until) : null;
     if (!discountDraft.valid_from || Number.isNaN(validFromDate.getTime())) { showToast('Provide a valid start date.', 'error'); return; }
     if (validUntilDate && Number.isNaN(validUntilDate.getTime())) { showToast('Provide a valid end date.', 'error'); return; }
+    if (validUntilDate && validUntilDate.getTime() <= validFromDate.getTime()) { showToast('End date must be later than start date.', 'error'); return; }
 
     startTransition(async () => {
       try {
@@ -491,13 +581,13 @@ export default function ServicesTab({
             description: discountDraft.description.trim() || null,
             discount_type: discountDraft.discount_type,
             discount_value: discountValue,
-            max_discount_amount: discountDraft.max_discount_amount.trim() ? Number(discountDraft.max_discount_amount) : null,
-            min_booking_amount: discountDraft.min_booking_amount.trim() ? Number(discountDraft.min_booking_amount) : null,
+            max_discount_amount: maxDiscountAmount.value,
+            min_booking_amount: minBookingAmount.value,
             applies_to_service_type: discountDraft.applies_to_service_type.trim() || null,
             valid_from: validFromDate.toISOString(),
             valid_until: validUntilDate ? validUntilDate.toISOString() : null,
-            usage_limit_total: discountDraft.usage_limit_total.trim() ? Number(discountDraft.usage_limit_total) : null,
-            usage_limit_per_user: discountDraft.usage_limit_per_user.trim() ? Number(discountDraft.usage_limit_per_user) : null,
+            usage_limit_total: usageLimitTotal.value,
+            usage_limit_per_user: usageLimitPerUser.value,
             first_booking_only: discountDraft.first_booking_only,
             is_active: discountDraft.is_active,
           }),
@@ -559,6 +649,12 @@ export default function ServicesTab({
       }
     });
   }
+
+  const isPercentageDiscountDraft = discountDraft.discount_type === 'percentage';
+  const discountValueInputLabel = isPercentageDiscountDraft ? 'Discount percentage' : 'Discount amount';
+  const discountValueInputPlaceholder = isPercentageDiscountDraft
+    ? 'Discount percentage (0-100)'
+    : 'Discount amount (₹)';
 
   return (
     <>
@@ -784,7 +880,7 @@ export default function ServicesTab({
           <p className="font-semibold text-ink">Draft public preview</p>
           <p className="mt-1">
             {businessReferralDraft.is_active
-              ? `Homepage popup and signup page will show: + Get ₹${businessReferralDraft.reward_inr || 0} Free on Signup`
+              ? `Homepage popup and signup page will show: Get ₹${businessReferralDraft.reward_inr || 0} Grooming Credit`
               : 'Inactive campaigns are hidden from the homepage popup and signup auto-fill.'}
           </p>
           <p className="mt-1">
@@ -893,7 +989,7 @@ export default function ServicesTab({
                 <li key={discount.id} className="rounded-lg bg-white/80 p-2 text-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium text-ink">
-                      {discount.code} • {discount.title} • {discount.discount_type} {discount.discount_value}
+                      {discount.code} • {discount.title} • {formatDiscountValue(discount)}
                     </p>
                     <span className={cn(
                       'rounded-full border px-2.5 py-1 text-[11px] font-medium',
@@ -995,17 +1091,63 @@ export default function ServicesTab({
             <input value={discountDraft.code} onChange={(e) => setDiscountDraftField('code', e.target.value.toUpperCase())} placeholder="Code (e.g. PET20)" className={adminRawFieldClass} disabled={Boolean(discountDraft.id)} />
             <input value={discountDraft.title} onChange={(e) => setDiscountDraftField('title', e.target.value)} placeholder="Title" className={adminRawFieldClass} />
             <select value={discountDraft.discount_type} onChange={(e) => setDiscountDraftField('discount_type', e.target.value as 'percentage' | 'flat')} className={adminRawFieldClass}>
-              <option value="percentage">Percentage</option>
-              <option value="flat">Flat</option>
+              <option value="percentage">Percentage (%)</option>
+              <option value="flat">Flat amount (₹)</option>
             </select>
-            <input value={discountDraft.discount_value} onChange={(e) => setDiscountDraftField('discount_value', e.target.value)} placeholder="Discount value" className={adminRawFieldClass} />
-            <input value={discountDraft.max_discount_amount} onChange={(e) => setDiscountDraftField('max_discount_amount', e.target.value)} placeholder="Max discount amount" className={adminRawFieldClass} />
-            <input value={discountDraft.min_booking_amount} onChange={(e) => setDiscountDraftField('min_booking_amount', e.target.value)} placeholder="Min booking amount" className={adminRawFieldClass} />
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              max={isPercentageDiscountDraft ? 100 : undefined}
+              value={discountDraft.discount_value}
+              onChange={(e) => setDiscountDraftField('discount_value', e.target.value)}
+              placeholder={discountValueInputPlaceholder}
+              aria-label={discountValueInputLabel}
+              className={adminRawFieldClass}
+            />
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              value={discountDraft.max_discount_amount}
+              onChange={(e) => setDiscountDraftField('max_discount_amount', e.target.value)}
+              placeholder="Max discount cap (₹, optional)"
+              aria-label="Max discount cap"
+              className={adminRawFieldClass}
+            />
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              value={discountDraft.min_booking_amount}
+              onChange={(e) => setDiscountDraftField('min_booking_amount', e.target.value)}
+              placeholder="Min booking amount (₹)"
+              aria-label="Min booking amount"
+              className={adminRawFieldClass}
+            />
             <input value={discountDraft.applies_to_service_type} onChange={(e) => setDiscountDraftField('applies_to_service_type', e.target.value)} placeholder="Service type (optional)" className={adminRawFieldClass} />
             <input type="datetime-local" value={discountDraft.valid_from} onChange={(e) => setDiscountDraftField('valid_from', e.target.value)} className={adminRawFieldClass} />
             <input type="datetime-local" value={discountDraft.valid_until} onChange={(e) => setDiscountDraftField('valid_until', e.target.value)} className={adminRawFieldClass} />
-            <input value={discountDraft.usage_limit_total} onChange={(e) => setDiscountDraftField('usage_limit_total', e.target.value)} placeholder="Usage limit total" className={adminRawFieldClass} />
-            <input value={discountDraft.usage_limit_per_user} onChange={(e) => setDiscountDraftField('usage_limit_per_user', e.target.value)} placeholder="Usage limit per user" className={adminRawFieldClass} />
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              step="1"
+              value={discountDraft.usage_limit_total}
+              onChange={(e) => setDiscountDraftField('usage_limit_total', e.target.value)}
+              placeholder="Usage limit total"
+              className={adminRawFieldClass}
+            />
+            <input
+              type="number"
+              inputMode="numeric"
+              min="1"
+              step="1"
+              value={discountDraft.usage_limit_per_user}
+              onChange={(e) => setDiscountDraftField('usage_limit_per_user', e.target.value)}
+              placeholder="Usage limit per user"
+              className={adminRawFieldClass}
+            />
             <label className={adminToggleFieldClass}>
               <input type="checkbox" checked={discountDraft.first_booking_only} onChange={(e) => setDiscountDraftField('first_booking_only', e.target.checked)} />
               First Booking Only

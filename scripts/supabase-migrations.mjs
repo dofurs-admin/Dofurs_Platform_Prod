@@ -50,7 +50,7 @@ try {
       '-v',
       'ON_ERROR_STOP=1',
       '-c',
-      "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW());",
+      "CREATE TABLE IF NOT EXISTS public.schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()); ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;",
     ],
   );
 
@@ -59,7 +59,7 @@ try {
 
     for (const file of files) {
       const exists = runPsql(
-        ['-tA', '-c', `SELECT 1 FROM schema_migrations WHERE filename = '${escapeLiteral(file.name)}' LIMIT 1;`],
+        ['-tA', '-c', `SELECT 1 FROM public.schema_migrations WHERE filename = '${escapeLiteral(file.name)}' LIMIT 1;`],
       );
       const applied = exists === '1';
       if (!applied) pendingCount += 1;
@@ -72,7 +72,7 @@ try {
 
   for (const file of files) {
     const exists = runPsql(
-      ['-tA', '-c', `SELECT 1 FROM schema_migrations WHERE filename = '${escapeLiteral(file.name)}' LIMIT 1;`],
+      ['-tA', '-c', `SELECT 1 FROM public.schema_migrations WHERE filename = '${escapeLiteral(file.name)}' LIMIT 1;`],
     );
 
     if (exists === '1') {
@@ -87,7 +87,7 @@ try {
         '-v',
         'ON_ERROR_STOP=1',
         '-c',
-        `INSERT INTO schema_migrations (filename) VALUES ('${escapeLiteral(file.name)}') ON CONFLICT (filename) DO NOTHING;`,
+        `INSERT INTO public.schema_migrations (filename) VALUES ('${escapeLiteral(file.name)}') ON CONFLICT (filename) DO NOTHING;`,
       ],
     );
   }

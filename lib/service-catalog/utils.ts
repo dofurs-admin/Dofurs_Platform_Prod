@@ -13,6 +13,7 @@ import {
   calculateBookingPrice as calculateBookingPriceFromEngine,
   type BookingPriceParameters,
 } from "./engines/pricing-engine";
+import { filterPublicBookableCategories, filterPublicBookableServices, isPublicBookableService } from './service-policy';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -34,7 +35,7 @@ export async function getActiveCategories() {
     .order("display_order", { ascending: true });
 
   if (error) throw error;
-  return data;
+  return filterPublicBookableCategories(data ?? []);
 }
 
 /**
@@ -53,7 +54,7 @@ export async function getServicesByCategory(
     .order("display_order", { ascending: true });
 
   if (error) throw error;
-  return data as Service[];
+  return filterPublicBookableServices((data ?? []) as Service[]);
 }
 
 /**
@@ -91,7 +92,7 @@ export async function calculateBookingPrice(params: BookingPriceParameters) {
 export async function validateService(serviceId: string, providerId: string | bigint) {
   const { data, error } = await supabase
     .from("provider_services")
-    .select("id, is_active")
+    .select("id, service_type, is_active")
     .eq("id", serviceId)
     .eq("provider_id", providerId)
     .single();
@@ -99,6 +100,7 @@ export async function validateService(serviceId: string, providerId: string | bi
   if (error) throw error;
   if (!data) throw new Error("Service not found");
   if (!data.is_active) throw new Error("Service is not active");
+  if (!isPublicBookableService(data)) throw new Error("Dofurs currently accepts grooming bookings only.");
 
   return true;
 }

@@ -6,7 +6,7 @@ import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import type { Booking } from './types';
 import BookingAddonManager, { type BookingAddonItem } from '@/components/dashboard/shared/BookingAddonManager';
-import { getGroomingPackageByServiceType } from '@/lib/service-catalog/grooming-packages';
+import { getGroomingPackagePriceByServiceType } from '@/lib/service-catalog/grooming-packages';
 import { ACTIVE_BOOKING_ADDON_STATUSES } from '@/lib/bookings/addon-items';
 import { resolveIncludedServicesForBooking } from '@/lib/bookings/included-services';
 import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
@@ -66,29 +66,7 @@ type BookingPricingSummary = {
 };
 
 function resolveServiceLinePriceInr(serviceName: string): number | null {
-  const matchedPackage = getGroomingPackageByServiceType(serviceName);
-
-  if (!matchedPackage) {
-    return null;
-  }
-
-  if (typeof matchedPackage.price === 'number' && Number.isFinite(matchedPackage.price)) {
-    return Math.max(0, Math.round(matchedPackage.price));
-  }
-
-  if (typeof matchedPackage.price === 'string') {
-    const match = matchedPackage.price.match(/(\d[\d,]*)/);
-    if (!match?.[1]) {
-      return null;
-    }
-
-    const parsed = Number.parseInt(match[1].replace(/,/g, ''), 10);
-    if (Number.isFinite(parsed) && parsed >= 0) {
-      return parsed;
-    }
-  }
-
-  return null;
+  return getGroomingPackagePriceByServiceType(serviceName);
 }
 
 function reconcileServiceLineTotals(
