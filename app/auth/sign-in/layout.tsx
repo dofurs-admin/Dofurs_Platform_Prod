@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Sign In | Dofurs',
-  description: 'Sign in to Dofurs and unlock trusted pet care services in Bangalore.',
+  description: 'Sign in to Dofurs and unlock trusted pet care services in Bengaluru.',
   alternates: {
     canonical: '/auth/sign-in',
   },

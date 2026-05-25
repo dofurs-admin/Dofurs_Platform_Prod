@@ -306,7 +306,7 @@ export default function PetPassportViewModal({ isOpen, onClose, data, photoUrl, 
                   {/* Issuing authority — hidden on smallest screens */}
                   <div className="hidden rounded-full border-2 border-[#9e2f2f]/60 px-3 py-1.5 text-center text-[#9e2f2f] sm:block sm:w-fit">
                     <p className="text-[9px] font-bold uppercase tracking-[0.14em]">Issuing Authority</p>
-                    <p className="text-[10px] font-semibold">Dofurs Pet Registry • Bangalore</p>
+                    <p className="text-[10px] font-semibold">Dofurs Pet Registry • Bengaluru</p>
                   </div>
                 </div>
               </div>

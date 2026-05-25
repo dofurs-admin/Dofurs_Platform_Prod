@@ -39,14 +39,14 @@ describe('lookupPincode', () => {
 
   it('returns city, state, country on successful API response', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      new Response(JSON.stringify({ city: 'Bangalore', state: 'Karnataka', country: 'India' }), {
+      new Response(JSON.stringify({ city: 'Bengaluru', state: 'Karnataka', country: 'India' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       }),
     );
 
     const result = await lookupPincode('560034');
-    expect(result).toEqual({ city: 'Bangalore', state: 'Karnataka', country: 'India' });
+    expect(result).toEqual({ city: 'Bengaluru', state: 'Karnataka', country: 'India' });
   });
 
   it('returns null when API returns non-ok status', async () => {

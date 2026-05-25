@@ -91,7 +91,7 @@ export function getInvoiceCompanyProfile(): InvoiceCompanyProfile {
     supportEmail: process.env.COMPANY_SUPPORT_EMAIL ?? 'petcare@dofurs.in',
     supportPhone: process.env.COMPANY_SUPPORT_PHONE ?? '+91 70083 65175',
     websiteUrl: websiteBase,
-    addressLine: process.env.COMPANY_ADDRESS_LINE ?? 'Bangalore, Karnataka 560100, India',
+    addressLine: process.env.COMPANY_ADDRESS_LINE ?? 'Bengaluru, Karnataka 560100, India',
     termsUrl: `${websiteBase}/terms-conditions`,
     logoUrl: `${websiteBase}/logo/brand-logo.png`,
   };

@@ -118,7 +118,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { data: plan, error: planLookupError } = await supabase
     .from('subscription_plans')
-    .select('id, name, code')
+    .select('id, name, code, deleted_at')
     .eq('id', id)
     .maybeSingle();
 
@@ -130,6 +130,56 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return NextResponse.json({ error: 'Plan not found.' }, { status: 404 });
   }
 
+  if (plan.deleted_at) {
+    return NextResponse.json({ success: true, deleted: true });
+  }
+
+  const [subscriptionReferences, paymentOrderReferences] = await Promise.all([
+    supabase
+      .from('user_subscriptions')
+      .select('id', { count: 'exact', head: true })
+      .eq('plan_id', id),
+    supabase
+      .from('subscription_payment_orders')
+      .select('id', { count: 'exact', head: true })
+      .eq('plan_id', id),
+  ]);
+
+  if (subscriptionReferences.error) {
+    return NextResponse.json({ error: subscriptionReferences.error.message }, { status: 500 });
+  }
+
+  if (paymentOrderReferences.error) {
+    return NextResponse.json({ error: paymentOrderReferences.error.message }, { status: 500 });
+  }
+
+  const linkedSubscriptions = subscriptionReferences.count ?? 0;
+  const linkedPaymentOrders = paymentOrderReferences.count ?? 0;
+
+  async function archivePlan() {
+    const { error: archiveError } = await supabase
+      .from('subscription_plans')
+      .update({ is_active: false, deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('deleted_at', null);
+
+    if (archiveError) {
+      return NextResponse.json({ error: archiveError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      archived: true,
+      linkedSubscriptions,
+      linkedPaymentOrders,
+      message: 'Plan removed from listings. Linked subscription and payment history was preserved.',
+    });
+  }
+
+  if (linkedSubscriptions > 0 || linkedPaymentOrders > 0) {
+    return archivePlan();
+  }
+
   const { error: deleteError } = await supabase
     .from('subscription_plans')
     .delete()
@@ -137,13 +187,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   if (deleteError) {
     if (deleteError.code === '23503') {
-      return NextResponse.json(
-        { error: 'This plan has linked subscriptions or payment records. Archive it instead of deleting.' },
-        { status: 409 },
-      );
+      return archivePlan();
     }
     return NextResponse.json({ error: deleteError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, deleted: true });
 }

@@ -1,15 +1,22 @@
 'use client';
 
+import { usePathname } from 'next/navigation';
 import { whatsappLinks } from '@/lib/site-data';
 
 export default function WhatsAppFloatingButton() {
+  const pathname = usePathname() || '/';
+
+  if (pathname.startsWith('/dashboard/admin')) {
+    return null;
+  }
+
   return (
     <a
-    href={whatsappLinks.support}
+      href={whatsappLinks.support}
       target="_blank"
-      rel="noreferrer"
+      rel="noopener noreferrer"
       aria-label="Chat on WhatsApp"
-      className="fixed bottom-20 right-6 z-50 inline-flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-soft transition hover:translate-y-[-2px] hover:bg-[#1fb85a] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 sm:bottom-6"
+      className="dofurs-whatsapp-floating-button fixed bottom-20 right-6 z-50 inline-flex h-14 w-14 touch-manipulation items-center justify-center rounded-full bg-[#25D366] text-white shadow-soft transition hover:translate-y-[-2px] hover:bg-[#1fb85a] focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 sm:bottom-6"
     >
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-6 w-6 fill-current">
         <path d="M12.04 2.01c-5.52 0-10 4.48-10 10 0 1.77.46 3.5 1.33 5.04L2 22l5.08-1.33a9.97 9.97 0 0 0 4.96 1.31h.01c5.52 0 10-4.48 10-10 0-2.67-1.04-5.18-2.93-7.07a9.94 9.94 0 0 0-7.08-2.9zm0 18.32h-.01c-1.55 0-3.07-.41-4.4-1.2l-.32-.19-3.02.79.8-2.95-.21-.33A8.3 8.3 0 0 1 3.7 12c0-4.58 3.73-8.31 8.31-8.31 2.22 0 4.3.86 5.87 2.43a8.25 8.25 0 0 1 2.44 5.88c0 4.58-3.73 8.31-8.31 8.31z" />

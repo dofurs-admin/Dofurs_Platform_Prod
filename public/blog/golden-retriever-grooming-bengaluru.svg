@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Golden Retriever grooming in Bengaluru">
+  <defs>
+    <linearGradient id="grbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff6ea"/>
+      <stop offset="100%" stop-color="#ffd9a8"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#grbg)"/>
+  <g transform="translate(760,160)">
+    <ellipse cx="120" cy="180" rx="180" ry="140" fill="#e8a85a"/>
+    <ellipse cx="120" cy="120" rx="95" ry="85" fill="#f0b569"/>
+    <ellipse cx="70" cy="80" rx="25" ry="50" fill="#d99443"/>
+    <ellipse cx="170" cy="80" rx="25" ry="50" fill="#d99443"/>
+    <circle cx="95" cy="120" r="6" fill="#1f1f1f"/>
+    <circle cx="145" cy="120" r="6" fill="#1f1f1f"/>
+    <ellipse cx="120" cy="150" rx="8" ry="5" fill="#1f1f1f"/>
+  </g>
+  <g transform="translate(90,140)" fill="#1f1f1f">
+    <text x="0" y="0" font-family="Georgia, serif" font-weight="700" font-size="50">Golden Retriever</text>
+    <text x="0" y="66" font-family="Georgia, serif" font-weight="700" font-size="50">Grooming in Bengaluru</text>
+    <text x="0" y="130" font-family="Verdana, sans-serif" font-size="24" fill="#5f5f5f">Coat, climate &amp; care — a complete handbook</text>
+  </g>
+</svg>

@@ -4,12 +4,12 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 import { links, whatsappLinks } from '@/lib/site-data';
 
 export const metadata: Metadata = {
-  title: 'Contact Dofurs — Pet Grooming Support in Bangalore',
+  title: 'Contact Dofurs — Pet Grooming Support in Bengaluru',
   description:
-    'Contact the Dofurs team for grooming booking help, grooming partnerships, or feedback. WhatsApp and email support for pet parents and grooming partners across Bangalore.',
+    'Contact the Dofurs team for grooming booking help, grooming partnerships, or feedback. WhatsApp and email support for pet parents and grooming partners across Bengaluru.',
   alternates: { canonical: '/contact-us' },
   openGraph: {
-    title: 'Contact Dofurs — Pet Grooming Support in Bangalore',
+    title: 'Contact Dofurs — Pet Grooming Support in Bengaluru',
     description: 'Reach the Dofurs team via WhatsApp or email for grooming booking help and partnerships.',
     url: 'https://dofurs.in/contact-us',
     images: ['/logo/og-default.jpg'],
@@ -52,7 +52,7 @@ export default function ContactUsPage() {
         </div>
         <div className="rounded-3xl border border-[#f2dfcf] bg-[#fffdfb] p-5 shadow-soft-sm">
           <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Location</p>
-          <p className="mt-1 text-[15px] font-semibold text-ink">Bangalore</p>
+          <p className="mt-1 text-[15px] font-semibold text-ink">Bengaluru</p>
         </div>
       </div>
 

@@ -193,6 +193,10 @@ type CreditEligibilityResponse = {
   reason?: string | null;
 };
 
+function formatCreditAmount(value: number) {
+  return `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
+}
+
 type CreditWalletResponse = {
   balance?: {
     available_inr?: number;
@@ -713,7 +717,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
         setSubscriptionCreditUnavailableReason(
           hasEnoughCredits
             ? null
-            : `Need ${Math.ceil(summaryTotal)} credits, but only ${Math.floor(totalAvailableCredits)} are available.`,
+            : `Need ${formatCreditAmount(summaryTotal)} credit value, but only ${formatCreditAmount(totalAvailableCredits)} is available.`,
         );
       } catch {
         if (isMounted) {
@@ -3337,7 +3341,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
                   {isCheckingCreditEligibility
                     ? 'Checking subscription credit eligibility...'
                     : creditEligibility?.eligible
-                      ? `Subscription credits available: ${Math.floor(creditEligibility.availableCredits)}`
+                      ? `Subscription credit value available: ${formatCreditAmount(creditEligibility.availableCredits)}`
                       : subscriptionCreditUnavailableReason ?? 'Subscription credit is not available.'}
                 </p>
 

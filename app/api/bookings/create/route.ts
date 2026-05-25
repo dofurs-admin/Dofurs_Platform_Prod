@@ -17,6 +17,7 @@ import { calculateBookingPriceWithSupabase } from '@/lib/bookings/engines/pricin
 import { getISTTimestamp } from '@/lib/utils/date';
 import { sanitizeAddressText } from '@/lib/utils/address';
 import { assertPublicBookableService, PUBLIC_BOOKABLE_SERVICE_ERROR } from '@/lib/service-catalog/service-policy';
+import { hasServiceCoverageForPincode } from '@/lib/service-coverage';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -314,7 +315,7 @@ export async function POST(request: Request) {
       }
 
       if (/^[1-9]\d{5}$/.test(userPincode)) {
-        if (!enabledPincodes.includes(userPincode)) {
+        if (!hasServiceCoverageForPincode(enabledPincodes, userPincode)) {
           return NextResponse.json(
             { error: 'This service is not available in your area. Please choose a different pincode or service.' },
             { status: 400 },

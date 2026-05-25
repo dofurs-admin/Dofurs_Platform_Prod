@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import ContentPageLayout from '@/components/ContentPageLayout';
 import FadeInSection from '@/components/FadeInSection';
-import { bangaloreAreas, bangaloreAreaBySlug, type BangaloreArea } from '@/lib/service-areas';
+import { bengaluruAreas, bengaluruAreaBySlug, type BengaluruArea } from '@/lib/service-areas';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
 import { buildBreadcrumbSchema, jsonLdScript } from '@/lib/seo/schemas';
 import { links, whatsappLinks } from '@/lib/site-data';
@@ -15,34 +15,35 @@ type LocationPageProps = {
 };
 
 export async function generateStaticParams() {
-  return bangaloreAreas.map((area) => ({ slug: area.slug }));
+  return bengaluruAreas.map((area) => ({ slug: area.slug }));
 }
 
 export async function generateMetadata({ params }: LocationPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const area = bangaloreAreaBySlug[slug];
+  const area = bengaluruAreaBySlug[slug];
 
   if (!area) {
-    return { title: 'Pet Grooming in Bangalore | Dofurs' };
+    return { title: 'Pet Grooming in Bengaluru | Dofurs' };
   }
 
   const canonical = `/locations/${area.slug}`;
 
   return {
-    title: `Pet Grooming in ${area.name}, Bangalore — Doorstep Groomers`,
-    description: `Book verified doorstep pet grooming in ${area.name}, Bangalore. Dofurs serves ${area.pincodes.join(', ')} and nearby areas with transparent grooming packages from ₹699.`,
+    title: `Pet Grooming in ${area.name}, Bengaluru — Doorstep Groomers`,
+    description: `Book verified doorstep pet grooming in ${area.name}, Bengaluru. Dofurs serves ${area.pincodes.join(', ')} and nearby areas with transparent grooming packages from ₹699.`,
     alternates: { canonical },
     keywords: [
       `dog grooming ${area.name}`,
       `pet grooming ${area.name}`,
       `cat grooming ${area.name}`,
       `doorstep grooming ${area.name}`,
+      'pet grooming Bengaluru',
       'pet grooming Bangalore',
     ],
     openGraph: {
       type: 'website',
-      title: `Pet Grooming in ${area.name}, Bangalore | Dofurs`,
-      description: `Doorstep dog and cat grooming in ${area.name}, Bangalore from verified Dofurs groomers.`,
+      title: `Pet Grooming in ${area.name}, Bengaluru | Dofurs`,
+      description: `Doorstep dog and cat grooming in ${area.name}, Bengaluru from verified Dofurs groomers.`,
       url: `${SITE_URL}${canonical}`,
       siteName: 'Dofurs',
       locale: 'en_IN',
@@ -50,20 +51,21 @@ export async function generateMetadata({ params }: LocationPageProps): Promise<M
     },
     twitter: {
       card: 'summary_large_image',
-      title: `Pet Grooming in ${area.name}, Bangalore | Dofurs`,
-      description: `Doorstep grooming packages for dogs and cats in ${area.name}, Bangalore.`,
+      title: `Pet Grooming in ${area.name}, Bengaluru | Dofurs`,
+      description: `Doorstep grooming packages for dogs and cats in ${area.name}, Bengaluru.`,
       images: [`${SITE_URL}/logo/og-default.jpg`],
     },
   };
 }
 
-function buildLocationLocalBusinessSchema(area: BangaloreArea) {
+function buildLocationLocalBusinessSchema(area: BengaluruArea) {
   return {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
     '@id': `${SITE_URL}/locations/${area.slug}#localbusiness`,
     name: `Dofurs — Pet Grooming in ${area.name}`,
-    description: `Verified doorstep pet grooming in ${area.name}, Bangalore with transparent package pricing and hygiene-first handling.`,
+    alternateName: `Dofurs — Pet Grooming in ${area.name}, Bangalore`,
+    description: `Verified doorstep pet grooming in ${area.name}, Bengaluru with transparent package pricing and hygiene-first handling.`,
     url: `${SITE_URL}/locations/${area.slug}`,
     telephone: '+91-70083-65175',
     image: `${SITE_URL}/logo/og-default.jpg`,
@@ -80,6 +82,7 @@ function buildLocationLocalBusinessSchema(area: BangaloreArea) {
       {
         '@type': 'Place',
         name: `${area.name}, Bengaluru`,
+        alternateName: `${area.name}, Bangalore`,
         address: {
           '@type': 'PostalAddress',
           addressLocality: area.name,
@@ -104,7 +107,7 @@ function buildLocationLocalBusinessSchema(area: BangaloreArea) {
   };
 }
 
-function buildLocationFaqSchema(area: BangaloreArea) {
+function buildLocationFaqSchema(area: BengaluruArea) {
   return {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
@@ -119,7 +122,7 @@ function buildLocationFaqSchema(area: BangaloreArea) {
   };
 }
 
-function buildLocationGroomingFaqs(area: BangaloreArea) {
+function buildLocationGroomingFaqs(area: BengaluruArea) {
   const shortName = area.shortName ?? area.name;
 
   return [
@@ -142,7 +145,7 @@ function buildLocationGroomingFaqs(area: BangaloreArea) {
   ];
 }
 
-function buildLocalGroomingNotes(area: BangaloreArea) {
+function buildLocalGroomingNotes(area: BengaluruArea) {
   return [
     `Keep water access, a plug point and a safe grooming corner ready before the groomer reaches ${area.name}.`,
     `If your building has visitor rules near ${area.landmarks[0] ?? area.name}, share access instructions during booking so entry is smooth.`,
@@ -152,7 +155,7 @@ function buildLocalGroomingNotes(area: BangaloreArea) {
 
 export default async function LocationPage({ params }: LocationPageProps) {
   const { slug } = await params;
-  const area = bangaloreAreaBySlug[slug];
+  const area = bengaluruAreaBySlug[slug];
 
   if (!area) {
     notFound();
@@ -177,9 +180,9 @@ export default async function LocationPage({ params }: LocationPageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqSchema)} />
       <ContentPageLayout
         title={`Pet Grooming in ${area.name}`}
-        description={`Doorstep dog and cat grooming across ${area.name}, ${area.pincodes.join(', ')}, and nearby Bangalore neighbourhoods.`}
+        description={`Doorstep dog and cat grooming across ${area.name}, ${area.pincodes.join(', ')}, and nearby Bengaluru neighbourhoods.`}
         heroImageSrc="/Birthday/partners-with-dofurs.png"
-        heroImageAlt={`Dofurs pet grooming in ${area.name}, Bangalore`}
+        heroImageAlt={`Dofurs pet grooming in ${area.name}, Bengaluru`}
         heroImageObjectPosition="center"
         belowContent={
           <FadeInSection>
@@ -339,10 +342,10 @@ export default async function LocationPage({ params }: LocationPageProps) {
         </div>
 
         {/* Other locations */}
-        <h2>Other Bangalore Locations</h2>
+        <h2>Other Bengaluru Locations</h2>
         <p>Dofurs also serves these neighbourhoods with grooming-focused local coverage pages.</p>
         <div className="not-prose mt-3 flex flex-wrap gap-2">
-          {bangaloreAreas
+          {bengaluruAreas
             .filter((other) => other.slug !== area.slug)
             .map((other) => (
               <Link

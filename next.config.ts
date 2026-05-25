@@ -54,42 +54,47 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/services/grooming',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
+        permanent: true,
+      },
+      {
+        source: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/vet',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/teleconsult',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/vet-visits',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/pet-boarding',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/pet-sitting',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/training',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
         source: '/services/pet-birthday',
-        destination: '/services/grooming/bangalore',
+        destination: '/services/grooming/bengaluru',
         permanent: true,
       },
       {
@@ -118,6 +123,21 @@ const nextConfig: NextConfig = {
         permanent: true,
       },
       {
+        source: '/blog/pet-grooming-cost-bangalore-2026',
+        destination: '/blog/pet-grooming-cost-bengaluru-2026',
+        permanent: true,
+      },
+      {
+        source: '/blog/summer-pet-care-bangalore',
+        destination: '/blog/summer-pet-care-bengaluru',
+        permanent: true,
+      },
+      {
+        source: '/blog/golden-retriever-grooming-bangalore',
+        destination: '/blog/golden-retriever-grooming-bengaluru',
+        permanent: true,
+      },
+      {
         source: '/blog/pet-boarding-vs-pet-sitting-bangalore',
         destination: '/blog',
         permanent: true,
@@ -140,6 +160,41 @@ const nextConfig: NextConfig = {
       {
         source: '/blog/emergency-pet-care-bangalore',
         destination: '/blog',
+        permanent: true,
+      },
+      {
+        source: '/blog/boarding-vs-sitting-bangalore.svg',
+        destination: '/blog/boarding-vs-sitting-bengaluru.svg',
+        permanent: true,
+      },
+      {
+        source: '/blog/emergency-pet-care-bangalore.svg',
+        destination: '/blog/emergency-pet-care-bengaluru.svg',
+        permanent: true,
+      },
+      {
+        source: '/blog/finding-trusted-vet-bangalore.svg',
+        destination: '/blog/finding-trusted-vet-bengaluru.svg',
+        permanent: true,
+      },
+      {
+        source: '/blog/golden-retriever-grooming-bangalore.svg',
+        destination: '/blog/golden-retriever-grooming-bengaluru.svg',
+        permanent: true,
+      },
+      {
+        source: '/blog/pet-friendly-bangalore.svg',
+        destination: '/blog/pet-friendly-bengaluru.svg',
+        permanent: true,
+      },
+      {
+        source: '/blog/pet-grooming-cost-bangalore.svg',
+        destination: '/blog/pet-grooming-cost-bengaluru.svg',
+        permanent: true,
+      },
+      {
+        source: '/blog/summer-pet-care-bangalore.svg',
+        destination: '/blog/summer-pet-care-bengaluru.svg',
         permanent: true,
       },
     ];

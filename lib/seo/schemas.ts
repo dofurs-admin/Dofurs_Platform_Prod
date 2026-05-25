@@ -33,6 +33,7 @@ export type ServiceOffer = {
 
 export type ServiceSchemaOptions = {
   name: string;
+  alternateName?: string | string[];
   description: string;
   url: string;
   serviceType: string;
@@ -66,6 +67,7 @@ export function buildServiceSchema(options: ServiceSchemaOptions) {
     '@context': 'https://schema.org',
     '@type': 'Service',
     name: options.name,
+    ...(options.alternateName ? { alternateName: options.alternateName } : {}),
     description: options.description,
     url: options.url,
     serviceType: options.serviceType,
@@ -75,6 +77,7 @@ export function buildServiceSchema(options: ServiceSchemaOptions) {
     areaServed: {
       '@type': 'City',
       name: 'Bengaluru',
+      alternateName: 'Bangalore',
       containedInPlace: {
         '@type': 'State',
         name: 'Karnataka',

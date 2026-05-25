@@ -11,19 +11,22 @@ import { META_PIXEL_ID } from '@/lib/analytics/meta-ads';
 export const metadata: Metadata = {
   metadataBase: new URL('https://dofurs.in'),
   title: {
-    default: 'Dofurs | Doorstep Pet Grooming in Bangalore',
+    default: 'Dofurs | Doorstep Pet Grooming in Bengaluru',
     template: '%s | Dofurs',
   },
   description:
-    'Book verified doorstep pet grooming in Bangalore. Dofurs offers transparent grooming packages, pet-safe products, calm handling, and WhatsApp support.',
+    'Book verified doorstep pet grooming in Bengaluru. Dofurs offers transparent grooming packages, pet-safe products, calm handling, and WhatsApp support.',
   applicationName: 'Dofurs',
   keywords: [
+    'pet grooming Bengaluru',
+    'dog grooming at home Bengaluru',
+    'cat grooming Bengaluru',
+    'doorstep pet grooming Bengaluru',
+    'pet groomer near me Bengaluru',
+    'dog bath at home Bengaluru',
     'pet grooming Bangalore',
     'dog grooming at home Bangalore',
-    'cat grooming Bangalore',
     'doorstep pet grooming Bangalore',
-    'pet groomer near me Bangalore',
-    'dog bath at home Bangalore',
     'Dofurs grooming',
     'Dofurs',
   ],
@@ -45,14 +48,14 @@ export const metadata: Metadata = {
   },
   other: {
     'geo.region': 'IN-KA',
-    'geo.placename': 'Bangalore',
+    'geo.placename': 'Bengaluru',
     'geo.position': '12.9716;77.5946',
     ICBM: '12.9716, 77.5946',
   },
   openGraph: {
-    title: 'Dofurs | Doorstep Pet Grooming in Bangalore',
+    title: 'Dofurs | Doorstep Pet Grooming in Bengaluru',
     description:
-      'Verified doorstep pet grooming across Bangalore with transparent packages from ₹699, pet-safe products, and calm handling.',
+      'Verified doorstep pet grooming across Bengaluru with transparent packages from ₹699, pet-safe products, and calm handling.',
     type: 'website',
     locale: 'en_IN',
     url: 'https://dofurs.in',
@@ -62,15 +65,15 @@ export const metadata: Metadata = {
         url: '/logo/og-default.jpg',
         width: 1200,
         height: 630,
-        alt: 'Dofurs doorstep pet grooming in Bangalore',
+        alt: 'Dofurs doorstep pet grooming in Bengaluru',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Dofurs | Doorstep Pet Grooming in Bangalore',
+    title: 'Dofurs | Doorstep Pet Grooming in Bengaluru',
     description:
-      'Book verified doorstep grooming for dogs and cats across Bangalore, with transparent package pricing and pet-safe products.',
+      'Book verified doorstep grooming for dogs and cats across Bengaluru, with transparent package pricing and pet-safe products.',
     images: ['/logo/og-default.jpg'],
     creator: '@dofurs',
     site: '@dofurs',
@@ -108,6 +111,7 @@ const organizationSchema = {
   '@id': 'https://dofurs.in/#organization',
   name: 'Dofurs',
   legalName: 'Dofurs',
+  alternateName: ['Dofurs Pet Grooming', 'Dofurs Pet Grooming Bangalore'],
   url: 'https://dofurs.in',
   logo: {
     '@type': 'ImageObject',
@@ -117,16 +121,17 @@ const organizationSchema = {
   },
   image: 'https://dofurs.in/logo/og-default.jpg',
   description:
-    'Dofurs provides doorstep pet grooming in Bangalore through verified groomers, transparent packages, pet-safe products and hygiene-first handling.',
+    'Dofurs provides doorstep pet grooming in Bengaluru through verified groomers, transparent packages, pet-safe products and hygiene-first handling.',
   address: {
     '@type': 'PostalAddress',
-    addressLocality: 'Bangalore',
+    addressLocality: 'Bengaluru',
     addressRegion: 'Karnataka',
     addressCountry: 'IN',
   },
   areaServed: {
     '@type': 'City',
-    name: 'Bangalore',
+    name: 'Bengaluru',
+    alternateName: 'Bangalore',
   },
   contactPoint: [
     {
@@ -150,7 +155,7 @@ const websiteSchema = {
   '@id': 'https://dofurs.in/#website',
   url: 'https://dofurs.in',
   name: 'Dofurs',
-  description: 'Doorstep pet grooming in Bangalore',
+  description: 'Doorstep pet grooming in Bengaluru',
   publisher: { '@id': 'https://dofurs.in/#organization' },
   inLanguage: 'en-IN',
   potentialAction: {
@@ -168,7 +173,7 @@ const localBusinessSchema = {
   '@type': 'LocalBusiness',
   '@id': 'https://dofurs.in/#localbusiness',
   name: 'Dofurs',
-  alternateName: 'Dofurs Pet Grooming',
+  alternateName: ['Dofurs Pet Grooming', 'Dofurs Pet Grooming Bangalore'],
   url: 'https://dofurs.in',
   image: 'https://dofurs.in/logo/og-default.jpg',
   logo: 'https://dofurs.in/logo/brand-logo.png',
@@ -176,7 +181,7 @@ const localBusinessSchema = {
   email: 'petcare@dofurs.in',
   priceRange: '₹₹',
   description:
-    'Dofurs provides verified doorstep pet grooming across Bangalore with transparent package pricing, pet-safe products, calm handling and WhatsApp support.',
+    'Dofurs provides verified doorstep pet grooming across Bengaluru with transparent package pricing, pet-safe products, calm handling and WhatsApp support.',
   address: {
     '@type': 'PostalAddress',
     addressLocality: 'Bengaluru',
@@ -189,7 +194,7 @@ const localBusinessSchema = {
     longitude: 77.5946,
   },
   areaServed: [
-    { '@type': 'City', name: 'Bengaluru' },
+    { '@type': 'City', name: 'Bengaluru', alternateName: 'Bangalore' },
     { '@type': 'AdministrativeArea', name: 'Karnataka' },
   ],
   serviceArea: {

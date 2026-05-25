@@ -19,7 +19,7 @@ async function getIsAuthenticated() {
 export const metadata: Metadata = {
   title: 'Refer & Earn — Get ₹500 Dofurs Credits',
   description:
-    'Invite pet parents to Dofurs and you both earn ₹500 in credits — use them on eligible doorstep grooming bookings across Bangalore.',
+    'Invite pet parents to Dofurs and you both earn ₹500 in credits — use them on eligible doorstep grooming bookings across Bengaluru.',
   alternates: { canonical: 'https://dofurs.in/refer-and-earn' },
   openGraph: {
     title: 'Refer & Earn ₹500 Credits | Dofurs',

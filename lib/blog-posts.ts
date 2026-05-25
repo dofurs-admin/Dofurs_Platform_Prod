@@ -36,9 +36,9 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-02-28',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['pet grooming', 'Bangalore', 'first-time grooming', 'pet care checklist'],
+    tags: ['pet grooming', 'Bengaluru', 'Bangalore pet grooming', 'first-time grooming', 'pet care checklist'],
     heroImageSrc: '/blog/first-time-grooming-checklist.svg',
-    heroImageAlt: 'First-time pet grooming checklist for Bangalore pet parents',
+    heroImageAlt: 'First-time pet grooming checklist for Bengaluru pet parents',
     sections: [
       {
         heading: 'Why this matters',
@@ -78,9 +78,9 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-02-28',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['vet home visit', 'Bangalore', 'pet health', 'veterinary consultation'],
+    tags: ['vet home visit', 'Bengaluru', 'pet health', 'veterinary consultation'],
     heroImageSrc: '/blog/home-vet-visit-guide.svg',
-    heroImageAlt: 'Home vet visit preparation guide for Bangalore pet parents',
+    heroImageAlt: 'Home vet visit preparation guide for Bengaluru pet parents',
     sections: [
       {
         heading: 'What to prepare before the visit',
@@ -122,7 +122,7 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-02-28',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['monsoon pet care', 'Bangalore', 'pet skin care', 'paw care'],
+    tags: ['monsoon pet care', 'Bengaluru', 'Bangalore monsoon pet care', 'pet skin care', 'paw care'],
     heroImageSrc: '/blog/bengaluru-monsoon-pet-care.svg',
     heroImageAlt: 'Monsoon pet care tips for dogs and cats in Bengaluru',
     sections: [
@@ -164,7 +164,7 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-02-28',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['pet anxiety', 'grooming', 'dog behaviour', 'stress-free grooming'],
+    tags: ['pet anxiety', 'grooming', 'dog behaviour', 'stress-free grooming', 'Bangalore dog grooming'],
     heroImageSrc: '/blog/reduce-pet-anxiety-grooming.svg',
     heroImageAlt: 'Reducing pet anxiety before a grooming appointment',
     sections: [
@@ -206,9 +206,9 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-02-28',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['pet sitting', 'Bangalore', 'pet sitter questions', 'dog sitter'],
+    tags: ['pet sitting', 'Bengaluru', 'pet sitter questions', 'dog sitter'],
     heroImageSrc: '/blog/questions-before-booking-pet-sitter.svg',
-    heroImageAlt: 'Questions to ask before hiring a pet sitter in Bangalore',
+    heroImageAlt: 'Questions to ask before hiring a pet sitter in Bengaluru',
     sections: [
       {
         heading: 'Why asking the right questions matters',
@@ -253,7 +253,7 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-02-28',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['grooming frequency', 'India pet care', 'coat care', 'Bangalore'],
+    tags: ['grooming frequency', 'India pet care', 'coat care', 'Bengaluru', 'Bangalore pet grooming frequency'],
     heroImageSrc: '/blog/pet-grooming-frequency-guide.svg',
     heroImageAlt: 'Pet grooming frequency guide for Indian pet parents',
     sections: [
@@ -295,7 +295,7 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-04-13',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['pet vaccination', 'pet lifespan', 'preventive care', 'Bangalore vet'],
+    tags: ['pet vaccination', 'pet lifespan', 'preventive care', 'Bengaluru vet'],
     heroImageSrc: '/blog/vaccinated-pets-live-longer.svg',
     heroImageAlt: 'Do vaccinated pets live longer — a scientific breakdown',
     sections: [
@@ -322,9 +322,9 @@ const allBlogPosts: BlogPost[] = [
         ]
       },
       {
-        heading: 'What this means for your pet in Bangalore',
+        heading: 'What this means for your pet in Bengaluru',
         paragraphs: [
-          'Bangalore\'s climate — warm, humid for much of the year, and increasingly dense in urban pet populations — creates conditions where infectious disease spreads more easily. Pets that visit parks, interact with other animals, or are boarded during travel face ongoing exposure risk.',
+          'Bengaluru\'s climate — warm, humid for much of the year, and increasingly dense in urban pet populations — creates conditions where infectious disease spreads more easily. Pets that visit parks, interact with other animals, or are boarded during travel face ongoing exposure risk.',
           'Vaccination is not a one-time event at adoption. It is a recurring protocol with core vaccines, boosters, and annual reviews. A vet who knows your pet\'s history and local disease patterns is best placed to advise on the right schedule. If you are unsure whether your pet\'s records are current, that is worth checking today — not at the next appointment.',
           'Dofurs currently focuses on doorstep grooming. For vaccine record reviews or medical decisions, speak with a licensed veterinarian and keep those records updated in your pet profile for grooming context.'
         ]
@@ -389,7 +389,7 @@ const allBlogPosts: BlogPost[] = [
     datePublished: '2026-04-13',
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
-    tags: ['vaccine tracking', 'preventive care', 'pet lifespan', 'Bangalore vet'],
+    tags: ['vaccine tracking', 'preventive care', 'pet lifespan', 'Bengaluru vet'],
     heroImageSrc: '/blog/vaccine-tracking-lifespan.svg',
     heroImageAlt: 'Vaccine tracking and pet lifespan — the science of timely care',
     sections: [
@@ -416,7 +416,7 @@ const allBlogPosts: BlogPost[] = [
         ]
       },
       {
-        heading: 'Practical steps for Bangalore pet parents',
+        heading: 'Practical steps for Bengaluru pet parents',
         paragraphs: [
           'Start by locating your pet\'s current vaccination card or clinic records. Photograph or digitise them so they are not vulnerable to being misplaced. Ask your vet at the next visit to walk you through the upcoming schedule — what is due, when, and why — and set phone reminders for each date before you leave.',
           'If your pet\'s records have gaps or you are unsure what was administered and when, a dedicated health consultation is worth scheduling. A vet who can review records, fill gaps, and put a clear forward schedule in place is the most efficient way to reset your baseline.',
@@ -426,10 +426,10 @@ const allBlogPosts: BlogPost[] = [
     ]
   },
   {
-    slug: 'pet-grooming-cost-bangalore-2026',
-    title: 'Pet Grooming Cost in Bangalore (2026): A Complete Price Guide for Dog and Cat Parents',
+    slug: 'pet-grooming-cost-bengaluru-2026',
+    title: 'Pet Grooming Cost in Bengaluru (2026): A Complete Price Guide for Dog and Cat Parents',
     excerpt:
-      'A transparent breakdown of doorstep and salon pet grooming prices across Bangalore — bath, haircut, de-shedding, spa packages and add-ons. Know what is fair, what is inflated, and what drives the price.',
+      'A transparent breakdown of doorstep and salon pet grooming prices across Bengaluru — bath, haircut, de-shedding, spa packages and add-ons. Know what is fair, what is inflated, and what drives the price.',
     category: 'Grooming',
     readTime: '9 min read',
     publishedOn: '20 Apr 2026',
@@ -437,26 +437,30 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
+      'pet grooming cost Bengaluru',
+      'dog grooming price Bengaluru',
+      'cat grooming cost Bengaluru',
       'pet grooming cost Bangalore',
       'dog grooming price Bangalore',
       'cat grooming cost Bangalore',
       'doorstep pet grooming price',
+      'pet spa Bengaluru',
       'pet spa Bangalore',
     ],
-    heroImageSrc: '/blog/pet-grooming-cost-bangalore.svg',
-    heroImageAlt: 'Pet grooming cost in Bangalore 2026 — complete price guide',
+    heroImageSrc: '/blog/pet-grooming-cost-bengaluru.svg',
+    heroImageAlt: 'Pet grooming cost in Bengaluru 2026 — complete price guide',
     sections: [
       {
-        heading: 'Why grooming prices in Bangalore vary so much',
+        heading: 'Why grooming prices in Bengaluru vary so much',
         paragraphs: [
-          'If you have ever called three different pet groomers in Bangalore and received three very different quotes, you are not imagining it. Pet grooming pricing in the city ranges from around ₹500 for a basic bath at a small neighbourhood salon to over ₹4,500 for a full premium spa package at a specialised studio. That spread is not random — it reflects real differences in training, product quality, hygiene protocols, travel, and the kind of handling your pet will actually receive.',
-          'Before you lock in a price, it helps to understand the factors that drive it. Coat type, pet size, temperament, travel distance within Bangalore, and whether you want doorstep service versus a salon visit all shift the final quote. The cheapest option is not always the best value, and the most expensive is not always the most professional. The goal of this guide is to help you read a grooming quote the way an expert would — so you pay for what matters and skip what does not.',
+          'If you have ever called three different pet groomers in Bengaluru and received three very different quotes, you are not imagining it. Pet grooming pricing in the city ranges from around ₹500 for a basic bath at a small neighbourhood salon to over ₹4,500 for a full premium spa package at a specialised studio. That spread is not random — it reflects real differences in training, product quality, hygiene protocols, travel, and the kind of handling your pet will actually receive.',
+          'Before you lock in a price, it helps to understand the factors that drive it. Coat type, pet size, temperament, travel distance within Bengaluru, and whether you want doorstep service versus a salon visit all shift the final quote. The cheapest option is not always the best value, and the most expensive is not always the most professional. The goal of this guide is to help you read a grooming quote the way an expert would — so you pay for what matters and skip what does not.',
         ],
       },
       {
-        heading: 'Typical grooming price bands in Bangalore (2026)',
+        heading: 'Typical grooming price bands in Bengaluru (2026)',
         paragraphs: [
-          'Here is how the pricing landscape currently looks across Bangalore for doorstep and salon grooming. These are typical ranges — individual providers may price slightly above or below depending on locality and pet size.',
+          'Here is how the pricing landscape currently looks across Bengaluru for doorstep and salon grooming. These are typical ranges — individual providers may price slightly above or below depending on locality and pet size.',
         ],
         bullets: [
           'Basic bath & brush (short coat): ₹500 – ₹900 at a salon, ₹800 – ₹1,200 at home.',
@@ -474,13 +478,13 @@ const allBlogPosts: BlogPost[] = [
         paragraphs: [
           'Pet size and coat length are the two biggest levers. A 35-kg Golden Retriever with a thick double coat takes three times the time, water, shampoo, and drying energy of a short-haired Indie. A Shih Tzu with extensive mats will usually cost more than a clean-coated Labrador because dematting is skilled, slow work. Temperament matters too: an anxious first-timer takes longer and requires a calmer, more patient groomer — that time is real labour.',
           'Travel also plays a role in doorstep pricing. A groomer travelling from Hebbal to Electronic City spends real time and fuel, and professional services usually bake a locality premium into the quote. That premium is usually small (₹100–₹300) and is worth it when it buys you a groomer who is not rushed and who brings their own full kit.',
-          'Product quality is the quietest variable. A ₹600 generic shampoo used on 30 pets a week tells a very different story than a dermatologically tested pet-safe shampoo matched to coat type. Cheap shampoos strip natural oils, dry skin out, and can trigger itching and hotspots — particularly in Bangalore\'s humid months. If a quote is dramatically lower than the market range, ask what products are being used. Good groomers are transparent about this.',
+          'Product quality is the quietest variable. A ₹600 generic shampoo used on 30 pets a week tells a very different story than a dermatologically tested pet-safe shampoo matched to coat type. Cheap shampoos strip natural oils, dry skin out, and can trigger itching and hotspots — particularly in Bengaluru\'s humid months. If a quote is dramatically lower than the market range, ask what products are being used. Good groomers are transparent about this.',
         ],
       },
       {
         heading: 'Doorstep vs salon: which makes sense for your pet?',
         paragraphs: [
-          'Doorstep grooming typically costs around 20–40% more than a comparable salon service in Bangalore, and for most pet parents it is worth it. You skip the car ride (a significant stressor for many dogs and nearly all cats), your pet stays on familiar territory, and the groomer works on a surface your pet already trusts. For anxious, senior, or first-time pets, this alone justifies the premium.',
+          'Doorstep grooming typically costs around 20–40% more than a comparable salon service in Bengaluru, and for most pet parents it is worth it. You skip the car ride (a significant stressor for many dogs and nearly all cats), your pet stays on familiar territory, and the groomer works on a surface your pet already trusts. For anxious, senior, or first-time pets, this alone justifies the premium.',
           'Salons have their place too. If your pet loves car rides, tolerates a busier environment, and needs specialised equipment (like a hydrobath or industrial dryers), a reputable salon can give you a more thorough session at a lower price. The trade-off is exposure to other pets and a longer overall time commitment, because salon days often include wait times that home services do not.',
         ],
       },
@@ -516,17 +520,17 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Booking confidently on Dofurs',
         paragraphs: [
-          'At Dofurs, every grooming provider across Bangalore is background-verified, follows a standardised hygiene protocol, and works from transparent, itemised pricing starting at ₹899 for our Essential package. You see the full service list, the products used, and the price before you confirm — no surprise add-ons at the end of the session.',
+          'At Dofurs, every grooming provider across Bengaluru is background-verified, follows a standardised hygiene protocol, and works from transparent, itemised pricing starting at ₹899 for our Essential package. You see the full service list, the products used, and the price before you confirm — no surprise add-ons at the end of the session.',
           'If you are unsure which package fits your pet, our team can recommend based on coat type, size, and temperament. Book a grooming session and we will match you with a specialist who handles your pet\'s profile most often.',
         ],
       },
     ],
   },
   {
-    slug: 'summer-pet-care-bangalore',
-    title: 'Summer Pet Care in Bangalore: Heat, Hydration, Paws and Safe Walks',
+    slug: 'summer-pet-care-bengaluru',
+    title: 'Summer Pet Care in Bengaluru: Heat, Hydration, Paws and Safe Walks',
     excerpt:
-      'Bangalore summers get hotter each year. Here is a practical, vet-informed routine that keeps dogs and cats safe — covering hydration, walk timing, paw protection, and the warning signs every pet parent should know.',
+      'Bengaluru summers get hotter each year. Here is a practical, vet-informed routine that keeps dogs and cats safe — covering hydration, walk timing, paw protection, and the warning signs every pet parent should know.',
     category: 'Seasonal Care',
     readTime: '8 min read',
     publishedOn: '20 Apr 2026',
@@ -534,26 +538,27 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
+      'summer pet care Bengaluru',
       'summer pet care Bangalore',
       'dog heatstroke',
       'pet hydration',
       'safe dog walks',
       'paw pad burns',
     ],
-    heroImageSrc: '/blog/summer-pet-care-bangalore.svg',
-    heroImageAlt: 'Summer pet care tips for Bangalore — hydration, heat and walks',
+    heroImageSrc: '/blog/summer-pet-care-bengaluru.svg',
+    heroImageAlt: 'Summer pet care tips for Bengaluru — hydration, heat and walks',
     sections: [
       {
-        heading: 'Why Bangalore summers are tougher on pets than they look',
+        heading: 'Why Bengaluru summers are tougher on pets than they look',
         paragraphs: [
-          'Bangalore has historically been seen as a "mild-weather" city, but recent summers have consistently crossed 35°C with high UV indices and longer dry spells. That is meaningfully harder on pets than many parents realise. Dogs and cats cannot sweat the way we do — they manage heat primarily through panting and paw-pad contact with cooler surfaces. When the air is hot and the pavement is hotter, both of those cooling mechanisms start to fail.',
+          'Bengaluru has historically been seen as a "mild-weather" city, but recent summers have consistently crossed 35°C with high UV indices and longer dry spells. That is meaningfully harder on pets than many parents realise. Dogs and cats cannot sweat the way we do — they manage heat primarily through panting and paw-pad contact with cooler surfaces. When the air is hot and the pavement is hotter, both of those cooling mechanisms start to fail.',
           'Heat stress in pets is not just about comfort. It is a genuine medical risk. According to the American Veterinary Medical Association, heatstroke can develop rapidly in dogs and can be fatal without immediate care. The good news: almost all heat-related incidents in urban pets are preventable with a simple seasonal routine.',
         ],
       },
       {
         heading: 'Walk timing — the single biggest fix',
         paragraphs: [
-          'The most impactful change you can make this summer is the time of your pet\'s walks. In Bangalore, pavement and asphalt temperatures can exceed 55°C by 11 AM and stay high until well after 5 PM. That is hot enough to burn paw pads in seconds. A simple rule: if you cannot comfortably hold the back of your hand on the pavement for 10 seconds, it is too hot for your dog\'s paws.',
+          'The most impactful change you can make this summer is the time of your pet\'s walks. In Bengaluru, pavement and asphalt temperatures can exceed 55°C by 11 AM and stay high until well after 5 PM. That is hot enough to burn paw pads in seconds. A simple rule: if you cannot comfortably hold the back of your hand on the pavement for 10 seconds, it is too hot for your dog\'s paws.',
         ],
         bullets: [
           'Walks before 7 AM or after 7 PM are ideal during April–June.',
@@ -575,14 +580,14 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Paw protection — the most overlooked summer issue',
         paragraphs: [
-          'Paw pad burns are one of the most common summer injuries in Bangalore and they are often missed until the damage is significant. Pads that contact 55°C pavement can develop red, raw, blistered skin within minutes. The pet may not flinch in the moment but will show pain later — licking paws excessively, limping, or refusing their next walk.',
+          'Paw pad burns are one of the most common summer injuries in Bengaluru and they are often missed until the damage is significant. Pads that contact 55°C pavement can develop red, raw, blistered skin within minutes. The pet may not flinch in the moment but will show pain later — licking paws excessively, limping, or refusing their next walk.',
           'Prevention is simple: walk during cool hours on grass or shaded paths, and rinse your dog\'s paws with cool water after every outdoor walk. For frequent outdoor dogs, consider pet paw wax or lightweight booties. Inspect paws weekly for cracks, redness, or debris between toes — this takes 30 seconds and catches problems early.',
         ],
       },
       {
         heading: 'Indoor environment — small changes that help a lot',
         paragraphs: [
-          'Most Bangalore homes do not have full AC. That is fine — pets do not need a cold room, they need a stable, ventilated one. Keep a fan running in the pet\'s resting area, draw sheer curtains to block direct sun, and place cooling mats or damp towels on the floor for them to lie on. Tile floors naturally stay cooler than carpet — let your pet choose their spot.',
+          'Most Bengaluru homes do not have full AC. That is fine — pets do not need a cold room, they need a stable, ventilated one. Keep a fan running in the pet\'s resting area, draw sheer curtains to block direct sun, and place cooling mats or damp towels on the floor for them to lie on. Tile floors naturally stay cooler than carpet — let your pet choose their spot.',
           'For long-coated breeds, a professional summer groom (often called a "summer trim") does not mean shaving to the skin — that actually removes their natural heat protection. A skilled groomer will thin the undercoat, shorten feathering, and reduce matting while preserving the guard coat. This is a good month to schedule that visit.',
         ],
       },
@@ -611,16 +616,16 @@ const allBlogPosts: BlogPost[] = [
         heading: 'When professional support helps',
         paragraphs: [
           'A pre-summer vet check is one of the highest-value appointments of the year. A vet can assess your pet\'s weight, heart and respiratory health, hydration baseline, and breed-specific heat sensitivity — then advise on exercise limits and any red flags to monitor. This is especially important for brachycephalic breeds (Pugs, Bulldogs, Persians) and senior pets, who carry disproportionate heat risk.',
-          'Dofurs currently focuses on doorstep grooming across Bangalore. For pre-summer wellness reviews, consult a licensed veterinarian, then use grooming to keep the coat, paws and hygiene areas easier to manage through the season.',
+          'Dofurs currently focuses on doorstep grooming across Bengaluru. For pre-summer wellness reviews, consult a licensed veterinarian, then use grooming to keep the coat, paws and hygiene areas easier to manage through the season.',
         ],
       },
     ],
   },
   {
-    slug: 'pet-boarding-vs-pet-sitting-bangalore',
-    title: 'Pet Boarding vs. Pet Sitting in Bangalore: Which Is Right for Your Pet?',
+    slug: 'pet-boarding-vs-pet-sitting-bengaluru',
+    title: 'Pet Boarding vs. Pet Sitting in Bengaluru: Which Is Right for Your Pet?',
     excerpt:
-      'A side-by-side decision guide comparing pet boarding and in-home pet sitting in Bangalore — comfort, safety, socialisation, and what works best for different pet personalities.',
+      'A side-by-side decision guide comparing pet boarding and in-home pet sitting in Bengaluru — comfort, safety, socialisation, and what works best for different pet personalities.',
     category: 'Pet Sitting',
     readTime: '9 min read',
     publishedOn: '20 Apr 2026',
@@ -628,26 +633,26 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
-      'pet boarding Bangalore',
-      'pet sitting Bangalore',
+      'pet boarding Bengaluru',
+      'pet sitting Bengaluru',
       'dog boarding vs dog sitting',
       'pet care travel',
-      'dog sitter Bangalore',
+      'dog sitter Bengaluru',
     ],
-    heroImageSrc: '/blog/boarding-vs-sitting-bangalore.svg',
-    heroImageAlt: 'Pet boarding vs pet sitting comparison for Bangalore pet parents',
+    heroImageSrc: '/blog/boarding-vs-sitting-bengaluru.svg',
+    heroImageAlt: 'Pet boarding vs pet sitting comparison for Bengaluru pet parents',
     sections: [
       {
         heading: 'Two options, one important decision',
         paragraphs: [
-          'When you travel from Bangalore, your pet\'s care plan is one of the most stressful things to get right. Most pet parents end up picking between two clear options: pet boarding (your pet stays with a caregiver) and in-home pet sitting (a caregiver comes to your home). Both are good choices in the right scenario — but the wrong choice for the wrong pet can turn a calm trip into a stressful one for everyone.',
-          'This guide breaks down exactly how each option works in Bangalore, when each one makes sense, and what to look for in a provider so you book confidently the first time.',
+          'When you travel from Bengaluru, your pet\'s care plan is one of the most stressful things to get right. Most pet parents end up picking between two clear options: pet boarding (your pet stays with a caregiver) and in-home pet sitting (a caregiver comes to your home). Both are good choices in the right scenario — but the wrong choice for the wrong pet can turn a calm trip into a stressful one for everyone.',
+          'This guide breaks down exactly how each option works in Bengaluru, when each one makes sense, and what to look for in a provider so you book confidently the first time.',
         ],
       },
       {
-        heading: 'How pet boarding works in Bangalore',
+        heading: 'How pet boarding works in Bengaluru',
         paragraphs: [
-          'With pet boarding, your pet stays at a caregiver\'s home or at a dedicated boarding facility for the duration of your trip. Care is continuous — the caregiver is present for feeding, walks, play, and overnight supervision. Many professional Bangalore boarding providers now follow a home-style model rather than traditional kennels, with limited pet capacity and structured routines.',
+          'With pet boarding, your pet stays at a caregiver\'s home or at a dedicated boarding facility for the duration of your trip. Care is continuous — the caregiver is present for feeding, walks, play, and overnight supervision. Many professional Bengaluru boarding providers now follow a home-style model rather than traditional kennels, with limited pet capacity and structured routines.',
           'Care details vary by provider, including caregiver experience, environment, medication support, walk frequency, and whether pick-up/drop-off is available. Compare those inclusions before choosing a stay.',
           'Boarding works well for dogs that are socially confident and adapt easily to new environments. It is usually not the right fit for pets with severe separation anxiety, senior pets with established routines, or cats (who almost always do better at home).',
         ],
@@ -693,13 +698,13 @@ const allBlogPosts: BlogPost[] = [
         heading: 'Which is cheaper overall?',
         paragraphs: [
           'Neither option is reliably cheaper — it depends entirely on trip length and pet count. Boarding tends to be more economical for longer trips (5+ nights) with a single dog, because the per-night rate is predictable. Sitting tends to be more economical for homes with multiple pets, because one sitter can care for two or three pets at the same rate structure.',
-          'For a short Bangalore trip with one social dog, boarding may be simpler because care is continuous. For the same trip with two cats at home, sitting visits may be calmer because the pets stay in their familiar space. Compare the care model against your specific pet count, routine, and trip length.',
+          'For a short Bengaluru trip with one social dog, boarding may be simpler because care is continuous. For the same trip with two cats at home, sitting visits may be calmer because the pets stay in their familiar space. Compare the care model against your specific pet count, routine, and trip length.',
         ],
       },
       {
         heading: 'The safety and verification question',
         paragraphs: [
-          'Whichever option you pick, verification is the single most important factor. In Bangalore, informal word-of-mouth arrangements are common but carry real risk — inconsistent hygiene, untrained handling of medical emergencies, and no accountability if something goes wrong.',
+          'Whichever option you pick, verification is the single most important factor. In Bengaluru, informal word-of-mouth arrangements are common but carry real risk — inconsistent hygiene, untrained handling of medical emergencies, and no accountability if something goes wrong.',
           'Work only with providers who perform background checks, verify identity, keep structured pet profiles, and offer on-platform support. Ask specifically about emergency protocols — a good provider will have a named backup vet, know your pet\'s medical history, and be able to describe step-by-step what they would do if something happened.',
         ],
         bullets: [
@@ -731,7 +736,7 @@ const allBlogPosts: BlogPost[] = [
   },
   {
     slug: 'puppy-vaccination-schedule-india',
-    title: 'Puppy Vaccination Schedule in India: A Complete Timeline for Bangalore Pet Parents',
+    title: 'Puppy Vaccination Schedule in India: A Complete Timeline for Bengaluru Pet Parents',
     excerpt:
       'A clear, vet-aligned vaccination timeline for puppies in India — core and optional vaccines, the right intervals, annual boosters, and how to avoid the most common scheduling mistakes.',
     category: 'Veterinary Care',
@@ -742,7 +747,7 @@ const allBlogPosts: BlogPost[] = [
     author: 'Dofurs Editorial',
     tags: [
       'puppy vaccination schedule India',
-      'dog vaccination Bangalore',
+      'dog vaccination Bengaluru',
       'DHPP vaccine',
       'rabies vaccine dogs',
       'puppy preventive care',
@@ -755,7 +760,7 @@ const allBlogPosts: BlogPost[] = [
         paragraphs: [
           'Most new pet parents know their puppy needs vaccinations. What they often do not know is that the timing of those vaccinations matters as much as the vaccinations themselves. A puppy that receives the right vaccines at the wrong intervals can still be underprotected against the diseases those vaccines were supposed to prevent.',
           'This is because puppies are born with maternal antibodies — temporary immunity passed from the mother. Those antibodies protect the puppy early on but also interfere with the immune response to vaccines. A single vaccine dose is not enough; the primary series uses multiple, properly timed doses to "catch" the immune system at the moment maternal antibodies fade but before exposure risk becomes serious. Miss that window and you have a puppy who is vaccinated on paper but not fully protected in practice.',
-          'Indian pet clinics, including those across Bangalore, largely follow schedules based on the World Small Animal Veterinary Association (WSAVA) global guidelines, adapted for regional disease prevalence. This guide reflects that consensus schedule.',
+          'Indian pet clinics, including those across Bengaluru, largely follow schedules based on the World Small Animal Veterinary Association (WSAVA) global guidelines, adapted for regional disease prevalence. This guide reflects that consensus schedule.',
         ],
       },
       {
@@ -833,23 +838,23 @@ const allBlogPosts: BlogPost[] = [
         heading: 'Senior dog vaccination — the forgotten chapter',
         paragraphs: [
           'Many pet parents assume vaccination protocols stop mattering once a dog is past 8 or 9 years old. That is a mistake. Senior immune systems weaken, making core disease exposure even more dangerous. Most senior dogs continue with annual or triennial boosters under vet guidance, with schedules adapted for chronic conditions.',
-          'At senior check-ups, your vet may also recommend titre testing — a blood test that measures current immunity levels. Titre testing lets you confirm protection without unnecessary re-vaccination, and is increasingly available in Bangalore.',
+          'At senior check-ups, your vet may also recommend titre testing — a blood test that measures current immunity levels. Titre testing lets you confirm protection without unnecessary re-vaccination, and is increasingly available in Bengaluru.',
         ],
       },
       {
-        heading: 'Getting set up in Bangalore',
+        heading: 'Getting set up in Bengaluru',
         paragraphs: [
-          'If you have just brought home a puppy in Bangalore, the first step is a foundational vet consultation within the first week. Your vet will confirm the puppy\'s starting weight, overall health, and set the vaccination plan with exact dates based on the puppy\'s age. If previous doses were given by the breeder, bring any records so they can be verified and integrated.',
+          'If you have just brought home a puppy in Bengaluru, the first step is a foundational vet consultation within the first week. Your vet will confirm the puppy\'s starting weight, overall health, and set the vaccination plan with exact dates based on the puppy\'s age. If previous doses were given by the breeder, bring any records so they can be verified and integrated.',
           'Dofurs currently focuses on doorstep grooming. For puppy wellness and vaccination series, work with a licensed veterinarian, then book grooming once your puppy is cleared for handling and comfortable with a home appointment.',
         ],
       },
     ],
   },
   {
-    slug: 'golden-retriever-grooming-bangalore',
-    title: 'Golden Retriever Grooming in Bangalore: Coat, Climate and Complete Care',
+    slug: 'golden-retriever-grooming-bengaluru',
+    title: 'Golden Retriever Grooming in Bengaluru: Coat, Climate and Complete Care',
     excerpt:
-      'A detailed grooming handbook for Golden Retrievers in Bangalore — daily coat care, deshedding, bathing intervals, heat management, and the grooming mistakes to avoid in a humid tropical climate.',
+      'A detailed grooming handbook for Golden Retrievers in Bengaluru — daily coat care, deshedding, bathing intervals, heat management, and the grooming mistakes to avoid in a humid tropical climate.',
     category: 'Grooming',
     readTime: '10 min read',
     publishedOn: '20 Apr 2026',
@@ -857,20 +862,21 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
+      'Golden Retriever grooming Bengaluru',
       'Golden Retriever grooming Bangalore',
       'double coat care',
       'deshedding',
       'Golden Retriever heat',
       'breed-specific grooming',
     ],
-    heroImageSrc: '/blog/golden-retriever-grooming-bangalore.svg',
-    heroImageAlt: 'Golden Retriever grooming guide for Bangalore pet parents',
+    heroImageSrc: '/blog/golden-retriever-grooming-bengaluru.svg',
+    heroImageAlt: 'Golden Retriever grooming guide for Bengaluru pet parents',
     sections: [
       {
-        heading: 'Why Goldens need a Bangalore-specific grooming plan',
+        heading: 'Why Goldens need a Bengaluru-specific grooming plan',
         paragraphs: [
-          'Golden Retrievers are one of the most popular large breeds in Bangalore, and they are also one of the most demanding in terms of grooming. Their dense double coat was developed for cool, temperate climates — not for a city that routinely sees 30–36°C temperatures and persistent humidity for more than half the year. Left ungroomed, that beautiful coat quickly becomes a health liability: heat trapping, hotspots, fungal irritation, and severe matting are common in Bangalore Goldens whose grooming routine has not been adapted for the local environment.',
-          'The good news is that with a simple, consistent routine, your Golden can thrive in Bangalore with a full, healthy coat. This guide covers exactly what that routine looks like, month by month, and what mistakes to avoid.',
+          'Golden Retrievers are one of the most popular large breeds in Bengaluru, and they are also one of the most demanding in terms of grooming. Their dense double coat was developed for cool, temperate climates — not for a city that routinely sees 30–36°C temperatures and persistent humidity for more than half the year. Left ungroomed, that beautiful coat quickly becomes a health liability: heat trapping, hotspots, fungal irritation, and severe matting are common in Bengaluru Goldens whose grooming routine has not been adapted for the local environment.',
+          'The good news is that with a simple, consistent routine, your Golden can thrive in Bengaluru with a full, healthy coat. This guide covers exactly what that routine looks like, month by month, and what mistakes to avoid.',
         ],
       },
       {
@@ -898,22 +904,22 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Bathing frequency — more is not better',
         paragraphs: [
-          'A common mistake is bathing a Golden Retriever too frequently, thinking it will help with heat or odour. Over-bathing strips natural oils, dries the skin, and often makes coat health worse over time. For most Bangalore Goldens, one full bath every 4–6 weeks is appropriate, supplemented by paw rinses and spot-cleans as needed.',
+          'A common mistake is bathing a Golden Retriever too frequently, thinking it will help with heat or odour. Over-bathing strips natural oils, dries the skin, and often makes coat health worse over time. For most Bengaluru Goldens, one full bath every 4–6 weeks is appropriate, supplemented by paw rinses and spot-cleans as needed.',
           'Use a dog-specific shampoo with a moisturising conditioner — never human shampoo, which has the wrong pH. In humid months, an anti-fungal rinse once a month can be a valuable addition, especially if your Golden spends time outdoors or swims.',
-          'Thorough drying is non-negotiable. A damp double coat in Bangalore\'s humidity is a setup for hotspots within 24 hours. Towel-dry thoroughly, then use a pet dryer on cool setting, paying special attention to skin folds, armpits, chest, and the base of the tail.',
+          'Thorough drying is non-negotiable. A damp double coat in Bengaluru\'s humidity is a setup for hotspots within 24 hours. Towel-dry thoroughly, then use a pet dryer on cool setting, paying special attention to skin folds, armpits, chest, and the base of the tail.',
         ],
       },
       {
-        heading: 'Deshedding — the Bangalore Golden\'s best friend',
+        heading: 'Deshedding — the Bengaluru Golden\'s best friend',
         paragraphs: [
-          'Goldens shed all year, with two major "coat blow" periods — typically spring and autumn. In Bangalore, these periods are less defined seasonally because the climate does not cue the same clean transitions, but heavy shedding still happens. A professional deshedding session every 4–8 weeks makes an enormous difference.',
+          'Goldens shed all year, with two major "coat blow" periods — typically spring and autumn. In Bengaluru, these periods are less defined seasonally because the climate does not cue the same clean transitions, but heavy shedding still happens. A professional deshedding session every 4–8 weeks makes an enormous difference.',
           'Deshedding involves a deep bath, blow-out, and systematic removal of loose undercoat using specialised tools. Done well, it removes pounds of dead hair, reduces home shedding dramatically, improves skin breathability, and genuinely helps the dog cool more efficiently. Done poorly or with the wrong tools, it can damage the guard coat — which is why this is usually best handled by a trained groomer, not a DIY job.',
         ],
       },
       {
         heading: 'Heat and humidity — grooming decisions that matter',
         paragraphs: [
-          'For Bangalore Goldens, the hottest months (March–June) require specific grooming adjustments. These are not cosmetic — they directly affect your dog\'s health.',
+          'For Bengaluru Goldens, the hottest months (March–June) require specific grooming adjustments. These are not cosmetic — they directly affect your dog\'s health.',
         ],
         bullets: [
           'Keep feathering (long hair on legs, chest, tail) slightly trimmed — never fully removed.',
@@ -925,14 +931,14 @@ const allBlogPosts: BlogPost[] = [
         ],
       },
       {
-        heading: 'Common grooming problems in Bangalore Goldens',
+        heading: 'Common grooming problems in Bengaluru Goldens',
         paragraphs: [
-          'The four most common issues seen in Bangalore Goldens are ear infections, hotspots, matting behind the ears and under the armpits, and dandruff. Each has a clear prevention routine built into the care plan above, but when they do appear, handle them promptly.',
+          'The four most common issues seen in Bengaluru Goldens are ear infections, hotspots, matting behind the ears and under the armpits, and dandruff. Each has a clear prevention routine built into the care plan above, but when they do appear, handle them promptly.',
           'Ear infections present as head shaking, scratching, redness, or a yeasty smell — see a vet within 48 hours. Hotspots show as raw, oozing patches of skin, often under the coat — shave the immediate area (at a vet or professional groomer, not at home), keep it dry, and consult a vet for treatment. Matting should be addressed by a professional if it is extensive — aggressive brushing of tight mats is painful and can tear skin.',
         ],
       },
       {
-        heading: 'What to ask a Bangalore groomer about Goldens',
+        heading: 'What to ask a Bengaluru groomer about Goldens',
         paragraphs: [
           'Not every groomer is experienced with double-coated breeds, and the wrong choices made in a single session can have lasting consequences. Before booking, ask:',
         ],
@@ -948,17 +954,17 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Booking Golden grooming with Dofurs',
         paragraphs: [
-          'Dofurs specialises in double-coated breed grooming across Bangalore. Our verified groomers are trained specifically on Golden Retriever coat management — no shaving, proper deshedding, force-drying, and aftercare guidance tailored to humid climates. Sessions happen at your home, so your Golden stays calm in their own environment.',
-          'Book a Golden Retriever grooming session and we will match you with a groomer who handles your breed regularly — typically with same-week availability across most Bangalore pincodes.',
+          'Dofurs specialises in double-coated breed grooming across Bengaluru. Our verified groomers are trained specifically on Golden Retriever coat management — no shaving, proper deshedding, force-drying, and aftercare guidance tailored to humid climates. Sessions happen at your home, so your Golden stays calm in their own environment.',
+          'Book a Golden Retriever grooming session and we will match you with a groomer who handles your breed regularly — typically with same-week availability across most Bengaluru pincodes.',
         ],
       },
     ],
   },
   {
-    slug: 'finding-trusted-vet-bangalore',
-    title: 'How to Find a Trusted Vet in Bangalore (And What to Ask on the First Visit)',
+    slug: 'finding-trusted-vet-bengaluru',
+    title: 'How to Find a Trusted Vet in Bengaluru (And What to Ask on the First Visit)',
     excerpt:
-      'A step-by-step guide to finding a reliable veterinarian in Bangalore — what credentials to verify, the questions that reveal true quality, and the red flags that should change your shortlist.',
+      'A step-by-step guide to finding a reliable veterinarian in Bengaluru — what credentials to verify, the questions that reveal true quality, and the red flags that should change your shortlist.',
     category: 'Veterinary Care',
     readTime: '8 min read',
     publishedOn: '20 Apr 2026',
@@ -966,20 +972,20 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
-      'trusted vet Bangalore',
-      'find a vet Bangalore',
+      'trusted vet Bengaluru',
+      'find a vet Bengaluru',
       'home vet visit',
       'veterinary consultation',
-      'pet health Bangalore',
+      'pet health Bengaluru',
     ],
-    heroImageSrc: '/blog/finding-trusted-vet-bangalore.svg',
-    heroImageAlt: 'Finding a trusted vet in Bangalore — credentials, questions, and red flags',
+    heroImageSrc: '/blog/finding-trusted-vet-bengaluru.svg',
+    heroImageAlt: 'Finding a trusted vet in Bengaluru — credentials, questions, and red flags',
     sections: [
       {
         heading: 'Why choosing a vet is one of the most important decisions a pet parent makes',
         paragraphs: [
           'Your vet is the single most important medical professional in your pet\'s life. They are not just the person you see when something goes wrong — they are the professional who catches conditions before they become problems, who guides you through preventive care, and who is on the other end of the phone when something urgent happens at 11 PM. Choosing well once is vastly easier than switching later, especially if your pet develops a chronic condition.',
-          'Bangalore has a large and growing veterinary community, with quality ranging from excellent specialist clinics to under-qualified generalists. This guide helps you separate the two.',
+          'Bengaluru has a large and growing veterinary community, with quality ranging from excellent specialist clinics to under-qualified generalists. This guide helps you separate the two.',
         ],
       },
       {
@@ -992,7 +998,7 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Experience and specialisation',
         paragraphs: [
-          'Years of practice matter, but so does the type of practice. A general practitioner with 15 years of small-animal experience will be better at routine care and common conditions than a recent graduate, but a specialist surgeon is the right choice for anything requiring intervention beyond basic procedures. For most Bangalore pet parents, a good general practitioner who knows when to refer to a specialist is the ideal primary vet.',
+          'Years of practice matter, but so does the type of practice. A general practitioner with 15 years of small-animal experience will be better at routine care and common conditions than a recent graduate, but a specialist surgeon is the right choice for anything requiring intervention beyond basic procedures. For most Bengaluru pet parents, a good general practitioner who knows when to refer to a specialist is the ideal primary vet.',
           'Ask specifically whether the vet has regular experience with your pet\'s species, breed, and age group. A vet who primarily treats dogs may be less confident with cats, and cats often require a meaningfully different diagnostic approach. For exotic pets (rabbits, guinea pigs, birds), you likely need a vet who openly identifies as exotic-trained.',
         ],
       },
@@ -1003,7 +1009,7 @@ const allBlogPosts: BlogPost[] = [
         ],
         bullets: [
           'What vaccinations and preventive care do you recommend for my pet\'s age and lifestyle?',
-          'Which diseases are most common in this part of Bangalore and how do you screen for them?',
+          'Which diseases are most common in this part of Bengaluru and how do you screen for them?',
           'How do you communicate with pet parents between visits?',
           'What is your protocol for out-of-hours emergencies?',
           'Do you offer home visits, and if not, can you recommend one?',
@@ -1046,7 +1052,7 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Home vet visits — when they are the right call',
         paragraphs: [
-          'Home vet consultations have become more accessible in Bangalore, and for certain situations they are demonstrably better than clinic visits. Older pets, cats, post-surgical recovery, and anxiety-prone dogs often benefit dramatically from being examined in their own environment. Stress distorts clinical readings — a dog\'s heart rate at a clinic may run 30% higher than the same dog at home, which changes diagnostic interpretation.',
+          'Home vet consultations have become more accessible in Bengaluru, and for certain situations they are demonstrably better than clinic visits. Older pets, cats, post-surgical recovery, and anxiety-prone dogs often benefit dramatically from being examined in their own environment. Stress distorts clinical readings — a dog\'s heart rate at a clinic may run 30% higher than the same dog at home, which changes diagnostic interpretation.',
           'For routine wellness checks, vaccination appointments, and preventive care reviews, home visits are often the better choice. For complex diagnostics, surgery, or imaging, a well-equipped clinic is irreplaceable. A good vet will be clear about which setting is right for a given concern.',
         ],
       },
@@ -1060,17 +1066,17 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'How Dofurs fits into your care plan',
         paragraphs: [
-          'Dofurs currently focuses on doorstep grooming across Bangalore. For medical concerns, work with a verified, registered veterinarian; for grooming, share relevant health context so the groomer can keep handling calm and appropriate.',
+          'Dofurs currently focuses on doorstep grooming across Bengaluru. For medical concerns, work with a verified, registered veterinarian; for grooming, share relevant health context so the groomer can keep handling calm and appropriate.',
           'If you are setting up a new primary vet relationship or want a second opinion on current care, use the checks in this guide to evaluate clinics or independent veterinarians before booking medical care.',
         ],
       },
     ],
   },
   {
-    slug: 'pet-friendly-bangalore-guide',
-    title: 'Pet-Friendly Bangalore: Parks, Cafés, Stays, and Weekend Outings With Your Pet',
+    slug: 'pet-friendly-bengaluru-guide',
+    title: 'Pet-Friendly Bengaluru: Parks, Cafés, Stays, and Weekend Outings With Your Pet',
     excerpt:
-      'A curated, neighbourhood-by-neighbourhood guide to pet-friendly Bangalore — where to walk, where to eat, where to stay, and how to plan weekend trips your pet will actually enjoy.',
+      'A curated, neighbourhood-by-neighbourhood guide to pet-friendly Bengaluru — where to walk, where to eat, where to stay, and how to plan weekend trips your pet will actually enjoy.',
     category: 'Lifestyle',
     readTime: '9 min read',
     publishedOn: '20 Apr 2026',
@@ -1078,34 +1084,34 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
-      'pet-friendly Bangalore',
-      'dog parks Bangalore',
-      'pet-friendly cafes Bangalore',
+      'pet-friendly Bengaluru',
+      'dog parks Bengaluru',
+      'pet-friendly cafes Bengaluru',
       'pet-friendly stays Karnataka',
       'weekend with dog',
     ],
-    heroImageSrc: '/blog/pet-friendly-bangalore.svg',
-    heroImageAlt: 'Pet-friendly Bangalore — parks, cafes, and stays guide',
+    heroImageSrc: '/blog/pet-friendly-bengaluru.svg',
+    heroImageAlt: 'Pet-friendly Bengaluru — parks, cafes, and stays guide',
     sections: [
       {
-        heading: 'Bangalore is quietly becoming one of India\'s most pet-friendly cities',
+        heading: 'Bengaluru is quietly becoming one of India\'s most pet-friendly cities',
         paragraphs: [
-          'If you moved to Bangalore more than five years ago, you would remember how limited the pet-friendly options were. Most restaurants did not allow pets, most parks had unclear rules, and finding a truly pet-friendly stay for a weekend trip felt like a small research project. That has changed noticeably. Today, the city has genuinely welcoming parks, a growing number of dog-friendly cafés and restaurants, and an expanding list of resorts and farm stays that welcome pets without drama.',
-          'This guide is organised around how you actually use the city — daily walks near home, weekend cafés, special outings, and weekends away. It is written from current experience and reflects options that real pet parents in Bangalore are using right now.',
+          'If you moved to Bengaluru more than five years ago, you would remember how limited the pet-friendly options were. Most restaurants did not allow pets, most parks had unclear rules, and finding a truly pet-friendly stay for a weekend trip felt like a small research project. That has changed noticeably. Today, the city has genuinely welcoming parks, a growing number of dog-friendly cafés and restaurants, and an expanding list of resorts and farm stays that welcome pets without drama.',
+          'This guide is organised around how you actually use the city — daily walks near home, weekend cafés, special outings, and weekends away. It is written from current experience and reflects options that real pet parents in Bengaluru are using right now.',
         ],
       },
       {
         heading: 'Daily walks and dog parks',
         paragraphs: [
-          'Your day-to-day walk rhythm matters more than any weekend destination. Goldens are not the only dogs who thrive on consistent outdoor time — every dog benefits from a reliable walk routine. Bangalore has several large green spaces that accommodate leashed dogs, plus a growing network of neighbourhood parks and gated-community lawns.',
-          'Cubbon Park in the central city is the best-known large walking space. Early mornings (before 8 AM) are pet-friendly and the environment is calm. Lalbagh permits dogs with leash requirements in some areas and certain times — always check current notices. For east Bangalore, the HSR Layout 19th Main walking trail is popular. In south Bangalore, Turahalli Forest and surrounding tree-lined streets in Banashankari offer good cover. In north Bangalore, the GKVK campus edges and parts of Hebbal Lake are commonly used by local pet parents.',
+          'Your day-to-day walk rhythm matters more than any weekend destination. Goldens are not the only dogs who thrive on consistent outdoor time — every dog benefits from a reliable walk routine. Bengaluru has several large green spaces that accommodate leashed dogs, plus a growing network of neighbourhood parks and gated-community lawns.',
+          'Cubbon Park in the central city is the best-known large walking space. Early mornings (before 8 AM) are pet-friendly and the environment is calm. Lalbagh permits dogs with leash requirements in some areas and certain times — always check current notices. For east Bengaluru, the HSR Layout 19th Main walking trail is popular. In south Bengaluru, Turahalli Forest and surrounding tree-lined streets in Banashankari offer good cover. In north Bengaluru, the GKVK campus edges and parts of Hebbal Lake are commonly used by local pet parents.',
           'Gated communities often have the best infrastructure for daily walks — confirmed leash paths, clean surfaces, and other pet owners for casual socialisation. If your community has a designated dog park area, use it; familiarity with the space reduces reactive behaviour over time.',
         ],
       },
       {
         heading: 'Pet-friendly cafés and restaurants',
         paragraphs: [
-          'Bangalore\'s café scene is one of the most pet-accommodating in India. The following style of places typically welcome leashed, well-behaved dogs — always call ahead to confirm and check whether indoor or outdoor seating applies on the day.',
+          'Bengaluru\'s café scene is one of the most pet-accommodating in India. The following style of places typically welcome leashed, well-behaved dogs — always call ahead to confirm and check whether indoor or outdoor seating applies on the day.',
         ],
         bullets: [
           'Dedicated pet cafés: small, purpose-built spots that serve both pets and people, with pet-safe menu items (Indiranagar, Koramangala, and HSR typically host these).',
@@ -1122,9 +1128,9 @@ const allBlogPosts: BlogPost[] = [
         ],
       },
       {
-        heading: 'Weekend outings near Bangalore',
+        heading: 'Weekend outings near Bengaluru',
         paragraphs: [
-          'For weekend trips with your pet, Bangalore\'s outskirts and the surrounding Karnataka-Tamil Nadu border region have some genuinely special options. Pet-friendly farm stays and boutique resorts have grown noticeably, from Chikkaballapur and Nandi Hills in the north to Kanakapura Road and Sakleshpur in the south-west, and further afield to Coorg and the Western Ghats for longer drives.',
+          'For weekend trips with your pet, Bengaluru\'s outskirts and the surrounding Karnataka-Tamil Nadu border region have some genuinely special options. Pet-friendly farm stays and boutique resorts have grown noticeably, from Chikkaballapur and Nandi Hills in the north to Kanakapura Road and Sakleshpur in the south-west, and further afield to Coorg and the Western Ghats for longer drives.',
         ],
         bullets: [
           'Nandi Hills / Chikkaballapur farm stays: short drive, rolling landscapes, good for weekends.',
@@ -1151,31 +1157,31 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Community meetups and playdates',
         paragraphs: [
-          'Bangalore\'s pet community is one of the most active in India, with regular meetups organised through WhatsApp groups, Instagram communities, and neighbourhood apps. Participating in these transforms your pet\'s social experience — dogs who meet a variety of other dogs in controlled settings are typically more confident, less reactive, and better-adjusted long-term.',
+          'Bengaluru\'s pet community is one of the most active in India, with regular meetups organised through WhatsApp groups, Instagram communities, and neighbourhood apps. Participating in these transforms your pet\'s social experience — dogs who meet a variety of other dogs in controlled settings are typically more confident, less reactive, and better-adjusted long-term.',
           'Look for breed-specific meetups (Golden Retriever groups, Shih Tzu meetups, Indie-dog runs), community dog walks on weekends, and informal playdate circles in your gated community or neighbourhood. These are low-cost, high-value social opportunities that rival structured daycare.',
         ],
       },
       {
         heading: 'When you are travelling without your pet',
         paragraphs: [
-          'Not every trip is a pet trip. When you need to travel without your pet, planning their care is the bigger half of the task. In-home pet sitting or verified boarding in Bangalore both work well depending on your pet\'s temperament — we covered the full comparison in a separate guide.',
+          'Not every trip is a pet trip. When you need to travel without your pet, planning their care is the bigger half of the task. In-home pet sitting or verified boarding in Bengaluru both work well depending on your pet\'s temperament — we covered the full comparison in a separate guide.',
           'What you want to avoid is last-minute arrangements with unverified caregivers. The time cost of finding the right sitter once, and building a recurring relationship, is repaid every time you travel after.',
         ],
       },
       {
-        heading: 'Building Bangalore around your pet',
+        heading: 'Building Bengaluru around your pet',
         paragraphs: [
-          'Pet-friendly Bangalore is real, and it is growing. The more pet parents use these spaces — thoughtfully, with well-prepared pets — the more venues will welcome pets in the years ahead. Every good visit is a vote for the kind of city you want to live in with your pet.',
+          'Pet-friendly Bengaluru is real, and it is growing. The more pet parents use these spaces — thoughtfully, with well-prepared pets — the more venues will welcome pets in the years ahead. Every good visit is a vote for the kind of city you want to live in with your pet.',
           'If you are planning a big outing, a weekend trip, or a first-time cafe visit, Dofurs can help with doorstep grooming beforehand so your pet is cleaner, more comfortable, and easier to manage. For vaccination or training needs, coordinate with a qualified veterinarian or trainer separately.',
         ],
       },
     ],
   },
   {
-    slug: 'emergency-pet-care-bangalore',
-    title: 'Emergency Pet Care in Bangalore: First Response, Red Flags, and What to Do Before the Vet Arrives',
+    slug: 'emergency-pet-care-bengaluru',
+    title: 'Emergency Pet Care in Bengaluru: First Response, Red Flags, and What to Do Before the Vet Arrives',
     excerpt:
-      'The moments before a vet reaches your pet can change the outcome. A practical, vet-aligned first-response guide for Bangalore pet parents covering common emergencies, red flags, and the correct immediate actions.',
+      'The moments before a vet reaches your pet can change the outcome. A practical, vet-aligned first-response guide for Bengaluru pet parents covering common emergencies, red flags, and the correct immediate actions.',
     category: 'Veterinary Care',
     readTime: '10 min read',
     publishedOn: '20 Apr 2026',
@@ -1183,20 +1189,20 @@ const allBlogPosts: BlogPost[] = [
     dateModified: '2026-04-20',
     author: 'Dofurs Editorial',
     tags: [
-      'emergency pet care Bangalore',
+      'emergency pet care Bengaluru',
       'pet first aid',
       'pet poisoning',
       'choking pet',
-      '24 hour vet Bangalore',
+      '24 hour vet Bengaluru',
     ],
-    heroImageSrc: '/blog/emergency-pet-care-bangalore.svg',
-    heroImageAlt: 'Emergency pet care in Bangalore — first response guide',
+    heroImageSrc: '/blog/emergency-pet-care-bengaluru.svg',
+    heroImageAlt: 'Emergency pet care in Bengaluru — first response guide',
     sections: [
       {
         heading: 'What counts as a pet emergency',
         paragraphs: [
           'A pet emergency is any situation where waiting for a normal appointment may cause harm. That bar is lower than many pet parents realise. Difficulty breathing, uncontrolled bleeding, suspected poisoning, seizures, severe vomiting or diarrhoea, inability to urinate, sudden collapse, major trauma, or heatstroke are all emergencies that need same-day or same-hour veterinary attention.',
-          'Bangalore has several 24-hour veterinary clinics and mobile emergency services, but every minute of delay during transport matters. The first few actions you take at home often determine outcomes. This guide is not a substitute for professional care — it is what to do during the minutes it takes to reach one.',
+          'Bengaluru has several 24-hour veterinary clinics and mobile emergency services, but every minute of delay during transport matters. The first few actions you take at home often determine outcomes. This guide is not a substitute for professional care — it is what to do during the minutes it takes to reach one.',
         ],
       },
       {
@@ -1222,7 +1228,7 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Suspected poisoning',
         paragraphs: [
-          'Common toxins for pets in Bangalore homes include chocolate, grapes and raisins, onions and garlic, xylitol (in sugar-free products), certain houseplants (lilies for cats especially), human medications, household cleaners, and rodenticide.',
+          'Common toxins for pets in Bengaluru homes include chocolate, grapes and raisins, onions and garlic, xylitol (in sugar-free products), certain houseplants (lilies for cats especially), human medications, household cleaners, and rodenticide.',
           'Do not induce vomiting unless explicitly instructed by a vet — for some toxins, vomiting causes more damage on the way up. Collect any remaining packaging, plant material, or residue to show the vet. Note what was ingested, how much, and roughly when. Call an emergency vet immediately and describe exactly what was ingested.',
         ],
       },
@@ -1250,7 +1256,7 @@ const allBlogPosts: BlogPost[] = [
       {
         heading: 'Heatstroke',
         paragraphs: [
-          'In Bangalore\'s summer, heatstroke is a realistic emergency. Signs: heavy rapid panting, bright red gums, drooling, confusion, vomiting, collapse. Move to a cool, shaded location. Wet the paws, belly, and armpits with room-temperature water — not ice-cold, which causes blood vessels to constrict and traps heat. Use a fan if available. Offer small sips of water if the pet is conscious and alert.',
+          'In Bengaluru\'s summer, heatstroke is a realistic emergency. Signs: heavy rapid panting, bright red gums, drooling, confusion, vomiting, collapse. Move to a cool, shaded location. Wet the paws, belly, and armpits with room-temperature water — not ice-cold, which causes blood vessels to constrict and traps heat. Use a fan if available. Offer small sips of water if the pet is conscious and alert.',
           'Transport to a vet immediately even if the pet appears to stabilise — internal damage from heatstroke can present 12–24 hours later and needs medical observation.',
         ],
       },
@@ -1316,9 +1322,9 @@ const publicGroomingBlogSlugs = new Set([
   'pet-care-during-bengaluru-monsoon',
   'reduce-pet-anxiety-before-grooming',
   'pet-grooming-frequency-india-guide',
-  'pet-grooming-cost-bangalore-2026',
-  'summer-pet-care-bangalore',
-  'golden-retriever-grooming-bangalore',
+  'pet-grooming-cost-bengaluru-2026',
+  'summer-pet-care-bengaluru',
+  'golden-retriever-grooming-bengaluru',
 ]);
 
 export const blogPosts: BlogPost[] = allBlogPosts.filter((post) => publicGroomingBlogSlugs.has(post.slug));

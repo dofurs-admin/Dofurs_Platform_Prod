@@ -353,13 +353,13 @@ nextjs-portal,
     min-height: 2.75rem;
   }
 
-  a[aria-label='Chat on WhatsApp'] {
+  .dofurs-whatsapp-floating-button {
     bottom: calc(var(--dofurs-mobile-nav-height) + var(--dofurs-mobile-safe-bottom) + 1.55rem) !important;
     right: 0.9rem !important;
   }
 
-  body:has(main.dofurs-mobile-main) a[aria-label='Chat on WhatsApp'] {
-    display: none !important;
+  body:has(.dofurs-mobile-sticky-action-bar) .dofurs-whatsapp-floating-button {
+    bottom: calc(var(--dofurs-mobile-nav-height) + var(--dofurs-mobile-safe-bottom) + 0.9rem) !important;
   }
 
   body.dofurs-mobile-app-theme button[aria-label='Open Next.js Dev Tools'] {

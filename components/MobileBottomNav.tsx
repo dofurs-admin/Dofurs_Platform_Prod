@@ -46,7 +46,7 @@ const navItems: MobileNavItem[] = [
 ];
 
 function isNavHidden(pathname: string) {
-  return pathname.startsWith('/auth');
+  return pathname.startsWith('/auth') || pathname.startsWith('/dashboard/admin');
 }
 
 export default function MobileBottomNav() {

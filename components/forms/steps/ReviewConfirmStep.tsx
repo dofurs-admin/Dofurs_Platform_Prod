@@ -44,6 +44,10 @@ type CreditEligibilityResponse = {
   totalCredits: number;
 };
 
+function formatCreditAmount(value: number) {
+  return `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
+}
+
 type BookingBundleRow = {
   petId: number;
   petName: string;
@@ -246,7 +250,7 @@ export default function ReviewConfirmStep({
     walletCreditsToApply > 0 && totalAmount === 0
       ? 'Your Dofurs Credits cover the full amount. No additional payment needed.'
       : paymentChoice === 'subscription_credit'
-        ? 'Subscription credit will be applied when booking is confirmed.'
+        ? 'Subscription credit value is reserved when booking is created and restored if the booking is cancelled.'
         : paymentChoice === 'cash'
           ? 'Cash will be collected after the service is completed.'
           : 'Secure Razorpay checkout is required before scheduling your booking.';
@@ -534,7 +538,7 @@ export default function ReviewConfirmStep({
             {subscriptionCreditUnavailableReason
               ? ` (${subscriptionCreditUnavailableReason})`
               : creditEligibility?.eligible
-                ? ` (${creditEligibility.availableCredits} credits available)`
+                ? ` (${formatCreditAmount(creditEligibility.availableCredits)} credit value available)`
                 : isCheckingCreditEligibility
                   ? ' (checking availability...)'
                   : ' (not available for this service)'}
@@ -552,7 +556,7 @@ export default function ReviewConfirmStep({
         </label>
         <p className="mt-2 text-[9px] leading-tight text-neutral-500/90 sm:text-[10px]">{paymentDescription}</p>
         <p className="mt-1 text-[9px] leading-tight text-neutral-500/90 sm:text-[10px]">
-          Subscription credits can be used for regular services. Birthday and boarding bookings are excluded.
+          Subscription credits can be used for eligible grooming services. Birthday and boarding bookings are excluded.
         </p>
       </div>
 

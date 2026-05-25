@@ -4,7 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:
-    'Read the Dofurs privacy policy — how we collect, use, share, and safeguard your personal and pet information across our Bangalore pet care platform.',
+    'Read the Dofurs privacy policy — how we collect, use, share, and safeguard your personal and pet information across our Bengaluru pet care platform.',
   alternates: { canonical: 'https://dofurs.in/privacy-policy' },
   openGraph: {
     title: 'Privacy Policy | Dofurs',
@@ -94,7 +94,7 @@ export default function PrivacyPolicyPage() {
       <h2 className="mt-4 text-2xl font-semibold text-ink">9. Grievance Officer & Contact</h2>
       <p>Company: Dofurs</p>
       <p>Email: petcare@dofurs.in</p>
-      <p>Location: Dofurs, Bangalore, Karnataka 560100</p>
+      <p>Location: Dofurs, Bengaluru, Karnataka 560100</p>
       <p>
         Grievance complaints are acknowledged within 24 hours and targeted for resolution within 30 days. This policy is
         governed by Indian law, with courts in Bengaluru, Karnataka having jurisdiction.

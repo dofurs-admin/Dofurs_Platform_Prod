@@ -22,6 +22,14 @@ type SubscriptionPlan = {
 
 type NewServiceRow = { service_type: string; credit_count: number };
 
+type DeletePlanResponse = {
+  error?: string;
+  success?: boolean;
+  archived?: boolean;
+  deleted?: boolean;
+  message?: string;
+};
+
 const SERVICE_TYPES = ['grooming'];
 
 const EMPTY_FORM = {
@@ -169,7 +177,7 @@ export default function AdminSubscriptionPlansClient({ showGuide = true }: Admin
 
   async function handleDelete(plan: SubscriptionPlan) {
     const confirmed = window.confirm(
-      `Delete ${plan.name}? This cannot be undone. If it has linked records, deletion will be blocked and you should archive it instead.`,
+      `Delete ${plan.name}? It will be removed from plan lists. Existing subscription and payment history will be preserved.`,
     );
     if (!confirmed) return;
 
@@ -179,13 +187,14 @@ export default function AdminSubscriptionPlansClient({ showGuide = true }: Admin
       const res = await fetch(`/api/admin/subscriptions/plans/${plan.id}`, {
         method: 'DELETE',
       });
+      const json = await res.json() as DeletePlanResponse;
       if (!res.ok) {
-        const json = await res.json() as { error?: string };
         throw new Error(json.error ?? 'Failed to delete plan.');
       }
       if (editingPlanId === plan.id) {
         cancelEdit();
       }
+      setPlans((current) => current.filter((candidate) => candidate.id !== plan.id));
       await fetchPlans();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -216,9 +225,9 @@ export default function AdminSubscriptionPlansClient({ showGuide = true }: Admin
           title="How to Use Subscription Plans"
           subtitle="Create and manage subscription plans with credit allocations"
           steps={[
-            { title: 'View Plans', description: 'All subscription plans are listed below with their pricing, duration, and included service credits.' },
-            { title: 'Create a Plan', description: 'Click "+ New Plan" to create a new subscription plan. Fill in the name, price, duration, and credits.' },
-            { title: 'Edit Credits', description: 'Each plan includes service credits (e.g., 2 grooming sessions). Adjust allocations per service type.' },
+            { title: 'View Plans', description: 'All subscription plans are listed below with their pricing, duration, and included credit value.' },
+            { title: 'Create a Plan', description: 'Click "+ New Plan" to create a new subscription plan. Fill in the name, price, duration, and credit value.' },
+            { title: 'Edit Credits', description: 'Each plan includes rupee-valued service credits. Adjust allocations per service type.' },
             { title: 'Manage Visibility', description: 'Plans can be active or hidden. Only active plans are shown to customers on the subscription page.' },
           ]}
         />

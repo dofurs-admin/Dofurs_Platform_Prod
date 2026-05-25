@@ -31,7 +31,7 @@ export const footerPolicyLinks = [
 
 // Navigation dropdown items — explicit hrefs to service landing pages
 export const navServiceItems = [
-  { title: 'Grooming', href: '/services/grooming/bangalore', availability: 'active', badge: 'Live' },
+  { title: 'Grooming', href: '/services/grooming/bengaluru', availability: 'active', badge: 'Live' },
 ] as const;
 
 type ServiceSummary = {

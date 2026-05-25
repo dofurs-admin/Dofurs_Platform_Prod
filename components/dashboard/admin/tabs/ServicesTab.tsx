@@ -8,6 +8,12 @@ import Modal from '@/components/ui/Modal';
 import { Button, Input } from '@/components/ui';
 import { cn } from '@/lib/design-system';
 import { useToast } from '@/components/ui/ToastProvider';
+import {
+  BENGALURU_CITY_COVERAGE_LABEL,
+  BENGALURU_CITY_COVERAGE_PINCODE,
+  BENGALURU_CITY_COVERAGE_PINCODE_CSV,
+  isBengaluruCityCoveragePincode,
+} from '@/lib/service-coverage';
 import type { ConfirmConfig } from '@/components/dashboard/admin/AdminDashboardShell';
 import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
 import type { AdminServiceModerationSummaryItem, PlatformDiscount, PlatformDiscountAnalyticsSummary } from '@/lib/provider-management/types';
@@ -266,6 +272,14 @@ export default function ServicesTab({
     }
     return Array.from(counts.entries()).map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value));
   }, [moderationProviders, globalServiceDraft.provider_types]);
+
+  const hasBengaluruCityGlobalCoverage = useMemo(
+    () => globalServiceDraft.service_pincodes
+      .split(',')
+      .map((value) => value.trim())
+      .some(isBengaluruCityCoveragePincode),
+    [globalServiceDraft.service_pincodes],
+  );
 
   const areAllServicesSectionsExpanded = servicesSectionIds.every((sectionId) => expandedServicesSections[sectionId]);
   const areAllServicesSectionsMinimized = servicesSectionIds.every((sectionId) => !expandedServicesSections[sectionId]);
@@ -1041,7 +1055,25 @@ export default function ServicesTab({
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <Input label="Service Pincodes" value={globalServiceDraft.service_pincodes} onChange={(e) => setGlobalServiceDraftField('service_pincodes', e.target.value)} placeholder="Indian pincodes (comma separated)" />
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <Input label="Service Pincodes" value={globalServiceDraft.service_pincodes} onChange={(e) => setGlobalServiceDraftField('service_pincodes', e.target.value)} placeholder="Indian pincodes (comma separated)" />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGlobalServiceDraftField('service_pincodes', BENGALURU_CITY_COVERAGE_PINCODE_CSV)}
+                  className="rounded-full border border-[#f2dfcf] bg-white px-3 py-2 text-[11px] font-semibold text-ink transition hover:bg-[#fff7f0]"
+                >
+                  Use Bengaluru City
+                </button>
+              </div>
+              <p className="text-[11px] text-[#6b6b6b]">
+                {hasBengaluruCityGlobalCoverage
+                  ? `${BENGALURU_CITY_COVERAGE_LABEL} selected (${BENGALURU_CITY_COVERAGE_PINCODE})`
+                  : 'Use the city preset instead of pasting every pincode.'}
+              </p>
+            </div>
             <div className="space-y-2">
               <label className="text-sm font-semibold text-ink">Target Provider Types</label>
               <div className="flex flex-wrap items-center gap-2">

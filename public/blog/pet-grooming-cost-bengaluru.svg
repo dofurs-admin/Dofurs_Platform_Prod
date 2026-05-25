@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Pet grooming cost in Bengaluru — pricing guide">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff4e4"/>
+      <stop offset="55%" stop-color="#fffdf9"/>
+      <stop offset="100%" stop-color="#ffe9d2"/>
+    </linearGradient>
+    <linearGradient id="coral" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e39a5d"/>
+      <stop offset="100%" stop-color="#cf8448"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="940" cy="160" r="160" fill="#f2cba8" opacity="0.55"/>
+  <circle cx="1080" cy="480" r="110" fill="#e8ccb3" opacity="0.55"/>
+  <g transform="translate(90,120)" fill="#1f1f1f">
+    <text x="0" y="0" font-family="Georgia, serif" font-weight="700" font-size="54">Pet Grooming</text>
+    <text x="0" y="70" font-family="Georgia, serif" font-weight="700" font-size="54">Cost in Bengaluru</text>
+    <text x="0" y="140" font-family="Verdana, sans-serif" font-size="28" fill="#5f5f5f">Complete 2026 price guide</text>
+  </g>
+  <g transform="translate(90,360)">
+    <rect x="0" y="0" width="260" height="110" rx="22" fill="#ffffff" stroke="#e7c4a7"/>
+    <text x="20" y="45" font-family="Verdana, sans-serif" font-size="20" fill="#8b633f">Essential</text>
+    <text x="20" y="85" font-family="Verdana, sans-serif" font-size="30" font-weight="700" fill="#1f1f1f">₹899+</text>
+    <rect x="280" y="0" width="260" height="110" rx="22" fill="#ffffff" stroke="#e7c4a7"/>
+    <text x="300" y="45" font-family="Verdana, sans-serif" font-size="20" fill="#8b633f">Complete Care</text>
+    <text x="300" y="85" font-family="Verdana, sans-serif" font-size="30" font-weight="700" fill="#1f1f1f">₹1,499+</text>
+    <rect x="560" y="0" width="260" height="110" rx="22" fill="url(#coral)" stroke="#cf8448"/>
+    <text x="580" y="45" font-family="Verdana, sans-serif" font-size="20" fill="#ffffff">Premium Spa</text>
+    <text x="580" y="85" font-family="Verdana, sans-serif" font-size="30" font-weight="700" fill="#ffffff">₹2,499+</text>
+  </g>
+  <g transform="translate(900,300)" fill="#cf8448">
+    <circle cx="0" cy="0" r="22"/><circle cx="60" cy="-30" r="18"/><circle cx="-60" cy="-30" r="18"/><circle cx="-30" cy="50" r="14"/><circle cx="30" cy="50" r="14"/>
+    <ellipse cx="0" cy="40" rx="50" ry="35"/>
+  </g>
+</svg>

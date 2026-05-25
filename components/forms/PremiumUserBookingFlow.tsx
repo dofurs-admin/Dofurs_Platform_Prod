@@ -185,6 +185,10 @@ type CreditEligibilityResponse = {
   reason?: string | null;
 };
 
+function formatCreditAmount(value: number) {
+  return `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
+}
+
 type BookingPaymentOrderResponse = {
   razorpay: {
     keyId: string;
@@ -2017,7 +2021,7 @@ export default function PremiumUserBookingFlow() {
         setSubscriptionCreditUnavailableReason(
           hasEnoughCredits
             ? null
-            : `You need ${Math.ceil(requiredCredits)} credits, but only ${Math.floor(totalAvailableCredits)} are available.`,
+            : `You need ${formatCreditAmount(requiredCredits)} credit value, but only ${formatCreditAmount(totalAvailableCredits)} is available.`,
         );
       } catch (err) { console.error(err);
         if (isMounted) {
@@ -3739,7 +3743,7 @@ export default function PremiumUserBookingFlow() {
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900">
               <p className="font-semibold">Set your pincode to continue</p>
               <p className="mt-1 text-amber-800">
-                Select a valid 6-digit Bangalore pincode from the location icon in the header to unlock service availability and scheduling.
+                Select a valid 6-digit Bengaluru pincode from the location icon in the header to unlock service availability and scheduling.
               </p>
             </div>
           ) : null}

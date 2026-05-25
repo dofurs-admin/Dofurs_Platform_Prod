@@ -4,12 +4,12 @@ import { faqsList } from '@/lib/faqs-data';
 export const metadata: Metadata = {
   title: 'Pet Grooming FAQs — Bookings, Packages, Payments',
   description:
-    'Answers to the most common questions about Dofurs doorstep grooming in Bangalore — bookings, groomer verification, packages, cancellations, payments, coverage areas, and pet profile management.',
+    'Answers to the most common questions about Dofurs doorstep grooming in Bengaluru — bookings, groomer verification, packages, cancellations, payments, coverage areas, and pet profile management.',
   alternates: { canonical: '/faqs' },
   openGraph: {
-    title: 'Pet Grooming FAQs | Dofurs Bangalore',
+    title: 'Pet Grooming FAQs | Dofurs Bengaluru',
     description:
-      'Everything pet parents in Bangalore need to know about grooming bookings, packages, payments, and support on Dofurs.',
+      'Everything pet parents in Bengaluru need to know about grooming bookings, packages, payments, and support on Dofurs.',
     url: 'https://dofurs.in/faqs',
     images: ['/logo/og-default.jpg'],
   },

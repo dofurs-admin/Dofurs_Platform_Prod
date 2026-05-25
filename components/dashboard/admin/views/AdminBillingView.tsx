@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { cn } from '@/lib/design-system';
-import CollapsibleAdminSection, { AdminSectionCollapseToolbar } from '@/components/dashboard/admin/CollapsibleAdminSection';
+import CollapsibleAdminSection from '@/components/dashboard/admin/CollapsibleAdminSection';
 import AdminPaginationControls from '@/components/dashboard/admin/AdminPaginationControls';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -29,25 +29,30 @@ type BillingAdminSectionId =
   | 'overdueEscalations'
   | 'invoiceLedger';
 
-const billingAdminSectionIds: BillingAdminSectionId[] = [
-  'searchFilter',
-  'moneyOverview',
-  'paymentMatching',
-  'matchQueue',
-  'paymentReminders',
-  'overdueEscalations',
-  'invoiceLedger',
-];
-
 const defaultExpandedBillingAdminSections: Record<BillingAdminSectionId, boolean> = {
   searchFilter: true,
-  moneyOverview: false,
-  paymentMatching: false,
-  matchQueue: false,
-  paymentReminders: false,
-  overdueEscalations: false,
+  moneyOverview: true,
+  paymentMatching: true,
+  matchQueue: true,
+  paymentReminders: true,
+  overdueEscalations: true,
   invoiceLedger: true,
 };
+
+type BillingWorkspaceTabId = 'ledger' | 'money' | 'reconciliation' | 'reminders' | 'escalations';
+
+const billingWorkspaceTabs: Array<{
+  id: BillingWorkspaceTabId;
+  label: string;
+  description: string;
+  sections: BillingAdminSectionId[];
+}> = [
+  { id: 'ledger', label: 'Invoice Ledger', description: 'Search, filter, and update invoices', sections: ['searchFilter', 'invoiceLedger'] },
+  { id: 'money', label: 'Money Overview', description: 'Collections health and aging', sections: ['moneyOverview'] },
+  { id: 'reconciliation', label: 'Reconciliation', description: 'Payment matching and match queue', sections: ['paymentMatching', 'matchQueue'] },
+  { id: 'reminders', label: 'Reminders', description: 'Payment follow-ups and automation', sections: ['paymentReminders'] },
+  { id: 'escalations', label: 'Escalations', description: 'Overdue action queues', sections: ['overdueEscalations'] },
+];
 
 type BillingReconciliationSummary = {
   checked_at: string;
@@ -480,12 +485,11 @@ export default function AdminBillingView({
     actionNote: billingEscalationActionNote,
   } = escalationState;
 
-  const [showGuide, setShowGuide] = useState(false);
+  const [activeBillingWorkspaceTab, setActiveBillingWorkspaceTab] = useState<BillingWorkspaceTabId>('ledger');
   const [expandedBillingAdminSections, setExpandedBillingAdminSections] = useState<Record<BillingAdminSectionId, boolean>>(
     () => defaultExpandedBillingAdminSections,
   );
-  const areAllBillingAdminSectionsExpanded = billingAdminSectionIds.every((sectionId) => expandedBillingAdminSections[sectionId]);
-  const areAllBillingAdminSectionsMinimized = billingAdminSectionIds.every((sectionId) => !expandedBillingAdminSections[sectionId]);
+  const activeBillingWorkspace = billingWorkspaceTabs.find((tab) => tab.id === activeBillingWorkspaceTab) ?? billingWorkspaceTabs[0];
 
   function toggleBillingAdminSection(sectionId: BillingAdminSectionId) {
     setExpandedBillingAdminSections((current) => ({
@@ -494,101 +498,42 @@ export default function AdminBillingView({
     }));
   }
 
-  function setAllBillingAdminSectionsExpanded(isExpanded: boolean) {
-    setExpandedBillingAdminSections(
-      billingAdminSectionIds.reduce<Record<BillingAdminSectionId, boolean>>((nextState, sectionId) => {
-        nextState[sectionId] = isExpanded;
-        return nextState;
-      }, {} as Record<BillingAdminSectionId, boolean>),
-    );
+  function isBillingSectionVisible(sectionId: BillingAdminSectionId) {
+    return activeBillingWorkspace.sections.includes(sectionId);
+  }
+
+  function openBillingWorkspace(tabId: BillingWorkspaceTabId) {
+    const tab = billingWorkspaceTabs.find((item) => item.id === tabId);
+    setActiveBillingWorkspaceTab(tabId);
+    if (!tab) return;
+
+    setExpandedBillingAdminSections((current) => ({
+      ...current,
+      ...tab.sections.reduce<Partial<Record<BillingAdminSectionId, boolean>>>((next, sectionId) => {
+        next[sectionId] = true;
+        return next;
+      }, {}),
+    }));
   }
 
   // ── Shared styles ──────────────────────────────────────────────────────
-  const sectionNumber = 'flex h-7 w-7 items-center justify-center rounded-full bg-coral/10 text-xs font-bold text-coral';
-  const statCard = 'rounded-xl border p-4';
+  const statCard = 'rounded-lg border p-3';
   const statLabel = 'text-xs font-medium';
-  const statValue = 'mt-1 text-lg font-bold';
-  const primaryBtn = 'rounded-xl bg-coral px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:brightness-95 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60';
-  const secondaryBtn = 'rounded-xl border border-neutral-300 bg-white px-4 py-2.5 text-sm font-semibold text-neutral-700 shadow-sm transition-all hover:border-neutral-400 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60';
-  const outlineCoralBtn = 'rounded-xl border border-coral/40 bg-white px-4 py-2.5 text-sm font-semibold text-coral shadow-sm transition-all hover:border-coral hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60';
+  const statValue = 'mt-1 text-base font-semibold';
+  const primaryBtn = 'rounded-lg bg-coral px-3 py-2 text-xs font-semibold text-white shadow-sm transition-all hover:bg-[#cf8448] disabled:cursor-not-allowed disabled:opacity-60';
+  const secondaryBtn = 'rounded-lg border border-neutral-300 bg-white px-3 py-2 text-xs font-semibold text-neutral-700 shadow-sm transition-all hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral disabled:cursor-not-allowed disabled:opacity-60';
+  const outlineCoralBtn = 'rounded-lg border border-coral/40 bg-white px-3 py-2 text-xs font-semibold text-coral shadow-sm transition-all hover:border-coral hover:bg-brand-50/40 disabled:cursor-not-allowed disabled:opacity-60';
   const smallActionBtn = 'rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50';
-  const selectField = 'input-field rounded-lg';
+  const selectField = 'input-field !min-h-9 rounded-lg !px-2.5 !py-1.5 text-xs';
 
   return (
-    <section className="space-y-6">
-
-      {/* ── Quick Guide Banner ─────────────────────────────────────────── */}
-      <div className="rounded-2xl border border-brand-200/60 bg-gradient-to-br from-brand-50/80 via-white to-brand-50/40 p-5 shadow-sm">
-        <button
-          type="button"
-          onClick={() => setShowGuide(!showGuide)}
-          className="flex w-full items-center justify-between text-left"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-coral/10 text-lg">📖</span>
-            <div>
-              <h3 className="text-base font-semibold text-neutral-900">How to Use This Dashboard</h3>
-              <p className="text-sm text-neutral-600">Quick guide to manage invoices, payments, and reminders</p>
-            </div>
-          </div>
-          <span className="text-sm text-coral font-medium">{showGuide ? 'Hide guide ▲' : 'Show guide ▼'}</span>
-        </button>
-
-        {showGuide && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-xl border border-brand-100 bg-white/80 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className={sectionNumber}>1</span>
-                <p className="text-sm font-semibold text-neutral-900">Search & Filter Invoices</p>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">Find any invoice by number, filter by payment status (draft, issued, paid), type, or date range.</p>
-            </div>
-            <div className="rounded-xl border border-brand-100 bg-white/80 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className={sectionNumber}>2</span>
-                <p className="text-sm font-semibold text-neutral-900">Money Overview</p>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">See how much has been billed, collected, and what&apos;s still pending. Track how fast payments come in.</p>
-            </div>
-            <div className="rounded-xl border border-brand-100 bg-white/80 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className={sectionNumber}>3</span>
-                <p className="text-sm font-semibold text-neutral-900">Payment Matching</p>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">Check if payments are correctly linked to invoices. Fix any mismatches automatically or manually.</p>
-            </div>
-            <div className="rounded-xl border border-brand-100 bg-white/80 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className={sectionNumber}>4</span>
-                <p className="text-sm font-semibold text-neutral-900">Match Queue</p>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">Review unlinked payments waiting to be matched to invoices. Use auto-match or link them yourself.</p>
-            </div>
-            <div className="rounded-xl border border-brand-100 bg-white/80 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className={sectionNumber}>5</span>
-                <p className="text-sm font-semibold text-neutral-900">Payment Reminders</p>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">Send payment reminders to customers via WhatsApp or email. Run them one-by-one or in bulk.</p>
-            </div>
-            <div className="rounded-xl border border-brand-100 bg-white/80 p-4">
-              <div className="flex items-center gap-2.5">
-                <span className={sectionNumber}>6</span>
-                <p className="text-sm font-semibold text-neutral-900">Overdue Escalations</p>
-              </div>
-              <p className="mt-2 text-xs leading-relaxed text-neutral-600">Manage invoices that are 30+ days overdue. Escalate, snooze, or mark them as resolved.</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Header Actions ─────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm">
         <div>
-          <h2 className="text-page-title">Billing Operations</h2>
-          <p className="mt-1 text-sm text-neutral-600">Manage invoices, track payments, send reminders, and resolve overdue items.</p>
+          <h2 className="text-base font-semibold text-neutral-950">{activeBillingWorkspace.label}</h2>
+          <p className="mt-1 text-xs text-neutral-600">{activeBillingWorkspace.description}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={onCreateInvoice} className={primaryBtn}>
             + Create Invoice
           </button>
@@ -598,20 +543,32 @@ export default function AdminBillingView({
           <button type="button" onClick={onExportCsv} className={outlineCoralBtn}>
             ↓ Export CSV
           </button>
-          <button type="button" onClick={onExportFollowupsCsv} className="rounded-xl border border-amber-300 bg-white px-4 py-2.5 text-sm font-semibold text-amber-700 shadow-sm transition-all hover:border-amber-400 hover:shadow-md">
+          <button type="button" onClick={onExportFollowupsCsv} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-700 shadow-sm transition-all hover:border-amber-400 hover:bg-amber-50">
             ↓ Export Follow-ups
           </button>
         </div>
       </div>
 
-      <AdminSectionCollapseToolbar
-        title="Billing Sections"
-        description="Keep filters and the ledger open, or minimize the operational queues for a shorter workspace."
-        areAllExpanded={areAllBillingAdminSectionsExpanded}
-        areAllMinimized={areAllBillingAdminSectionsMinimized}
-        onExpandAll={() => setAllBillingAdminSectionsExpanded(true)}
-        onMinimizeAll={() => setAllBillingAdminSectionsExpanded(false)}
-      />
+      <div className="sticky top-[4rem] z-10 overflow-x-auto rounded-xl border border-neutral-200 bg-white/95 p-1.5 shadow-sm backdrop-blur">
+        <div className="flex min-w-max gap-1.5">
+          {billingWorkspaceTabs.map((tab) => {
+            const active = tab.id === activeBillingWorkspaceTab;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => openBillingWorkspace(tab.id)}
+                className={cn(
+                  'rounded-lg px-3 py-2 text-left text-xs font-semibold transition',
+                  active ? 'bg-coral text-white shadow-sm' : 'text-neutral-600 hover:bg-brand-50 hover:text-neutral-950',
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* ── Section 1: Search & Filter ──────────────────────────────────── */}
       <CollapsibleAdminSection
@@ -621,8 +578,9 @@ export default function AdminBillingView({
         summary="1"
         isExpanded={expandedBillingAdminSections.searchFilter}
         onToggle={() => toggleBillingAdminSection('searchFilter')}
+        className={cn(!isBillingSectionVisible('searchFilter') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-4"
+        bodyClassName="mt-3"
       >
         <div className="grid items-end gap-4 sm:grid-cols-2 lg:grid-cols-6">
           <div>
@@ -676,8 +634,9 @@ export default function AdminBillingView({
         summary="2"
         isExpanded={expandedBillingAdminSections.moneyOverview}
         onToggle={() => toggleBillingAdminSection('moneyOverview')}
+        className={cn(!isBillingSectionVisible('moneyOverview') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-5"
+        bodyClassName="mt-3"
         actions={(
           <button
             type="button"
@@ -753,8 +712,9 @@ export default function AdminBillingView({
         summary="3"
         isExpanded={expandedBillingAdminSections.paymentMatching}
         onToggle={() => toggleBillingAdminSection('paymentMatching')}
+        className={cn(!isBillingSectionVisible('paymentMatching') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-5"
+        bodyClassName="mt-3"
         actions={(
           <button
             type="button"
@@ -860,8 +820,9 @@ export default function AdminBillingView({
         summary="4"
         isExpanded={expandedBillingAdminSections.matchQueue}
         onToggle={() => toggleBillingAdminSection('matchQueue')}
+        className={cn(!isBillingSectionVisible('matchQueue') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-5"
+        bodyClassName="mt-3"
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -991,8 +952,9 @@ export default function AdminBillingView({
         summary="5"
         isExpanded={expandedBillingAdminSections.paymentReminders}
         onToggle={() => toggleBillingAdminSection('paymentReminders')}
+        className={cn(!isBillingSectionVisible('paymentReminders') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-5"
+        bodyClassName="mt-3"
         actions={(
           <button
             type="button"
@@ -1288,8 +1250,9 @@ export default function AdminBillingView({
         summary="6"
         isExpanded={expandedBillingAdminSections.overdueEscalations}
         onToggle={() => toggleBillingAdminSection('overdueEscalations')}
+        className={cn(!isBillingSectionVisible('overdueEscalations') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-5"
+        bodyClassName="mt-3"
         actions={(
           <div className="flex items-center gap-2">
             <select
@@ -1449,8 +1412,9 @@ export default function AdminBillingView({
         summary={`${invoices.length} invoices`}
         isExpanded={expandedBillingAdminSections.invoiceLedger}
         onToggle={() => toggleBillingAdminSection('invoiceLedger')}
+        className={cn(!isBillingSectionVisible('invoiceLedger') && 'hidden')}
         headingLevel="h3"
-        bodyClassName="mt-4"
+        bodyClassName="mt-3"
       >
 
         {isFinanceDataLoading ? (

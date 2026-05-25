@@ -15,19 +15,26 @@ function shortDate(iso: string) {
 
 export default function BookingTrendChart({ data }: Props) {
   return (
-    <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-      <p className="text-sm font-semibold text-neutral-900 mb-4">Booking Trend</p>
-      <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0ede9" />
-          <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 10 }} interval="preserveStartEnd" />
-          <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
+    <div className="rounded-xl border border-neutral-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#fffaf5_100%)] p-3 shadow-sm">
+      <p className="mb-2 text-xs font-semibold text-neutral-900">Booking Trend</p>
+      <ResponsiveContainer width="100%" height={150}>
+        <BarChart data={data} margin={{ top: 4, right: 2, left: -26, bottom: 0 }}>
+          <defs>
+            <linearGradient id="bookingTrendGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#e39a5d" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="#cf8347" stopOpacity={0.72} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f5ece4" vertical={false} />
+          <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 9, fill: '#8a8178' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize: 9, fill: '#8a8178' }} tickLine={false} axisLine={false} allowDecimals={false} />
           <Tooltip
             labelFormatter={(v) => String(v)}
             formatter={(v) => [Number(v ?? 0), 'Bookings']}
-            contentStyle={{ fontSize: 12, borderRadius: 8 }}
+            cursor={{ fill: '#fff3e8' }}
+            contentStyle={{ border: '1px solid #ead7c8', borderRadius: 10, boxShadow: '0 10px 24px rgba(31,31,31,0.08)', fontSize: 12 }}
           />
-          <Bar dataKey="bookings" fill="#e39a5d" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="bookings" fill="url(#bookingTrendGrad)" maxBarSize={26} radius={[5, 5, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

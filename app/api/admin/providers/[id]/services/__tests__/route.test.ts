@@ -13,9 +13,13 @@ vi.mock('@/lib/provider-management/service', () => ({
   logProviderAdminAuditEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@/lib/supabase/admin-client', () => ({
+  getSupabaseAdminClient: vi.fn(() => ({ marker: 'admin-supabase' })),
+}));
+
 import { getApiAuthContext } from '@/lib/auth/api-auth';
-import { deleteProviderServiceRolloutEntry, logProviderAdminAuditEvent } from '@/lib/provider-management/service';
-import { DELETE } from '@/app/api/admin/providers/[id]/services/route';
+import { deleteProviderServiceRolloutEntry, logProviderAdminAuditEvent, updateProviderServiceRollout } from '@/lib/provider-management/service';
+import { DELETE, PUT } from '@/app/api/admin/providers/[id]/services/route';
 
 describe('DELETE /api/admin/providers/[id]/services', () => {
   afterEach(() => {
@@ -106,7 +110,7 @@ describe('DELETE /api/admin/providers/[id]/services', () => {
     vi.mocked(getApiAuthContext).mockResolvedValue({
       user: { id: 'admin-1' },
       role: 'admin',
-      supabase: { marker: 'supabase' },
+      supabase: { marker: 'session-supabase' },
     } as never);
 
     vi.mocked(deleteProviderServiceRolloutEntry).mockResolvedValue(refreshedServices as never);
@@ -123,13 +127,52 @@ describe('DELETE /api/admin/providers/[id]/services', () => {
     const json = await response.json();
     expect(json.success).toBe(true);
     expect(json.services).toEqual(refreshedServices);
-    expect(deleteProviderServiceRolloutEntry).toHaveBeenCalledWith({ marker: 'supabase' }, 10, 'svc-1');
+    expect(deleteProviderServiceRolloutEntry).toHaveBeenCalledWith({ marker: 'admin-supabase' }, 10, 'svc-1');
     expect(logProviderAdminAuditEvent).toHaveBeenCalledWith(
-      { marker: 'supabase' },
+      { marker: 'admin-supabase' },
       'admin-1',
       10,
       'provider.service_rollout_deleted',
       expect.objectContaining({ serviceId: 'svc-1' }),
     );
+  });
+});
+
+describe('PUT /api/admin/providers/[id]/services', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('does not coerce omitted rollout pricing fields to null', async () => {
+    vi.mocked(getApiAuthContext).mockResolvedValue({
+      user: { id: 'admin-1' },
+      role: 'admin',
+      supabase: { marker: 'supabase' },
+    } as never);
+
+    vi.mocked(updateProviderServiceRollout).mockResolvedValue([] as never);
+
+    const request = new Request('http://localhost/api/admin/providers/10/services', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify([
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          service_type: 'Grooming',
+          is_active: true,
+          service_pincodes: ['560000'],
+        },
+      ]),
+    });
+
+    const response = await PUT(request, { params: Promise.resolve({ id: '10' }) });
+
+    expect(response.status).toBe(200);
+    const [, , rolloutRows] = vi.mocked(updateProviderServiceRollout).mock.calls[0];
+    expect(rolloutRows[0]).not.toHaveProperty('base_price');
+    expect(rolloutRows[0]).not.toHaveProperty('surge_price');
+    expect(rolloutRows[0]).not.toHaveProperty('commission_percentage');
+    expect(rolloutRows[0]).not.toHaveProperty('service_duration_minutes');
+    expect(rolloutRows[0]).toMatchObject({ service_pincodes: ['560000'] });
   });
 });

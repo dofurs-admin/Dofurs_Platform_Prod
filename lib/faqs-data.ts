@@ -5,7 +5,7 @@ export type FAQ = {
 
 export const faqsList: FAQ[] = [
   {
-    question: 'How do I book doorstep pet grooming in Bangalore on Dofurs?',
+    question: 'How do I book doorstep pet grooming in Bengaluru on Dofurs?',
     answer:
       'Open the grooming page, choose a package, add your pet and address details, pick a preferred slot, and submit your booking. Our team confirms pincode availability before the appointment.',
   },
@@ -25,9 +25,9 @@ export const faqsList: FAQ[] = [
       'You can book Monthly Care, Fur Bath Care, Fur Makeover, Essential Grooming, and Complete Care packages. Each package shows inclusions and starting price before you confirm.',
   },
   {
-    question: 'Which areas in Bangalore does Dofurs serve?',
+    question: 'Which areas in Bengaluru does Dofurs serve?',
     answer:
-      'We currently serve most Bangalore pincodes, including Koramangala, Indiranagar, HSR Layout, Whitefield, Jayanagar, JP Nagar, Bellandur, Marathahalli, Hebbal, and surrounding neighbourhoods. Enter your pincode in the header to confirm availability.',
+      'We currently serve most Bengaluru pincodes, including Koramangala, Indiranagar, HSR Layout, Whitefield, Jayanagar, JP Nagar, Bellandur, Marathahalli, Hebbal, and surrounding neighbourhoods. Enter your pincode in the header to confirm availability.',
   },
   {
     question: 'How do I pay for grooming on Dofurs?',

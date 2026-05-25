@@ -31,6 +31,7 @@ import AdminProvidersView from '@/components/dashboard/admin/views/AdminProvider
 import AdminAuditView from '@/components/dashboard/admin/views/AdminAuditView';
 import AdminSubscriptionPlansClient from '@/components/dashboard/admin/AdminSubscriptionPlansClient';
 import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
+import { BENGALURU_CITY_COVERAGE_PINCODE_CSV } from '@/lib/service-coverage';
 
 // Premium Components
 import DashboardPageLayout from './premium/DashboardPageLayout';
@@ -73,6 +74,19 @@ type Provider = {
   id: number;
   name: string;
 };
+
+async function readApiErrorMessage(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { error?: unknown } | null;
+    if (typeof payload?.error === 'string' && payload.error.trim()) {
+      return payload.error;
+    }
+  } catch {
+    // Keep the fallback when the response is not JSON.
+  }
+
+  return fallback;
+}
 
 const ADMIN_BOOKING_ALLOWED_TRANSITIONS: Record<AdminBooking['status'], ReadonlyArray<AdminBooking['status']>> = {
   pending: ['confirmed', 'cancelled'],
@@ -177,6 +191,10 @@ type AdminServicePincode = {
 
 type ServiceRolloutDraft = {
   id?: string;
+  base_price: string;
+  surge_price: string;
+  commission_percentage: string;
+  service_duration_minutes: string;
   service_pincodes: string;
 };
 
@@ -620,6 +638,53 @@ function getDefaultAvailabilityDraft() {
     start_time: '09:00',
     end_time: '17:00',
   };
+}
+
+function getDefaultServiceRolloutDraft(): ServiceRolloutDraft {
+  return {
+    base_price: '',
+    surge_price: '',
+    commission_percentage: '',
+    service_duration_minutes: '',
+    service_pincodes: '',
+  };
+}
+
+function parseOptionalServiceRolloutNumber(
+  value: string,
+  label: string,
+  options: { min: number; max?: number; integer?: boolean; exclusiveMin?: boolean },
+) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return { value: undefined as number | undefined };
+  }
+
+  const numericValue = Number(trimmedValue);
+
+  if (!Number.isFinite(numericValue)) {
+    return { value: undefined, error: `${label} must be a valid number.` };
+  }
+
+  if (options.integer && !Number.isInteger(numericValue)) {
+    return { value: undefined, error: `${label} must be a whole number.` };
+  }
+
+  const isBelowMinimum = options.exclusiveMin ? numericValue <= options.min : numericValue < options.min;
+
+  if (isBelowMinimum) {
+    return {
+      value: undefined,
+      error: options.exclusiveMin ? `${label} must be greater than ${options.min}.` : `${label} must be at least ${options.min}.`,
+    };
+  }
+
+  if (typeof options.max === 'number' && numericValue > options.max) {
+    return { value: undefined, error: `${label} must be at most ${options.max}.` };
+  }
+
+  return { value: numericValue };
 }
 
 
@@ -2810,6 +2875,11 @@ export default function AdminDashboardClient({
   }
 
   function reassignProvider(bookingId: number, providerId: number) {
+    if (!Number.isFinite(providerId) || providerId <= 0) {
+      showToast('Choose a provider to reassign.', 'error');
+      return;
+    }
+
     const previous = bookings;
     setBookings((current) =>
       current.map((booking) =>
@@ -2817,8 +2887,7 @@ export default function AdminDashboardClient({
           ? {
               ...booking,
               provider_id: providerId,
-              status: 'pending',
-              booking_status: 'pending',
+              provider_name: providers.find((provider) => provider.id === providerId)?.name ?? booking.provider_name,
             }
           : booking,
       ),
@@ -2835,8 +2904,28 @@ export default function AdminDashboardClient({
 
       if (!response.ok) {
         setBookings(previous);
-        showToast('Reassign failed.', 'error');
+        showToast(await readApiErrorMessage(response, 'Reassign failed.'), 'error');
         return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as { booking?: Partial<AdminBooking> } | null;
+      if (payload?.booking) {
+        setBookings((current) =>
+          current.map((booking) =>
+            booking.id === bookingId
+              ? {
+                  ...booking,
+                  provider_id: payload.booking?.provider_id ?? providerId,
+                  provider_service_id: payload.booking?.provider_service_id ?? booking.provider_service_id,
+                  service_type: payload.booking?.service_type ?? booking.service_type,
+                  provider_notes: payload.booking?.provider_notes ?? booking.provider_notes,
+                  internal_notes: payload.booking?.internal_notes ?? booking.internal_notes,
+                  status: payload.booking?.status ?? booking.status,
+                  booking_status: payload.booking?.booking_status ?? booking.booking_status,
+                }
+              : booking,
+          ),
+        );
       }
 
       showToast('Provider reassigned.', 'success');
@@ -3437,16 +3526,23 @@ export default function AdminDashboardClient({
     const normalizedValue =
       field === 'service_pincodes' && typeof value === 'string'
         ? value.replace(/[^\d,\s]/g, '')
-        : value;
+        : typeof value === 'boolean'
+          ? String(value)
+          : value;
 
     setServiceDraft((current) => ({
       ...current,
       [providerId]: {
+        ...getDefaultServiceRolloutDraft(),
+        ...current[providerId],
         id: current[providerId]?.id,
-        service_pincodes: current[providerId]?.service_pincodes ?? '',
         [field]: normalizedValue,
       },
     }));
+  }
+
+  function applyBengaluruCityCoveragePreset(providerId: number) {
+    setServiceDraftField(providerId, 'service_pincodes', BENGALURU_CITY_COVERAGE_PINCODE_CSV);
   }
 
   function parseServicePincodeCsv(value: string) {
@@ -3470,6 +3566,10 @@ export default function AdminDashboardClient({
       ...current,
       [providerId]: {
         id: service.id,
+        base_price: String(service.base_price),
+        surge_price: service.surge_price === null ? '' : String(service.surge_price),
+        commission_percentage: service.commission_percentage === null ? '' : String(service.commission_percentage),
+        service_duration_minutes: service.service_duration_minutes === null ? '' : String(service.service_duration_minutes),
         service_pincodes: (pincodesByService[service.id] ?? []).join(', '),
       },
     }));
@@ -3528,20 +3628,15 @@ export default function AdminDashboardClient({
     providerServiceTypeOptions: string[],
     providerServicesRows: AdminProviderService[],
   ) {
-    const draft = serviceDraft[providerId];
+    const draft = serviceDraft[providerId] ?? getDefaultServiceRolloutDraft();
     const selectedServiceTypes = selectedServiceTypesByProvider[providerId] ?? providerServicesRows.map((service) => service.service_type);
 
     const normalizedSelectedServiceTypes = Array.from(
       new Set(selectedServiceTypes.map((value) => value.trim()).filter((value) => value.length > 0)),
     ).filter((value) => providerServiceTypeOptions.includes(value));
 
-    if (normalizedSelectedServiceTypes.length === 0) {
+    if (normalizedSelectedServiceTypes.length === 0 && providerServicesRows.length === 0) {
       showToast('Select at least one service to apply rollout.', 'error');
-      return;
-    }
-
-    if (!draft) {
-      showToast('Provide service configuration before saving.', 'error');
       return;
     }
 
@@ -3560,8 +3655,48 @@ export default function AdminDashboardClient({
       return;
     }
 
+    const basePrice = parseOptionalServiceRolloutNumber(draft.base_price, 'Base price', { min: 0 });
+    const surgePrice = parseOptionalServiceRolloutNumber(draft.surge_price, 'Surge price', { min: 0 });
+    const commission = parseOptionalServiceRolloutNumber(draft.commission_percentage, 'Commission', { min: 0, max: 100 });
+    const serviceDuration = parseOptionalServiceRolloutNumber(draft.service_duration_minutes, 'Duration', {
+      min: 0,
+      integer: true,
+      exclusiveMin: true,
+    });
+
+    const firstPricingError = basePrice.error ?? surgePrice.error ?? commission.error ?? serviceDuration.error;
+
+    if (firstPricingError) {
+      showToast(firstPricingError, 'error');
+      return;
+    }
+
+    const pricingOverrides = {
+      ...(basePrice.value !== undefined ? { base_price: basePrice.value } : {}),
+      ...(surgePrice.value !== undefined ? { surge_price: surgePrice.value } : {}),
+      ...(commission.value !== undefined ? { commission_percentage: commission.value } : {}),
+      ...(serviceDuration.value !== undefined ? { service_duration_minutes: serviceDuration.value } : {}),
+    };
+
     startTransition(async () => {
       try {
+        const selectedTypeSet = new Set(normalizedSelectedServiceTypes.map((serviceType) => serviceType.trim().toLowerCase()));
+        const servicesToUnlink = providerServicesRows.filter(
+          (service) => !selectedTypeSet.has(service.service_type.trim().toLowerCase()),
+        );
+        let latestServices: Array<AdminProviderService & { service_pincodes?: string[] }> | null = null;
+
+        for (const service of servicesToUnlink) {
+          const deleteResponse = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
+            `/api/admin/providers/${providerId}/services`,
+            {
+              method: 'DELETE',
+              body: JSON.stringify({ serviceId: service.id }),
+            },
+          );
+          latestServices = deleteResponse.services;
+        }
+
         const rolloutPayload = normalizedSelectedServiceTypes.map((serviceType) => {
           const existingService = existingServiceByType.get(serviceType.toLowerCase());
           const existingPincodes = existingService ? pincodesByService[existingService.id] ?? [] : [];
@@ -3570,28 +3705,40 @@ export default function AdminDashboardClient({
             id: existingService?.id,
             service_type: serviceType,
             is_active: true,
+            ...pricingOverrides,
             service_pincodes: servicePincodes.length > 0 ? servicePincodes : existingPincodes,
           };
         });
 
-        const response = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
-          `/api/admin/providers/${providerId}/services`,
-          {
-            method: 'PUT',
-            body: JSON.stringify(rolloutPayload),
-          },
-        );
+        if (rolloutPayload.length > 0) {
+          const response = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
+            `/api/admin/providers/${providerId}/services`,
+            {
+              method: 'PUT',
+              body: JSON.stringify(rolloutPayload),
+            },
+          );
+          latestServices = response.services;
+        }
 
-        setServicesByProvider((current) => ({ ...current, [providerId]: response.services }));
+        const nextServices = latestServices ?? [];
+
+        setServicesByProvider((current) => ({ ...current, [providerId]: nextServices }));
         setPincodesByService((current) => {
           const next = { ...current };
-          for (const service of response.services) {
+          for (const service of servicesToUnlink) {
+            delete next[service.id];
+          }
+          for (const service of nextServices) {
             next[service.id] = service.service_pincodes ?? [];
           }
           return next;
         });
 
-        showToast('Service rollout updated.', 'success');
+        showToast(
+          servicesToUnlink.length > 0 ? 'Service rollout links updated.' : 'Service rollout updated.',
+          'success',
+        );
       } catch (error) {
         showToast(error instanceof Error ? error.message : 'Unable to update service rollout.', 'error');
       }
@@ -4924,6 +5071,7 @@ export default function AdminDashboardClient({
           submitServiceRollout={submitServiceRollout}
           setProviderServiceActivation={setProviderServiceActivation}
           deleteProviderServiceRollout={deleteProviderServiceRollout}
+          applyBengaluruCityCoveragePreset={applyBengaluruCityCoveragePreset}
           handleOnboardingSuccess={handleOnboardingSuccess}
         />
       ) : null}

@@ -127,13 +127,13 @@ function buildBreadcrumbSchema(post: BlogPost) {
 // HowTo schemas keyed by blog slug — rendered alongside BlogPosting + BreadcrumbList
 // so step-by-step posts qualify for HowTo rich results in Google.
 const howToSchemaBySlug: Record<string, Record<string, unknown>> = {
-  'emergency-pet-care-bangalore': {
+  'emergency-pet-care-bengaluru': {
     '@context': 'https://schema.org',
     '@type': 'HowTo',
-    name: 'How to handle a pet emergency in Bangalore before the vet arrives',
+    name: 'How to handle a pet emergency in Bengaluru before the vet arrives',
     description:
-      'First-response steps for Bangalore pet parents facing a pet emergency — stay calm, secure the environment, assess your pet, call a vet, stabilise, and transport safely.',
-    image: 'https://dofurs.in/blog/emergency-pet-care-bangalore.svg',
+      'First-response steps for Bengaluru pet parents facing a pet emergency — stay calm, secure the environment, assess your pet, call a vet, stabilise, and transport safely.',
+    image: 'https://dofurs.in/blog/emergency-pet-care-bengaluru.svg',
     totalTime: 'PT15M',
     step: [
       {
@@ -151,7 +151,7 @@ const howToSchemaBySlug: Record<string, Record<string, unknown>> = {
       {
         '@type': 'HowToStep',
         position: 3,
-        name: 'Call a 24×7 vet in Bangalore',
+        name: 'Call a 24×7 vet in Bengaluru',
         text: 'Phone an emergency vet (Cessna, CUPA, Dr.Dilip, or your regular clinic) and describe symptoms clearly — do not drive without calling first.',
       },
       {
@@ -276,7 +276,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         <div className="mt-3 rounded-3xl border border-[#f2dfcf] bg-[linear-gradient(135deg,_#fdf8f4_0%,_#f6efe9_100%)] p-6 shadow-soft-sm">
           <h2 className="text-xl font-semibold text-ink">Need help with grooming right now?</h2>
           <p className="mt-2 text-ink/75">
-            Book verified doorstep grooming in Bangalore in minutes, with transparent packages and pet-safe products.
+            Book verified doorstep grooming in Bengaluru in minutes, with transparent packages and pet-safe products.
           </p>
           <Link
             href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"

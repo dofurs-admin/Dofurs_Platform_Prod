@@ -88,7 +88,7 @@ export default function TermsConditionsPage() {
       </p>
       <p>Email: petcare@dofurs.in</p>
       <p>Company: Dofurs</p>
-      <p>Address: Dofurs, Bangalore, Karnataka 560100</p>
+      <p>Address: Dofurs, Bengaluru, Karnataka 560100</p>
       </div>
     </ContentPageLayout>
   );

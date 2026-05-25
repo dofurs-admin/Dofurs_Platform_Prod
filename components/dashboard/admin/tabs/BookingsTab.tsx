@@ -1,11 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import StatCard from '@/components/dashboard/premium/StatCard';
 import AdminBookingsView from '@/components/dashboard/admin/views/AdminBookingsView';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAdminBookingRealtime } from '@/lib/hooks/useRealtime';
-import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
 import type { ConfirmConfig } from '@/components/dashboard/admin/AdminDashboardShell';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -57,6 +55,19 @@ type BookingsTabProps = {
   providers: Provider[];
   openConfirm: (config: Omit<ConfirmConfig, 'isOpen'>) => void;
 };
+
+async function readApiErrorMessage(response: Response, fallback: string) {
+  try {
+    const payload = (await response.json()) as { error?: unknown } | null;
+    if (typeof payload?.error === 'string' && payload.error.trim()) {
+      return payload.error;
+    }
+  } catch {
+    // Keep the fallback when the response is not JSON.
+  }
+
+  return fallback;
+}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -161,11 +172,6 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
     noShow: bookings.filter((b) => (b.booking_status ?? b.status) === 'no_show').length,
     cancelled: bookings.filter((b) => (b.booking_status ?? b.status) === 'cancelled').length,
   }), [bookings]);
-
-  const bookingServiceUnitCount = useMemo(
-    () => bookings.reduce((sum, booking) => sum + countServiceUnitsForBooking(booking), 0),
-    [bookings],
-  );
 
   const logModerationActivity = useCallback((message: string) => {
     setBookingModerationActivity(message);
@@ -344,11 +350,16 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
   }
 
   function reassignProvider(bookingId: number, providerId: number) {
+    if (!Number.isFinite(providerId) || providerId <= 0) {
+      showToast('Choose a provider to reassign.', 'error');
+      return;
+    }
+
     const previous = bookings;
     setBookings((current) =>
       current.map((b) =>
         b.id === bookingId
-          ? { ...b, provider_id: providerId, status: 'pending', booking_status: 'pending' }
+          ? { ...b, provider_id: providerId, provider_name: providers.find((provider) => provider.id === providerId)?.name ?? b.provider_name }
           : b,
       ),
     );
@@ -362,8 +373,28 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
 
       if (!response.ok) {
         setBookings(previous);
-        showToast('Reassign failed.', 'error');
+        showToast(await readApiErrorMessage(response, 'Reassign failed.'), 'error');
         return;
+      }
+
+      const payload = (await response.json().catch(() => null)) as { booking?: Partial<AdminBooking> } | null;
+      if (payload?.booking) {
+        setBookings((current) =>
+          current.map((booking) =>
+            booking.id === bookingId
+              ? {
+                  ...booking,
+                  provider_id: payload.booking?.provider_id ?? providerId,
+                  provider_service_id: payload.booking?.provider_service_id ?? booking.provider_service_id,
+                  service_type: payload.booking?.service_type ?? booking.service_type,
+                  provider_notes: payload.booking?.provider_notes ?? booking.provider_notes,
+                  internal_notes: payload.booking?.internal_notes ?? booking.internal_notes,
+                  status: payload.booking?.status ?? booking.status,
+                  booking_status: payload.booking?.booking_status ?? booking.booking_status,
+                }
+              : booking,
+          ),
+        );
       }
       showToast('Provider reassigned.', 'success');
     });
@@ -468,59 +499,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
   }
 
   return (
-    <div className="space-y-8">
-      <section className="space-y-6">
-        <div className="space-y-3">
-          <h2 className="text-section-title">Booking Operations</h2>
-          <p className="text-muted">Monitor booking pipeline, SLA risk, and fulfillment actions in one place</p>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7">
-          <StatCard
-            label="All Bookings"
-            value={bookings.length}
-            icon="calendar"
-            description="Live pipeline volume"
-          />
-          <StatCard
-            label="Service Units"
-            value={bookingServiceUnitCount}
-            icon="star"
-            description="Booked service items across bundles"
-          />
-          <StatCard
-            label="Bookings in Progress"
-            value={bookingRiskSummary.inProgress}
-            icon="trending-up"
-            description="Pending and confirmed bookings"
-          />
-          <StatCard
-            label="Completed Bookings"
-            value={bookingRiskSummary.completed}
-            icon="award"
-            description="Successfully fulfilled bookings"
-          />
-          <StatCard
-            label="Active SLAs"
-            value={bookingRiskSummary.pending}
-            icon="alert-circle"
-            description="Pending bookings awaiting confirmation"
-          />
-          <StatCard
-            label="No-show Bookings"
-            value={bookingRiskSummary.noShow}
-            icon="x-circle"
-            description="Provider or customer no-show"
-          />
-          <StatCard
-            label="Cancelled Bookings"
-            value={bookingRiskSummary.cancelled}
-            icon="x"
-            description="Cancelled from pipeline"
-          />
-        </div>
-      </section>
-
+    <div className="space-y-5">
       <AdminBookingsView
         bookingRiskSummary={bookingRiskSummary}
         bookingSearchQuery={bookingSearchQuery}

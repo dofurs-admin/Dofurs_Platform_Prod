@@ -119,6 +119,7 @@ export async function createOrActivateSubscriptionFromPayment(
     .select('id, duration_days, is_active')
     .eq('id', planId)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .single();
 
   if (planError || !plan) {

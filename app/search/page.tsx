@@ -31,7 +31,7 @@ const faqs = [
   { question: 'How do I book grooming?', answer: 'Open the booking flow, choose your pet and grooming package, add your address, and our team will confirm availability.' },
   { question: 'How are groomers verified?', answer: 'We review profile details, grooming experience, identity checks, and onboarding standards before groomers take Dofurs bookings.' },
   { question: 'Can I cancel or reschedule?', answer: 'Yes, cancellation and rescheduling are supported under our cancellation and adjustment policy.' },
-  { question: 'What areas do you serve?', answer: 'We currently serve Bangalore. Enter your pincode in the header to check availability.' },
+  { question: 'What areas do you serve?', answer: 'We currently serve Bengaluru. Enter your pincode in the header to check availability.' },
   { question: 'How do I pay for grooming?', answer: 'Payment can be made directly to the groomer at the appointment or through the Dofurs platform where available.' },
   { question: 'What if I am not satisfied with grooming?', answer: 'Contact us within 24 hours of the appointment and we will work with the grooming partner to resolve the concern.' },
   { question: 'How do I add or edit my pet profiles?', answer: 'Go to your Dashboard and click "Pet Profiles" to add new pets or edit existing ones.' },

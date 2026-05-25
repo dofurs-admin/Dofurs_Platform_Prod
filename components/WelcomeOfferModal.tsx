@@ -265,7 +265,7 @@ export default function WelcomeOfferModal({ signupHref, onSignup }: WelcomeOffer
             Get {rewardLabel} Grooming Credit
           </p>
           <p id="welcome-offer-description" className="mt-3 text-sm leading-relaxed text-[#5b3f2b] sm:text-[15px]">
-            Create your Dofurs account and use your welcome credit toward a verified doorstep grooming appointment in Bangalore.
+            Create your Dofurs account and use your welcome credit toward a verified doorstep grooming appointment in Bengaluru.
           </p>
 
           <ul className="mt-5 space-y-3 border-l-2 border-[#eabf97] pl-4">

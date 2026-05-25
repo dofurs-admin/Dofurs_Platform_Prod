@@ -22,16 +22,17 @@ import WelcomeOfferModal from '@/components/WelcomeOfferModal';
 import SubscriptionPlanCard from '@/components/payments/SubscriptionPlanCard';
 import { links } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
+import { marketingSubscriptionPlanGroups } from '@/lib/subscriptions/marketing-plans';
 
 export const metadata: Metadata = {
-  title: 'Dofurs | Doorstep Pet Grooming in Bangalore',
+  title: 'Dofurs | Doorstep Pet Grooming in Bengaluru',
   description:
-    'Book trusted doorstep pet grooming in Bangalore. Verified groomers, transparent grooming packages from ₹699, pet-safe products, and hygiene-first care.',
+    'Book trusted doorstep pet grooming in Bengaluru. Verified groomers, transparent grooming packages from ₹699, pet-safe products, and hygiene-first care.',
   alternates: { canonical: '/' },
   openGraph: {
-    title: 'Dofurs | Doorstep Pet Grooming in Bangalore',
+    title: 'Dofurs | Doorstep Pet Grooming in Bengaluru',
     description:
-      'Verified doorstep grooming for dogs and cats across Bangalore, with package pricing, calm handling, and WhatsApp support.',
+      'Verified doorstep grooming for dogs and cats across Bengaluru, with package pricing, calm handling, and WhatsApp support.',
     type: 'website',
     url: 'https://dofurs.in',
     images: ['/logo/og-default.jpg'],
@@ -69,14 +70,14 @@ const serviceDiscoveryExperiments: Record<
   }
 > = {
   conversion: {
-    heading: 'Doorstep Pet Grooming, From Verified Groomers Across Bangalore',
+    heading: 'Doorstep Pet Grooming, From Verified Groomers Across Bengaluru',
     headerCtaLabel: 'Book Now',
     headerCtaHref: buildBookingHref(),
     panelLabel: 'Grooming Packages',
     panelBody:
       'Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit.',
     chips: ['Doorstep grooming', 'Background-verified', 'Safe for anxious pets', 'Pet-safe products'],
-    highlights: ['All Bangalore pincodes', '4.8 avg rating', 'Under 2-hour response'],
+    highlights: ['All Bengaluru pincodes', '4.8 avg rating', 'Under 2-hour response'],
     footerTiles: [
       {
         title: 'Fit-Based Match',
@@ -117,36 +118,6 @@ const serviceDiscoveryExperiments: Record<
     ],
   },
 };
-
-const subscriptionPacks = [
-  {
-    title: 'Essential Grooming Pack 6M',
-    badge: 'Starter Value',
-    duration: '180 days',
-    price: '₹8,999',
-    worth: '₹10,794',
-    sessions: '6 essential grooming sessions',
-    serviceType: 'Grooming',
-  },
-  {
-    title: 'Premium Grooming Pack 6M',
-    badge: 'Most Chosen',
-    duration: '180 days',
-    price: '₹10,999',
-    worth: '₹13,794',
-    sessions: '6 premium grooming sessions',
-    serviceType: 'Grooming',
-  },
-  {
-    title: 'Premium Grooming Pack 12M',
-    badge: 'Elite Annual',
-    duration: '360 days',
-    price: '₹19,999',
-    worth: '₹27,588',
-    sessions: '12 premium grooming sessions',
-    serviceType: 'Grooming',
-  },
-] as const;
 
 const bookingSteps = [
   {
@@ -202,14 +173,14 @@ const trustPoints = [
 const socialStats = [
   { value: '100+', label: 'Pet Parents Served' },
   { value: '4.8', label: 'Average Rating' },
-  { value: 'Bangalore', label: 'Primary Service Area' },
+  { value: 'Bengaluru', label: 'Primary Service Area' },
 ];
 
 const testimonials = [
   {
     quote:
       "Bruno came back looking fresh and smelling great. The groomer was so patient with him - he's usually a nightmare with strangers.",
-    attribution: 'Harshita P N - Golden Retriever parent, Bangalore',
+    attribution: 'Harshita P N - Golden Retriever parent, Bengaluru',
     initials: 'HP',
   },
   {
@@ -325,7 +296,7 @@ export default async function HomePage({
             playsInline
             preload="metadata"
             poster="/Birthday/dofurs-desk-converted.webp"
-            aria-label="Dog being groomed at home by a professional groomer in Bangalore"
+            aria-label="Dog being groomed at home by a professional groomer in Bengaluru"
           >
             <source src="/Birthday/dofurs.cover.video.mp4" type="video/mp4" />
           </video>
@@ -344,7 +315,7 @@ export default async function HomePage({
                   </h1>
 
                   <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[#4a392d]/90 sm:text-[15px]">
-                    Verified groomers, transparent package pricing, pet-safe products, and punctual at-home appointments across Bangalore.
+                    Verified groomers, transparent package pricing, pet-safe products, and punctual at-home appointments across Bengaluru.
                   </p>
 
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -544,39 +515,79 @@ export default async function HomePage({
 
               <ServiceCatalogRail />
 
-              <div className="mt-6 rounded-[22px] border border-[#ead5c0] bg-[linear-gradient(140deg,#fff9f4_0%,#fffefc_55%,#fff8f1_100%)] p-4 shadow-gloss-premium sm:p-5">
+              <div className="mt-6 scroll-mt-28 rounded-[22px] border border-[#ead5c0] bg-[linear-gradient(140deg,#fff9f4_0%,#fffefc_55%,#fff8f1_100%)] p-4 shadow-gloss-premium sm:p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-coral">Subscription Services</p>
                     <h3 className="mt-1 text-xl font-semibold leading-tight text-[#2d221a] sm:text-2xl">
-                      Premium Grooming Plans
+                      Grooming Subscription Packs
                     </h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#675245]">
+                      Buy a grooming pack, receive subscription credit value after purchase, and use it to book eligible grooming services at your preferred date and time.
+                    </p>
                   </div>
                   <p className="rounded-full border border-[#ead6c2] bg-white/84 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7a5a45]">
-                    Fixed pricing. Priority booking.
+                    Credit value after purchase. Flexible booking.
                   </p>
                 </div>
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                  {subscriptionPacks.map((pack) => (
-                    <SubscriptionPlanCard
-                      key={pack.title}
-                      badge={pack.badge}
-                      durationLabel={pack.duration}
-                      title={pack.title}
-                      priceLabel={pack.price}
-                      includedSummary={pack.sessions}
-                      worthLabel={pack.worth}
-                      serviceType={pack.serviceType}
-                      cta={(
-                        <Link
-                          href="/dashboard/user/subscriptions"
-                          className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-[#e2c2a4] bg-[linear-gradient(135deg,#de9158,#c7773b)] px-4 text-[13px] font-semibold text-white transition hover:border-[#c7773b] hover:bg-[linear-gradient(135deg,#d7864f,#bf6f34)] group-hover:shadow-[0_12px_22px_rgba(199,119,59,0.28)]"
-                        >
-                          Choose Plan
-                        </Link>
-                      )}
-                    />
+                <ul className="mt-4 grid gap-2 text-[12px] font-semibold text-[#5d4739] sm:grid-cols-3">
+                  <li className="flex items-center gap-2 rounded-xl border border-[#f0dfcf] bg-white/78 px-3 py-2">
+                    <Wallet className="h-4 w-4 shrink-0 text-coral" />
+                    Credit value is added once the plan is purchased.
+                  </li>
+                  <li className="flex items-center gap-2 rounded-xl border border-[#f0dfcf] bg-white/78 px-3 py-2">
+                    <CalendarClock className="h-4 w-4 shrink-0 text-coral" />
+                    Book eligible grooming services for your chosen slot.
+                  </li>
+                  <li className="flex items-center gap-2 rounded-xl border border-[#f0dfcf] bg-white/78 px-3 py-2">
+                    <Star className="h-4 w-4 shrink-0 text-coral" />
+                    6M packs include herbal shampoo on the final service.
+                  </li>
+                </ul>
+
+                <div className="mt-5 space-y-6">
+                  {marketingSubscriptionPlanGroups.map((group) => (
+                    <div key={group.title}>
+                      <div className="flex flex-wrap items-end justify-between gap-2">
+                        <div>
+                          <h4 className="text-base font-semibold text-[#3a2c22]">{group.title}</h4>
+                          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#6f594a]">{group.summary}</p>
+                        </div>
+                      </div>
+
+                      <div className="-mx-4 mt-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
+                        <div className="flex w-max gap-3 sm:grid sm:w-auto sm:grid-cols-2 lg:grid-cols-5">
+                          {group.plans.map((pack) => (
+                            <div key={pack.title} className="w-[252px] shrink-0 sm:w-auto">
+                              <SubscriptionPlanCard
+                                badge={pack.badge}
+                                durationLabel={pack.duration}
+                                title={pack.title}
+                                priceLabel={pack.price}
+                                originalPriceLabel={pack.worth}
+                                dealLabel={group.dealLabel}
+                                descriptionLabel={pack.description}
+                                includedSummary={pack.sessions}
+                                worthLabel={pack.worth}
+                                serviceType={pack.serviceType}
+                                bonusLabel={'bonus' in pack ? pack.bonus : undefined}
+                                footerLabel="Pick date & time"
+                                highlight={'highlight' in pack ? pack.highlight : false}
+                                cta={(
+                                  <Link
+                                    href="/dashboard/user/subscriptions"
+                                    className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#e2c2a4] bg-[linear-gradient(135deg,#de9158,#c7773b)] px-4 text-[13px] font-semibold text-white transition hover:border-[#c7773b] hover:bg-[linear-gradient(135deg,#d7864f,#bf6f34)] group-hover:shadow-[0_12px_22px_rgba(199,119,59,0.28)]"
+                                  >
+                                    Choose Plan
+                                  </Link>
+                                )}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

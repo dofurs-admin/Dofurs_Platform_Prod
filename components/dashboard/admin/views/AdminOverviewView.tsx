@@ -1,9 +1,10 @@
 'use client';
 
-import StatCard from '@/components/dashboard/premium/StatCard';
 import AdminAnalyticsCharts from '@/components/dashboard/admin/charts/AdminAnalyticsCharts';
+import { cn } from '@/lib/design-system';
 
 type BookingRiskSummary = {
+  pending: number;
   inProgress: number;
   completed: number;
   noShow: number;
@@ -21,6 +22,32 @@ type AdminOverviewViewProps = {
   onNavigate: (view: 'payments' | 'subscriptions' | 'billing') => void;
 };
 
+type OverviewCompactCardProps = {
+  label: string;
+  value: number | string;
+  description: string;
+  className?: string;
+  labelClassName?: string;
+  valueClassName?: string;
+};
+
+function OverviewCompactCard({
+  label,
+  value,
+  description,
+  className,
+  labelClassName,
+  valueClassName,
+}: OverviewCompactCardProps) {
+  return (
+    <div className={cn('min-w-0 rounded-lg border border-neutral-200 bg-white p-2 shadow-sm', className)}>
+      <p className={cn('truncate text-[10px] font-semibold uppercase tracking-wide text-neutral-600', labelClassName)}>{label}</p>
+      <p className={cn('mt-0.5 text-base font-semibold leading-5 text-neutral-950', valueClassName)}>{value}</p>
+      <p className="truncate text-[10px] leading-4 text-neutral-500">{description}</p>
+    </div>
+  );
+}
+
 export default function AdminOverviewView({
   bookingCount,
   bookingServiceUnitCount,
@@ -32,108 +59,127 @@ export default function AdminOverviewView({
   onNavigate,
 }: AdminOverviewViewProps) {
   return (
-    <section className="space-y-6">
-      <div className="space-y-3">
-        <h2 className="text-section-title">Business Statistics</h2>
-        <p className="text-muted">Track platform supply, customer footprint, and growth levers from one control panel</p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-        <StatCard
-          label="All Bookings"
-          value={bookingCount}
-          icon="calendar"
-          description="Live pipeline volume"
+    <section className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <OverviewCompactCard
+          label="Pending SLA"
+          value={bookingRiskSummary.pending}
+          description="Needs admin attention"
+          className="border-amber-200 bg-amber-50"
+          labelClassName="text-amber-700"
+          valueClassName="text-amber-900"
         />
-        <StatCard
-          label="Service Units"
-          value={bookingServiceUnitCount}
-          icon="star"
-          description="Booked service items across bundles"
-        />
-        <StatCard
-          label="Bookings in Progress"
+        <OverviewCompactCard
+          label="In Progress"
           value={bookingRiskSummary.inProgress}
-          icon="trending-up"
-          description="Pending and confirmed bookings"
+          description="Pending and confirmed"
+          className="border-blue-200 bg-blue-50"
+          labelClassName="text-blue-700"
+          valueClassName="text-blue-900"
         />
-        <StatCard
-          label="Completed Bookings"
+        <OverviewCompactCard
+          label="Completed"
           value={bookingRiskSummary.completed}
-          icon="award"
-          description="Successfully fulfilled bookings"
+          description="Successfully fulfilled"
+          className="border-emerald-200 bg-emerald-50"
+          labelClassName="text-emerald-700"
+          valueClassName="text-emerald-900"
         />
-        <StatCard
-          label="No-show Bookings"
+        <OverviewCompactCard
+          label="No-shows"
           value={bookingRiskSummary.noShow}
-          icon="x-circle"
-          description="Provider or customer no-show"
+          description="High-risk exceptions"
+          className="border-red-200 bg-red-50"
+          labelClassName="text-red-700"
+          valueClassName="text-red-900"
         />
-        <StatCard
-          label="Cancelled Bookings"
+        <OverviewCompactCard
+          label="Cancelled"
           value={bookingRiskSummary.cancelled}
-          icon="x"
-          description="Cancelled from pipeline"
+          description="Removed from pipeline"
+          className="border-neutral-200 bg-neutral-50"
         />
-        <StatCard
-          label="Total Providers"
-          value={providerCount}
-          icon="users"
-          description="Onboarded provider base"
-        />
-        <StatCard
-          label="Total Services"
-          value={serviceCount}
-          icon="star"
-          description="Services in catalog"
-        />
-        <StatCard
-          label="Total Customers"
-          value={customerCount}
-          icon="users"
-          description="Unique customers from bookings"
-        />
-        <StatCard
+        <OverviewCompactCard
           label="Live Discounts"
           value={activeDiscountCount}
-          icon="tag"
-          description="Currently active campaigns"
+          description="Active campaigns"
+          className="border-brand-200 bg-brand-50"
+          labelClassName="text-coral"
+          valueClassName="text-[#9f5529]"
+        />
+      </div>
+
+      <div className="rounded-xl border border-neutral-200 bg-white p-2.5 shadow-sm">
+        <div className="grid gap-2 lg:grid-cols-[12rem_repeat(3,minmax(0,1fr))] lg:items-stretch">
+          <div>
+            <h2 className="text-xs font-semibold text-neutral-950">Today&apos;s Control Room</h2>
+            <p className="mt-0.5 text-[11px] leading-4 text-neutral-500">Fast queues.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('billing')}
+            className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-2.5 py-2 text-left transition hover:bg-brand-50/40"
+          >
+            <span>
+              <span className="block text-xs font-semibold text-neutral-950">Billing queue</span>
+              <span className="block text-[11px] text-neutral-500">Invoices and reminders</span>
+            </span>
+            <span className="text-xs font-semibold text-neutral-500">Open</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('payments')}
+            className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-2.5 py-2 text-left transition hover:bg-brand-50/40"
+          >
+            <span>
+              <span className="block text-xs font-semibold text-neutral-950">Payment review</span>
+              <span className="block text-[11px] text-neutral-500">Collection status</span>
+            </span>
+            <span className="text-xs font-semibold text-neutral-500">Open</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate('subscriptions')}
+            className="flex w-full items-center justify-between rounded-lg border border-neutral-200 px-2.5 py-2 text-left transition hover:bg-brand-50/40"
+          >
+            <span>
+              <span className="block text-xs font-semibold text-neutral-950">Subscription health</span>
+              <span className="block text-[11px] text-neutral-500">Plans and credits</span>
+            </span>
+            <span className="text-xs font-semibold text-neutral-500">Open</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+        <OverviewCompactCard
+          label="All Bookings"
+          value={bookingCount}
+          description="Live pipeline volume"
+        />
+        <OverviewCompactCard
+          label="Service Units"
+          value={bookingServiceUnitCount}
+          description="Booked service items across bundles"
+        />
+        <OverviewCompactCard
+          label="Total Providers"
+          value={providerCount}
+          description="Onboarded provider base"
+        />
+        <OverviewCompactCard
+          label="Total Services"
+          value={serviceCount}
+          description="Services in catalog"
+        />
+        <OverviewCompactCard
+          label="Total Customers"
+          value={customerCount}
+          description="Unique customers from bookings"
         />
       </div>
 
       <AdminAnalyticsCharts />
-
-      <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-neutral-900">Finance Command Center</h3>
-            <p className="mt-1 text-sm text-neutral-600">Open subscriptions, payments, and billing controls from one place.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => onNavigate('payments')}
-              className="min-h-[44px] rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-neutral-400"
-            >
-              Open Payments
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('subscriptions')}
-              className="min-h-[44px] rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-neutral-400"
-            >
-              Open Subscriptions
-            </button>
-            <button
-              type="button"
-              onClick={() => onNavigate('billing')}
-              className="min-h-[44px] rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-neutral-400"
-            >
-              Open Billing
-            </button>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }

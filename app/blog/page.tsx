@@ -11,7 +11,7 @@ const blogListingSchema = {
   '@id': `${SITE_URL}/blog#blog`,
   name: 'Dofurs Blog',
   description:
-    'Expert grooming guides, coat-care tips, seasonal hygiene advice and practical pet care notes for Bangalore pet parents.',
+    'Expert grooming guides, coat-care tips, seasonal hygiene advice and practical pet care notes for Bengaluru pet parents.',
   url: `${SITE_URL}/blog`,
   inLanguage: 'en-IN',
   publisher: { '@id': `${SITE_URL}/#organization` },
@@ -44,21 +44,23 @@ const blogBreadcrumbSchema = {
 };
 
 export const metadata: Metadata = {
-  title: 'Pet Grooming Blog — Coat Care, Hygiene & Bangalore Grooming Guides',
+  title: 'Pet Grooming Blog — Coat Care, Hygiene & Bengaluru Grooming Guides',
   description:
-    'Expert grooming guides, coat-care tips, monsoon hygiene advice, cost guides and decision checklists for Bangalore pet parents by the Dofurs team.',
+    'Expert grooming guides, coat-care tips, monsoon hygiene advice, cost guides and decision checklists for Bengaluru pet parents by the Dofurs team.',
   alternates: { canonical: '/blog' },
   openGraph: {
-    title: 'Dofurs Blog — Grooming Guides for Bangalore Pet Parents',
+    title: 'Dofurs Blog — Grooming Guides for Bengaluru Pet Parents',
     description:
-      'Expert grooming, coat-care, hygiene and seasonal pet care guides for Bangalore pet parents.',
+      'Expert grooming, coat-care, hygiene and seasonal pet care guides for Bengaluru pet parents.',
     url: 'https://dofurs.in/blog',
     images: ['/logo/og-default.jpg'],
   },
   keywords: [
-    'pet care blog Bangalore',
+    'pet care blog Bengaluru',
     'pet grooming tips',
-    'pet care Bangalore',
+    'pet care Bengaluru',
+    'pet care blog Bangalore',
+    'pet grooming Bangalore',
     'monsoon pet care',
   ],
 };

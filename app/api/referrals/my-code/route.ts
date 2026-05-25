@@ -55,7 +55,7 @@ export async function GET() {
       : null;
 
     const whatsappText = codeData
-      ? `Hey! I use Dofurs for all my pet's care needs in Bangalore. Use my code *${codeData.code}* when you sign up and get ₹500 Dofurs Credits instantly! I also earn ₹500 when you complete your first booking. 🐾\nSign up here: ${siteUrl}/auth/sign-in?mode=signup&ref=${codeData.code}`
+      ? `Hey! I use Dofurs for all my pet's care needs in Bengaluru. Use my code *${codeData.code}* when you sign up and get ₹500 Dofurs Credits instantly! I also earn ₹500 when you complete your first booking. 🐾\nSign up here: ${siteUrl}/auth/sign-in?mode=signup&ref=${codeData.code}`
       : null;
 
     return NextResponse.json({

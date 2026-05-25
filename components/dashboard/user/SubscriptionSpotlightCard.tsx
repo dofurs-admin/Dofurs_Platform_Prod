@@ -30,6 +30,10 @@ function formatServiceType(value: string) {
     .join(' ');
 }
 
+function formatCreditAmount(value: number) {
+  return `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
+}
+
 export default function SubscriptionSpotlightCard() {
   const [isLoading, setIsLoading] = useState(true);
   const [subscriptions, setSubscriptions] = useState<SubscriptionRow[]>([]);
@@ -160,7 +164,7 @@ export default function SubscriptionSpotlightCard() {
             <div key={`${activeSubscription.id}-${credit.service_type}`} className="rounded-xl border border-[#d4eadc] bg-white/80 px-3 py-2">
               <p className="text-xs font-semibold text-[#2e6a51]">{formatServiceType(credit.service_type)}</p>
               <p className="mt-0.5 text-sm font-semibold text-ink">
-                {credit.available_credits}/{credit.total_credits} credits left
+                {formatCreditAmount(credit.available_credits)}/{formatCreditAmount(credit.total_credits)} credit value left
               </p>
             </div>
           ))}
@@ -179,7 +183,7 @@ export default function SubscriptionSpotlightCard() {
           <p className="text-xs font-semibold uppercase tracking-wide text-[#a05a2c]">Subscription Services</p>
           <p className="mt-1 text-base font-bold text-ink">Save more with a grooming subscription</p>
           <p className="mt-0.5 text-sm text-ink/65">
-            Prepaid plans unlock premium services and express customer support.
+            Buy a care pack once, then book eligible grooming services at your preferred date and time.
           </p>
         </div>
         <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-coral text-white shadow-soft">
@@ -189,10 +193,10 @@ export default function SubscriptionSpotlightCard() {
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span className="inline-flex items-center gap-1 rounded-full border border-[#ebc9ab] bg-white px-2.5 py-1 text-xs font-semibold text-[#8f4a1d]">
-          <Sparkles className="h-3.5 w-3.5" /> Premium Services
+          <Sparkles className="h-3.5 w-3.5" /> Credit Value After Purchase
         </span>
         <span className="inline-flex items-center gap-1 rounded-full border border-[#ebc9ab] bg-white px-2.5 py-1 text-xs font-semibold text-[#8f4a1d]">
-          <CalendarClock className="h-3.5 w-3.5" /> Express Customer Support
+          <CalendarClock className="h-3.5 w-3.5" /> Choose Date &amp; Time
         </span>
       </div>
 

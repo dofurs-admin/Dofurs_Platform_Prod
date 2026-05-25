@@ -4,14 +4,14 @@ import { BadgeCheck, Home, ShieldCheck } from 'lucide-react';
 import { supportContact } from '@/lib/site-data';
 
 export const metadata: Metadata = {
-  title: 'About Dofurs — Trusted Pet Grooming for Bangalore Pet Parents',
+  title: 'About Dofurs — Trusted Pet Grooming for Bengaluru Pet Parents',
   description:
-    'Dofurs is a Bangalore-based doorstep pet grooming platform built around verified groomers, transparent pricing, and a safety-first approach. Meet the team behind trusted grooming experiences.',
+    'Dofurs is a Bengaluru-based doorstep pet grooming platform built around verified groomers, transparent pricing, and a safety-first approach. Meet the team behind trusted grooming experiences.',
   alternates: { canonical: '/about' },
   openGraph: {
-    title: 'About Dofurs — Trusted Pet Grooming for Bangalore',
+    title: 'About Dofurs — Trusted Pet Grooming for Bengaluru',
     description:
-      'Verified groomers, transparent pricing, and a safety-first approach to doorstep grooming across Bangalore.',
+      'Verified groomers, transparent pricing, and a safety-first approach to doorstep grooming across Bengaluru.',
     url: 'https://dofurs.in/about',
     images: ['/logo/og-default.jpg'],
   },
@@ -26,13 +26,13 @@ export default function AboutPage() {
       heroImageAlt="About Dofurs"
     >
       <p className="mx-auto max-w-4xl rounded-full border border-[#f1e6da] bg-[#fffaf6] px-5 py-2.5 text-center text-[14.5px] leading-6 text-ink/80 md:text-[15px]">
-        Dofurs, Bangalore, Karnataka 560100 • dofurs.in • petcare@dofurs.in
+        Dofurs, Bengaluru, Karnataka 560100 • dofurs.in • petcare@dofurs.in
       </p>
 
       <section className="mx-auto mt-3 max-w-4xl rounded-3xl border border-[#f1e6da] bg-[linear-gradient(180deg,_#fffdfb_0%,_#fdf6ef_100%)] px-6 py-7 text-center shadow-soft-sm md:px-10 md:py-9">
         <h2 className="text-2xl font-semibold text-ink">Our Mission</h2>
         <p className="mx-auto mt-3 max-w-3xl text-[#666] md:text-[16px] md:leading-7">
-          We are building Bangalore’s most trusted doorstep pet grooming platform where every pet parent can discover verified groomers,
+          We are building Bengaluru’s most trusted doorstep pet grooming platform where every pet parent can discover verified groomers,
           book confidently, and receive dependable support.
         </p>
       </section>
@@ -78,7 +78,7 @@ export default function AboutPage() {
           <h2 className="text-2xl font-semibold text-ink">What We Do</h2>
           <ul className="mt-3 list-disc space-y-2 pl-6 text-[15px] leading-7 text-ink/80">
             <li>
-              <strong>Doorstep grooming:</strong> Professional grooming at home across Bangalore neighbourhoods.
+              <strong>Doorstep grooming:</strong> Professional grooming at home across Bengaluru neighbourhoods.
             </li>
             <li>
               <strong>Transparent packages:</strong> Clear grooming inclusions, starting prices, and add-on options before booking.
@@ -129,7 +129,7 @@ export default function AboutPage() {
           <h2 className="text-2xl font-semibold text-ink">Get in Touch</h2>
           <p className="mt-3 text-[15.5px] leading-7 text-ink/80">Email: petcare@dofurs.in</p>
           <p className="text-[15.5px] leading-7 text-ink/80">WhatsApp: {supportContact.whatsappDisplay}</p>
-          <p className="text-[15.5px] leading-7 text-ink/80">Headquarters: Dofurs, Bangalore, Karnataka 560100</p>
+          <p className="text-[15.5px] leading-7 text-ink/80">Headquarters: Dofurs, Bengaluru, Karnataka 560100</p>
         </section>
       </div>
     </ContentPageLayout>

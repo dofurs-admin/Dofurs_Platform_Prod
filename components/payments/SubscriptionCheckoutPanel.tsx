@@ -288,72 +288,125 @@ export default function SubscriptionCheckoutPanel() {
 
   const formatPriceInr = (price: number) => `₹${Math.round(price).toLocaleString('en-IN')}`;
 
+  const normalizePlanDescription = (description: string | null) => {
+    const normalized = description
+      ?.trim()
+      .replace(/CareGrooming/g, 'Care Grooming')
+      .replace(/\s+\./g, '.')
+      .replace(/\s*\+\s*/g, ' + ');
+
+    return normalized || undefined;
+  };
+
+  const derivePlanSessionCount = (plan: Plan) => {
+    const descriptionCount = plan.description?.trim().match(/^(\d+)\s+/)?.[1];
+    if (descriptionCount) return Number(descriptionCount);
+
+    const nameCount = plan.name.match(/\b(3|6)M\b/i)?.[1];
+    if (nameCount) return Number(nameCount);
+
+    if (plan.duration_days <= 100) return 3;
+    if (plan.duration_days >= 160 && plan.duration_days <= 220) return 6;
+
+    return null;
+  };
+
+  const derivePlanFamilyLabel = (plan: Plan) => {
+    const family = plan.name.replace(/\s+[36]M$/i, '').trim();
+    return family || 'Grooming';
+  };
+
   const derivePlanBadge = (plan: Plan, index: number) => {
     const normalized = `${plan.name} ${plan.code}`.toLowerCase();
-    if (normalized.includes('essential')) return 'Starter Value';
-    if (normalized.includes('premium') && plan.duration_days >= 300) return 'Elite Annual';
-    if (normalized.includes('premium')) return 'Most Chosen';
-    return index === 0 ? 'Starter Value' : 'Premium Plan';
+    if (normalized.includes('complete care') && plan.duration_days >= 160) return 'Best Value';
+    if (normalized.includes('essential care') && plan.duration_days <= 100) return 'Popular 3M';
+    if (plan.duration_days >= 160) return 'Pay 5, Get 6';
+    if (plan.duration_days <= 100) return 'Pay 2, Get 3';
+    return index === 0 ? 'Starter Value' : 'Care Pack';
+  };
+
+  const derivePlanHighlight = (plan: Plan) => {
+    const normalized = `${plan.name} ${plan.code}`.toLowerCase();
+    return normalized.includes('complete care') && plan.duration_days >= 160;
   };
 
   const deriveIncludedSummary = (plan: Plan) => {
-    const description = plan.description?.trim();
-    if (description) {
-      const sessionsMatch = description.match(/get\s+(\d+)\s+/i);
-      if (sessionsMatch?.[1]) {
-        const normalized = `${plan.name} ${plan.code}`.toLowerCase();
-        const planTierLabel = normalized.includes('essential') ? 'essential' : normalized.includes('premium') ? 'premium' : 'grooming';
-        return `${sessionsMatch[1]} ${planTierLabel} grooming sessions`;
-      }
+    const sessionCount = derivePlanSessionCount(plan);
+    if (sessionCount) {
+      return `${sessionCount} ${derivePlanFamilyLabel(plan)} services`;
     }
 
     const totalCredits = plan.subscription_plan_services.reduce((sum, service) => sum + service.credits_included, 0);
     const firstService = plan.subscription_plan_services[0]?.service_type;
     if (!firstService) {
-      return `${totalCredits} credits included`;
+      return `${formatPriceInr(totalCredits)} credit value included`;
     }
 
-    return `${totalCredits} credits ${formatServiceType(firstService)}`;
+    return `${formatPriceInr(totalCredits)} ${formatServiceType(firstService)} credit value`;
   };
 
   const derivePrimaryServiceType = (plan: Plan) => {
     const firstService = plan.subscription_plan_services[0]?.service_type;
-    return firstService ? formatServiceType(firstService) : 'Grooming';
+    return firstService ? `${formatServiceType(firstService)} credit value` : 'Grooming credit value';
   };
 
   const deriveIncludedHint = (plan: Plan) => {
-    const description = plan.description?.trim();
-    if (description) {
-      const worthMatch = description.match(/worth(?:\s+of)?\s+(.+)/i);
-      if (worthMatch?.[1]) {
-        const parsedWorth = worthMatch[1]
-          .trim()
-          .replace(/[.]+$/g, '')
-          .replace(/^Rs\.?\s*/i, '₹');
-
-        const digitsOnly = parsedWorth.replace(/[^\d]/g, '');
-        if (digitsOnly) {
-          return `₹${Number(digitsOnly).toLocaleString('en-IN')}`;
-        }
-
-        return parsedWorth;
-      }
-
-      return description;
-    }
-
-    return formatPriceInr(plan.price_inr);
+    const totalCredits = plan.subscription_plan_services.reduce((sum, service) => sum + service.credits_included, 0);
+    return totalCredits > 0 ? formatPriceInr(totalCredits) : formatPriceInr(plan.price_inr);
   };
 
+  const derivePlanBonus = (plan: Plan) => {
+    const normalized = `${plan.name} ${plan.code} ${plan.description ?? ''}`.toLowerCase();
+    const isSixMonthCarePack = /(^|[_\s-])6m\b/i.test(`${plan.name} ${plan.code}`);
+    if (isSixMonthCarePack || normalized.includes('herbal shampoo')) {
+      return '+1 Herbal Shampoo Treatment on final service';
+    }
+
+    return undefined;
+  };
+
+  const deriveDealLabel = (plan: Plan) => {
+    if (plan.duration_days <= 100) return '2-month price';
+    if (plan.duration_days <= 220) return '5-month price';
+    return 'plan period price';
+  };
+
+  const groupedPlans = useMemo(() => {
+    const threeMonthPlans = plans.filter((plan) => plan.duration_days <= 100);
+    const sixMonthPlans = plans.filter((plan) => plan.duration_days > 100 && plan.duration_days <= 220);
+    const otherPlans = plans.filter((plan) => plan.duration_days > 220);
+
+    return [
+      {
+        title: '3M Care Packs',
+        summary: 'Pay for 2 grooming services and receive credit value for 3 services, valid for 90 days.',
+        plans: threeMonthPlans,
+      },
+      {
+        title: '6M Care Packs',
+        summary: 'Pay for 5 grooming services and receive credit value for 6 services, valid for 180 days, with herbal shampoo on the final service.',
+        plans: sixMonthPlans,
+      },
+      {
+        title: 'Other Care Packs',
+        summary: 'Additional active subscription packs available for grooming bookings.',
+        plans: otherPlans,
+      },
+    ].filter((group) => group.plans.length > 0);
+  }, [plans]);
+
   return (
-    <section className="rounded-[22px] border border-[#ead5c0] bg-[linear-gradient(140deg,#fff9f4_0%,#fffefc_55%,#fff8f1_100%)] p-4 shadow-gloss-premium sm:p-5">
+    <section className="scroll-mt-28 rounded-[22px] border border-[#ead5c0] bg-[linear-gradient(140deg,#fff9f4_0%,#fffefc_55%,#fff8f1_100%)] p-4 shadow-gloss-premium sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-coral">Subscription Services</p>
-          <h3 className="mt-1 text-xl font-semibold leading-tight text-[#2d221a] sm:text-2xl">Premium Grooming Plans</h3>
+          <h3 className="mt-1 text-xl font-semibold leading-tight text-[#2d221a] sm:text-2xl">Grooming Subscription Packs</h3>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#675245]">
+            Subscription credit value is added after purchase, then can be used for eligible grooming bookings at your preferred date and time.
+          </p>
         </div>
         <p className="rounded-full border border-[#ead6c2] bg-white/84 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7a5a45]">
-          Fixed pricing. Priority booking.
+          Credit value after purchase. Flexible booking.
         </p>
       </div>
 
@@ -368,7 +421,7 @@ export default function SubscriptionCheckoutPanel() {
           <div className="mt-2 space-y-1 text-xs text-[#2a7b58]">
             {aggregatedActiveCredits.map((credit) => (
               <p key={`agg-${credit.service_type}`}>
-                {formatServiceType(credit.service_type)}: {credit.available_credits}/{credit.total_credits} credits available
+                {formatServiceType(credit.service_type)}: {formatPriceInr(credit.available_credits)}/{formatPriceInr(credit.total_credits)} credit value available
               </p>
             ))}
           </div>
@@ -397,32 +450,47 @@ export default function SubscriptionCheckoutPanel() {
       ) : plans.length === 0 ? (
         <p className="mt-3 text-sm text-neutral-500">No subscription plans are configured yet.</p>
       ) : (
-        <div className="mt-4 grid gap-4 lg:grid-cols-3">
-          {plans.map((plan, index) => (
-            <SubscriptionPlanCard
-              key={plan.id}
-              badge={derivePlanBadge(plan, index)}
-              durationLabel={`${plan.duration_days} days`}
-              title={plan.name}
-              priceLabel={formatPriceInr(plan.price_inr)}
-              includedSummary={deriveIncludedSummary(plan)}
-              worthLabel={deriveIncludedHint(plan)}
-              serviceType={derivePrimaryServiceType(plan)}
-              cta={(
-                activeSubscriptions.length > 0 ? (
-                  null
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => purchase(plan.id)}
-                    disabled={buyingPlanId === plan.id}
-                    className="inline-flex h-9 w-full items-center justify-center rounded-xl border border-[#e2c2a4] bg-[linear-gradient(135deg,#de9158,#c7773b)] px-4 text-[13px] font-semibold text-white transition hover:border-[#c7773b] hover:bg-[linear-gradient(135deg,#d7864f,#bf6f34)] group-hover:shadow-[0_12px_22px_rgba(199,119,59,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {buyingPlanId === plan.id ? 'Processing...' : 'Choose Plan'}
-                  </button>
-                )
-              )}
-            />
+        <div className="mt-5 space-y-6">
+          {groupedPlans.map((group) => (
+            <div key={group.title}>
+              <h4 className="text-base font-semibold text-[#3a2c22]">{group.title}</h4>
+              <p className="mt-1 max-w-2xl text-xs leading-relaxed text-[#6f594a]">{group.summary}</p>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                {group.plans.map((plan, index) => (
+                  <SubscriptionPlanCard
+                    key={plan.id}
+                    badge={derivePlanBadge(plan, index)}
+                    durationLabel={`${plan.duration_days} days`}
+                    title={plan.name}
+                    priceLabel={formatPriceInr(plan.price_inr)}
+                    originalPriceLabel={deriveIncludedHint(plan)}
+                    dealLabel={deriveDealLabel(plan)}
+                    descriptionLabel={normalizePlanDescription(plan.description)}
+                    includedSummary={deriveIncludedSummary(plan)}
+                    worthLabel={deriveIncludedHint(plan)}
+                    serviceType={derivePrimaryServiceType(plan)}
+                    bonusLabel={derivePlanBonus(plan)}
+                    footerLabel="Pick date & time"
+                    highlight={derivePlanHighlight(plan)}
+                    cta={(
+                      activeSubscriptions.length > 0 ? (
+                        null
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => purchase(plan.id)}
+                          disabled={buyingPlanId === plan.id}
+                          className="inline-flex h-10 w-full items-center justify-center rounded-xl border border-[#e2c2a4] bg-[linear-gradient(135deg,#de9158,#c7773b)] px-4 text-[13px] font-semibold text-white transition hover:border-[#c7773b] hover:bg-[linear-gradient(135deg,#d7864f,#bf6f34)] group-hover:shadow-[0_12px_22px_rgba(199,119,59,0.28)] disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {buyingPlanId === plan.id ? 'Processing...' : 'Choose Plan'}
+                        </button>
+                      )
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { forbidden, getApiAuthContext, unauthorized } from '@/lib/auth/api-auth';
 import { getAvailableSlots } from '@/lib/bookings/service';
 import { toFriendlyApiError } from '@/lib/api/errors';
+import { hasServiceCoverageForPincode } from '@/lib/service-coverage';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
 const querySchema = z.object({
@@ -433,7 +434,7 @@ export async function GET(request: Request) {
         continue;
       }
 
-      if (configuredCoverage.has(pincode)) {
+      if (hasServiceCoverageForPincode(configuredCoverage, pincode)) {
         eligibleProviderServices.push(row);
         continue;
       }

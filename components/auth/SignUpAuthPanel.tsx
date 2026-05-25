@@ -560,7 +560,7 @@ export default function SignUpAuthPanel() {
               </p>
             ) : null}
             <p className="mt-2.5 text-sm leading-relaxed text-[#67584a]">
-              Create your Dofurs account and use your welcome credit toward a verified doorstep grooming appointment in Bangalore.
+              Create your Dofurs account and use your welcome credit toward a verified doorstep grooming appointment in Bengaluru.
             </p>
             <ul className="mt-3.5 space-y-2 text-sm text-[#45372b]">
               {welcomeOfferBenefits.map(({ icon: Icon, label }) => (

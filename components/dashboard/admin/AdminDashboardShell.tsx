@@ -2,7 +2,10 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import DashboardPageLayout from '@/components/dashboard/premium/DashboardPageLayout';
+import Link from 'next/link';
+import { CalendarPlus, RefreshCw } from 'lucide-react';
+import AdminPageHeader from '@/components/dashboard/admin/AdminPageHeader';
+import AdminWorkspaceShell from '@/components/dashboard/admin/AdminWorkspaceShell';
 import ConfirmActionModal from '@/components/ui/ConfirmActionModal';
 import type {
   AdminProviderModerationItem,
@@ -198,6 +201,75 @@ function TabSkeleton() {
   );
 }
 
+const viewCopy: Record<AdminDashboardView, { title: string; description: string }> = {
+  overview: {
+    title: 'Admin Operations Overview',
+    description: 'Monitor service delivery, customer activity, provider coverage, and finance signals from one focused workspace.',
+  },
+  bookings: {
+    title: 'Booking Operations',
+    description: 'Track booking queues, clear SLA items, reassign providers, and resolve customer service exceptions.',
+  },
+  users: {
+    title: 'Customer & User Records',
+    description: 'Search account records, review profiles, and keep customer operations coordinated.',
+  },
+  providers: {
+    title: 'Provider Management',
+    description: 'Review applications, manage provider readiness, and coordinate service rollout.',
+  },
+  services: {
+    title: 'Service Catalog',
+    description: 'Maintain service types, catalog templates, add-ons, discounts, and provider-facing rollout controls.',
+  },
+  payments: {
+    title: 'Payment Operations',
+    description: 'Review payment states and transaction health across online and direct collection flows.',
+  },
+  subscriptions: {
+    title: 'Subscription Operations',
+    description: 'Manage plans, customer subscriptions, credits, and recurring value workflows.',
+  },
+  billing: {
+    title: 'Billing Command Center',
+    description: 'Issue invoices, reconcile payments, send reminders, and manage overdue escalation queues.',
+  },
+  access: {
+    title: 'Access Control',
+    description: 'Control staff and admin access with clear role boundaries.',
+  },
+  health: {
+    title: 'System Health',
+    description: 'Check schema readiness, operational configuration, and platform health indicators.',
+  },
+  audit: {
+    title: 'Audit Log',
+    description: 'Review administrative activity and operational change history.',
+  },
+};
+
+function AdminHeaderActions() {
+  return (
+    <>
+      <Link
+        href="/dashboard/admin/bookings"
+        className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-950"
+      >
+        <CalendarPlus className="h-4 w-4" aria-hidden="true" />
+        Create booking
+      </Link>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-coral px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#cf8448]"
+      >
+        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+        Refresh
+      </button>
+    </>
+  );
+}
+
 // ── Shell component ───────────────────────────────────────────────────────────
 
 export default function AdminDashboardShell({
@@ -245,28 +317,17 @@ export default function AdminDashboardShell({
     setConfirmConfig((c) => ({ ...c, isOpen: false }));
   }
 
-  const tabs = [
-    { id: 'overview', label: 'Overview', href: '/dashboard/admin' },
-    { id: 'bookings', label: 'Bookings', href: '/dashboard/admin/bookings' },
-    { id: 'users', label: 'Users', href: '/dashboard/admin/users' },
-    { id: 'providers', label: 'Providers', href: '/dashboard/admin/providers' },
-    { id: 'services', label: 'Services', href: '/dashboard/admin/services' },
-    { id: 'payments', label: 'Payments', href: '/dashboard/admin/payments' },
-    { id: 'subscriptions', label: 'Subscriptions', href: '/dashboard/admin/subscriptions' },
-    { id: 'billing', label: 'Billing', href: '/dashboard/admin/billing' },
-    { id: 'access', label: 'Access', href: '/dashboard/admin/access' },
-    { id: 'health', label: 'Health', href: '/dashboard/admin/health' },
-    { id: 'audit', label: 'Audit Log', href: '/dashboard/admin/audit' },
-  ] as const;
+  const activeCopy = viewCopy[view];
 
   return (
-    <DashboardPageLayout
-      title="Admin Operation Dashboard"
-      description="Centralized platform control for providers, services, and access management."
-      tabs={tabs.map((t) => ({ id: t.id, label: t.label, href: t.href }))}
-      activeTab={view}
-    >
-      <div className="space-y-8">
+    <AdminWorkspaceShell activeView={view}>
+      <div className="space-y-5">
+        <AdminPageHeader
+          title={activeCopy.title}
+          description={activeCopy.description}
+          actions={<AdminHeaderActions />}
+        />
+
         {view === 'overview' && (
           <OverviewTab
             initialBusinessStats={initialBusinessStats ?? buildFallbackBusinessStats(
@@ -356,6 +417,6 @@ export default function AdminDashboardShell({
         inputRequired={confirmConfig.inputRequired}
         requiredInputValue={confirmConfig.requiredInputValue}
       />
-    </DashboardPageLayout>
+    </AdminWorkspaceShell>
   );
 }

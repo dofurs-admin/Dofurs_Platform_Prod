@@ -7,24 +7,27 @@ import { GROOMING_PACKAGES } from '@/lib/service-catalog/grooming-packages';
 import { links } from '@/lib/site-data';
 
 const SITE_URL = 'https://dofurs.in';
-const GROOMING_URL = `${SITE_URL}/services/grooming/bangalore`;
+const GROOMING_URL = `${SITE_URL}/services/grooming/bengaluru`;
 
 export const metadata: Metadata = {
-  title: 'Doorstep Pet Grooming Services in Bangalore',
+  title: 'Doorstep Pet Grooming Services in Bengaluru',
   description:
-    'Explore Dofurs grooming packages in Bangalore: Monthly Care, Fur Bath Care, Fur Makeover, Essential Grooming, and Complete Care from verified doorstep groomers.',
+    'Explore Dofurs grooming packages in Bengaluru: Monthly Care, Fur Bath Care, Fur Makeover, Essential Grooming, and Complete Care from verified doorstep groomers.',
   alternates: { canonical: '/services' },
   openGraph: {
-    title: 'Doorstep Pet Grooming Services in Bangalore | Dofurs',
+    title: 'Doorstep Pet Grooming Services in Bengaluru | Dofurs',
     description:
-      'Compare grooming packages, transparent prices, package inclusions, and doorstep grooming support across Bangalore.',
+      'Compare grooming packages, transparent prices, package inclusions, and doorstep grooming support across Bengaluru.',
     url: `${SITE_URL}/services`,
     images: ['/logo/og-default.jpg'],
   },
   keywords: [
+    'pet grooming services Bengaluru',
+    'dog grooming at home Bengaluru',
+    'cat grooming Bengaluru',
+    'doorstep pet grooming Bengaluru',
     'pet grooming services Bangalore',
     'dog grooming at home Bangalore',
-    'cat grooming Bangalore',
     'doorstep pet grooming Bangalore',
     'Dofurs grooming packages',
   ],
@@ -43,8 +46,9 @@ const servicesItemListSchema = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
   '@id': `${SITE_URL}/services#list`,
-  name: 'Dofurs Grooming Packages in Bangalore',
-  description: 'Doorstep pet grooming packages in Bangalore from verified Dofurs groomers.',
+  name: 'Dofurs Grooming Packages in Bengaluru',
+  alternateName: 'Dofurs Grooming Packages in Bangalore',
+  description: 'Doorstep pet grooming packages in Bengaluru from verified Dofurs groomers.',
   url: `${SITE_URL}/services`,
   itemListElement: GROOMING_PACKAGES.map((pkg, index) => ({
     '@type': 'ListItem',
@@ -83,11 +87,11 @@ export default function ServicesPage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-coral">Dofurs Grooming</p>
               <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-[-0.01em] text-neutral-950 sm:text-5xl">
-                Doorstep Pet Grooming Services in Bangalore
+                Doorstep Pet Grooming Services in Bengaluru
               </h1>
               <p className="mt-4 max-w-2xl text-base leading-7 text-neutral-600">
                 Dofurs now focuses on grooming only: verified groomers, transparent package pricing, pet-safe products,
-                and home appointments built for Bangalore apartments and neighbourhoods.
+                and home appointments built for Bengaluru apartments and neighbourhoods.
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
@@ -97,7 +101,7 @@ export default function ServicesPage() {
                   Book Now
                 </Link>
                 <Link
-                  href="/services/grooming/bangalore#packages"
+                  href="/services/grooming/bengaluru#packages"
                   className="inline-flex h-11 items-center justify-center rounded-full border border-[#e2c2a4] bg-white px-6 text-sm font-semibold text-[#6e4123] transition hover:border-coral/50 hover:text-coral"
                 >
                   View Packages
@@ -109,7 +113,7 @@ export default function ServicesPage() {
               {[
                 { icon: Bath, title: 'Full grooming packages', body: 'Bath, haircut, de-shedding, nail care, ear cleaning, hygiene trims and paw care.' },
                 { icon: ShieldCheck, title: 'Verified groomers', body: 'Identity-checked professionals with hygiene-first handling standards.' },
-                { icon: MapPin, title: 'Bangalore coverage', body: 'Serving key neighbourhoods with pincode-aware availability.' },
+                { icon: MapPin, title: 'Bengaluru coverage', body: 'Serving key neighbourhoods with pincode-aware availability.' },
                 { icon: Sparkles, title: 'Transparent pricing', body: 'Package inclusions and prices are visible before booking.' },
               ].map((item) => {
                 const Icon = item.icon;
@@ -134,7 +138,7 @@ export default function ServicesPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-coral">Packages & pricing</p>
                 <h2 className="mt-2 text-3xl font-bold text-neutral-950">Choose the grooming session your pet needs</h2>
               </div>
-              <Link href="/services/grooming/bangalore" className="text-sm font-semibold text-coral underline-offset-4 hover:underline">
+              <Link href="/services/grooming/bengaluru" className="text-sm font-semibold text-coral underline-offset-4 hover:underline">
                 Open full grooming page
               </Link>
             </div>

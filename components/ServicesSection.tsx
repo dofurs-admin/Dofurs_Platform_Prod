@@ -12,7 +12,7 @@ export default function ServicesSection() {
     <section id="services" className={`${theme.layout.sectionSpacing} scroll-mt-24 bg-[#fdf8f4]`}>
       <div className={theme.layout.container}>
         <FadeInSection>
-          <h2 className="text-center text-3xl font-semibold tracking-tight text-ink md:text-4xl">Doorstep Grooming for Bangalore Pets</h2>
+          <h2 className="text-center text-3xl font-semibold tracking-tight text-ink md:text-4xl">Doorstep Grooming for Bengaluru Pets</h2>
           <p className="mx-auto mt-4 max-w-2xl text-center text-ink/80">
             Discover verified groomers, transparent packages, and hygiene-first home appointments.
           </p>

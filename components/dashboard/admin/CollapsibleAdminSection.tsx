@@ -106,7 +106,7 @@ export default function CollapsibleAdminSection({
   return (
     <section
       aria-labelledby={titleId}
-      className={cn('rounded-2xl border border-neutral-200/60 bg-white p-6 shadow-sm', className)}
+      className={cn('rounded-xl border border-neutral-200/60 bg-white p-4 shadow-sm', className)}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -116,7 +116,7 @@ export default function CollapsibleAdminSection({
             aria-label={`${expanded ? 'Minimize' : 'Expand'} ${title}`}
             aria-expanded={expanded}
             aria-controls={contentId}
-            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#f2dfcf] bg-[#fff7f0] text-coral transition-colors hover:bg-[#ffefe0] focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:ring-offset-2"
+            className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#f2dfcf] bg-[#fff7f0] text-coral transition-colors hover:bg-[#ffefe0] focus:outline-none focus:ring-2 focus:ring-coral/20 focus:ring-offset-2"
           >
             <ChevronDown
               className={cn('h-4 w-4 transition-transform duration-200', expanded ? 'rotate-180' : '')}
@@ -124,7 +124,7 @@ export default function CollapsibleAdminSection({
             />
           </button>
           <div className="min-w-0">
-            <HeadingTag id={titleId} className="text-xl font-semibold text-ink">
+            <HeadingTag id={titleId} className="text-base font-semibold text-ink">
               {title}
             </HeadingTag>
             {description ? (
@@ -145,7 +145,7 @@ export default function CollapsibleAdminSection({
             onClick={toggleSection}
             aria-expanded={expanded}
             aria-controls={contentId}
-            className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-ink transition hover:bg-neutral-50 focus:outline-none focus:ring-2 focus:ring-neutral-900/10 focus:ring-offset-2"
+            className="inline-flex min-h-8 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-ink transition hover:bg-brand-50/60 focus:outline-none focus:ring-2 focus:ring-coral/20 focus:ring-offset-2"
           >
             {expanded ? (
               <Minimize2 className="h-3.5 w-3.5" aria-hidden="true" />

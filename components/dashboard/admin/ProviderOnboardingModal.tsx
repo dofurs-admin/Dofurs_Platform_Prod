@@ -9,6 +9,12 @@ import { cn } from '@/lib/design-system';
 import { extractIndianPhoneDigits, isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
 import { INDIAN_STATES, findMatchingState } from '@/lib/utils/india-states';
 import { usePincodeLookup } from '@/lib/hooks/usePincodeLookup';
+import {
+  BENGALURU_CITY_COVERAGE_LABEL,
+  BENGALURU_CITY_COVERAGE_PINCODE,
+  BENGALURU_CITY_COVERAGE_PINCODE_CSV,
+  isBengaluruCityCoveragePincode,
+} from '@/lib/service-coverage';
 
 const LocationPinMap = dynamic(() => import('@/components/forms/LocationPinMap'), { ssr: false });
 
@@ -166,6 +172,10 @@ export default function ProviderOnboardingModal({ isOpen, onClose, onSuccess }: 
     .map((value) => value.trim())
     .filter((value) => value.length > 0)
     .filter((value) => !/^[1-9]\d{5}$/.test(value));
+  const hasBengaluruCityServiceCoverage = formData.service_pincodes
+    .split(',')
+    .map((value) => value.trim())
+    .some(isBengaluruCityCoveragePincode);
 
   function updateField<K extends keyof ProviderOnboardingData>(field: K, value: ProviderOnboardingData[K]) {
     const normalizedValue =
@@ -661,7 +671,7 @@ export default function ProviderOnboardingModal({ isOpen, onClose, onSuccess }: 
                   label="City *"
                   value={formData.city}
                   onChange={(e) => updateField('city', e.target.value)}
-                  placeholder={pincodeLookup.isLoading ? 'Detecting city...' : 'Bangalore'}
+                  placeholder={pincodeLookup.isLoading ? 'Detecting city...' : 'Bengaluru'}
                   disabled={isPending}
                   hint={pincodeLookup.isAutoFilled && formData.city ? 'Auto-detected from pincode' : undefined}
                 />
@@ -741,9 +751,20 @@ export default function ProviderOnboardingModal({ isOpen, onClose, onSuccess }: 
 
               {isHomeVisit && (
                 <div>
-                  <label className="block text-sm font-medium text-neutral-700 mb-1.5">
-                    Service Pincodes * (comma-separated)
-                  </label>
+                  <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-sm font-medium text-neutral-700">
+                      Service Pincodes * (comma-separated)
+                    </label>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => updateField('service_pincodes', BENGALURU_CITY_COVERAGE_PINCODE_CSV)}
+                      disabled={isPending}
+                    >
+                      Use Bengaluru City
+                    </Button>
+                  </div>
                   <textarea
                     value={formData.service_pincodes}
                     onChange={(e) => updateField('service_pincodes', e.target.value)}
@@ -756,7 +777,9 @@ export default function ProviderOnboardingModal({ isOpen, onClose, onSuccess }: 
                     <p className="text-xs text-red-600 mt-1">Use comma-separated 6-digit pincodes only.</p>
                   ) : null}
                   <p className="text-xs text-neutral-600 mt-1">
-                    Enter all pincodes where {formData.provider_type === 'veterinarian' ? 'veterinary' : 'grooming'} services will be available
+                    {hasBengaluruCityServiceCoverage
+                      ? `${BENGALURU_CITY_COVERAGE_LABEL} selected (${BENGALURU_CITY_COVERAGE_PINCODE})`
+                      : `Enter all pincodes where ${formData.provider_type === 'veterinarian' ? 'veterinary' : 'grooming'} services will be available`}
                   </p>
                 </div>
               )}

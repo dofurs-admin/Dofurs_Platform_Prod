@@ -7,6 +7,7 @@ import {
   updateProviderServiceRollout,
 } from '@/lib/provider-management/service';
 import { adminProviderServiceRolloutSchema } from '@/lib/provider-management/validation';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const { role, user, supabase } = await getApiAuthContext();
@@ -64,10 +65,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const normalizedRollout = parsed.data.map((item) => ({
       id: item.id,
       service_type: item.service_type,
-      base_price: item.base_price,
-      surge_price: item.surge_price ?? null,
-      commission_percentage: item.commission_percentage ?? null,
-      service_duration_minutes: item.service_duration_minutes ?? null,
+      ...(Object.prototype.hasOwnProperty.call(item, 'base_price') ? { base_price: item.base_price } : {}),
+      ...(Object.prototype.hasOwnProperty.call(item, 'surge_price') ? { surge_price: item.surge_price ?? null } : {}),
+      ...(Object.prototype.hasOwnProperty.call(item, 'commission_percentage')
+        ? { commission_percentage: item.commission_percentage ?? null }
+        : {}),
+      ...(Object.prototype.hasOwnProperty.call(item, 'service_duration_minutes')
+        ? { service_duration_minutes: item.service_duration_minutes ?? null }
+        : {}),
       is_active: item.is_active ?? true,
       service_pincodes: item.service_pincodes,
     }));
@@ -84,7 +89,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
 }
 
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
-  const { role, user, supabase } = await getApiAuthContext();
+  const { role, user } = await getApiAuthContext();
 
   if (!user) {
     return unauthorized();
@@ -109,8 +114,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   }
 
   try {
-    const services = await deleteProviderServiceRolloutEntry(supabase, providerId, serviceId);
-    await logProviderAdminAuditEvent(supabase, user.id, providerId, 'provider.service_rollout_deleted', {
+    const adminSupabase = getSupabaseAdminClient();
+    const services = await deleteProviderServiceRolloutEntry(adminSupabase, providerId, serviceId);
+    await logProviderAdminAuditEvent(adminSupabase, user.id, providerId, 'provider.service_rollout_deleted', {
       serviceId,
       remainingRows: services.length,
     });

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ProviderCard from '@/components/ui/ProviderCard';
+import { hasServiceCoverageForPincode } from '@/lib/service-coverage';
 
 export type BrowseProvider = {
   id: number;
@@ -68,7 +69,7 @@ export default function ServiceBrowseClient({
         (p) =>
           !p.service_pincodes ||
           p.service_pincodes.length === 0 ||
-          p.service_pincodes.includes(pincode),
+          hasServiceCoverageForPincode(p.service_pincodes, pincode),
       );
     }
 
@@ -100,7 +101,7 @@ export default function ServiceBrowseClient({
         <p className="text-xs font-semibold uppercase tracking-widest text-coral">Browse Providers</p>
         <h1 className="text-3xl font-bold text-neutral-950">{categoryLabel}</h1>
         <p className="text-sm text-neutral-600">
-          {filtered.length} verified provider{filtered.length !== 1 ? 's' : ''} available in Bangalore
+          {filtered.length} verified provider{filtered.length !== 1 ? 's' : ''} available in Bengaluru
         </p>
       </div>
 

@@ -12,6 +12,12 @@ import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/dashboard/premium/StatusBadge';
 import { Button, Input, Card, Alert, Badge } from '@/components/ui';
 import { cn } from '@/lib/design-system';
+import {
+  BENGALURU_CITY_COVERAGE_LABEL,
+  BENGALURU_CITY_COVERAGE_PINCODE,
+  formatServiceCoveragePincodes,
+  isBengaluruCityCoveragePincode,
+} from '@/lib/service-coverage';
 import type { AdminProviderModerationItem } from '@/lib/provider-management/types';
 import type {
   ServiceProviderApplication,
@@ -103,6 +109,10 @@ type AdminProviderService = {
 
 type ServiceRolloutDraft = {
   id?: string;
+  base_price: string;
+  surge_price: string;
+  commission_percentage: string;
+  service_duration_minutes: string;
   service_pincodes: string;
 };
 
@@ -182,6 +192,16 @@ function getDefaultAvailabilityDraft() {
     selected_days: [1],
     start_time: '09:00',
     end_time: '17:00',
+  };
+}
+
+function getDefaultServiceRolloutDraft(): ServiceRolloutDraft {
+  return {
+    base_price: '',
+    surge_price: '',
+    commission_percentage: '',
+    service_duration_minutes: '',
+    service_pincodes: '',
   };
 }
 
@@ -348,6 +368,7 @@ export type AdminProvidersViewProps = {
   submitServiceRollout: (providerId: number, options: string[], existingServices: AdminProviderService[]) => void;
   setProviderServiceActivation: (providerId: number, serviceId: string, isActive: boolean) => void;
   deleteProviderServiceRollout: (providerId: number, serviceId: string) => void;
+  applyBengaluruCityCoveragePreset: (providerId: number) => void;
   handleOnboardingSuccess: (onboardedEmail: string) => void;
 };
 
@@ -458,6 +479,7 @@ export default function AdminProvidersView({
   submitServiceRollout,
   setProviderServiceActivation,
   deleteProviderServiceRollout,
+  applyBengaluruCityCoveragePreset,
   handleOnboardingSuccess,
 }: AdminProvidersViewProps) {
   type ProviderMetrics = {
@@ -1263,10 +1285,7 @@ export default function AdminProvidersView({
                 provider.account_status === 'banned' &&
                 provider.admin_approval_status === 'rejected' &&
                 provider.verification_status === 'rejected';
-              const serviceDraftRow = serviceDraft[provider.id] ?? {
-                id: undefined,
-                service_pincodes: '',
-              };
+              const serviceDraftRow = serviceDraft[provider.id] ?? getDefaultServiceRolloutDraft();
               const providerAvailabilityRows = availabilityByProvider[provider.id] ?? [];
               const providerServicesRows = servicesByProvider[provider.id] ?? [];
               const isProviderExpanded = expandedProviderIds.includes(provider.id);
@@ -1293,7 +1312,10 @@ export default function AdminProvidersView({
               if (coveragePincodes.length > 0) {
                 const clinicPincode = provider.pincode?.trim() ?? null;
                 const serviceRadius = provider.service_radius_km;
-                const nonClinicCoverageCount = clinicPincode
+                const hasBengaluruCityCoverage = coveragePincodes.some(isBengaluruCityCoveragePincode);
+                const nonClinicCoverageCount = hasBengaluruCityCoverage
+                  ? 10
+                  : clinicPincode
                   ? coveragePincodes.filter((item) => item !== clinicPincode).length
                   : coveragePincodes.length;
 
@@ -1309,7 +1331,7 @@ export default function AdminProvidersView({
                   localCoverageWarnings.push('Service radius is very small for the current pincode rollout footprint.');
                 }
 
-                if (serviceRadius === null && coveragePincodes.length >= 10) {
+                if (serviceRadius === null && (hasBengaluruCityCoverage || coveragePincodes.length >= 10)) {
                   localCoverageWarnings.push('Large pincode rollout is configured without a service radius baseline.');
                 }
               }
@@ -1335,6 +1357,10 @@ export default function AdminProvidersView({
                 .map((value) => value.trim())
                 .filter((value) => value.length > 0)
                 .filter((value) => !/^[1-9]\d{5}$/.test(value));
+              const hasBengaluruCityDraftCoverage = serviceDraftRow.service_pincodes
+                .split(',')
+                .map((value) => value.trim())
+                .some(isBengaluruCityCoveragePincode);
               const isEditingProviderProfile = Boolean(providerProfileDraft[provider.id]);
               const providerProfileDraftRow = providerProfileDraft[provider.id] ?? {
                 name: provider.name ?? '',
@@ -2064,7 +2090,7 @@ export default function AdminProvidersView({
                             </div>
                             <div className="mt-2 rounded-md bg-white/80 px-2 py-1.5">
                               <p className="text-[11px] text-neutral-600">
-                                Pincodes: {(pincodesByService[service.id] ?? []).join(', ') || 'Not mapped'}
+                                Pincodes: {formatServiceCoveragePincodes(pincodesByService[service.id] ?? []) || 'Not mapped'}
                               </p>
                             </div>
                           </li>
@@ -2086,7 +2112,7 @@ export default function AdminProvidersView({
                       ) : null}
                       <div className="mt-3 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <p className="text-xs text-neutral-600">Tick services to rollout for this provider.</p>
+                          <p className="text-xs text-neutral-600">Tick services to keep linked for this provider.</p>
                           <div className="flex items-center gap-2">
                             <Button
                               type="button"
@@ -2144,6 +2170,55 @@ export default function AdminProvidersView({
                           </p>
                         </div>
                       </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                        <Input
+                          label="Base Price"
+                          value={serviceDraftRow.base_price}
+                          onChange={(event) => setServiceDraftField(provider.id, 'base_price', event.target.value)}
+                          placeholder="Keep existing"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          label="Surge Price"
+                          value={serviceDraftRow.surge_price}
+                          onChange={(event) => setServiceDraftField(provider.id, 'surge_price', event.target.value)}
+                          placeholder="Optional"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          label="Commission %"
+                          value={serviceDraftRow.commission_percentage}
+                          onChange={(event) => setServiceDraftField(provider.id, 'commission_percentage', event.target.value)}
+                          placeholder="Optional"
+                          inputMode="decimal"
+                        />
+                        <Input
+                          label="Duration"
+                          value={serviceDraftRow.service_duration_minutes}
+                          onChange={(event) => setServiceDraftField(provider.id, 'service_duration_minutes', event.target.value)}
+                          placeholder="Minutes"
+                          inputMode="numeric"
+                        />
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md bg-white/80 px-3 py-2">
+                        <div>
+                          <p className="text-xs font-semibold text-neutral-800">Coverage Preset</p>
+                          <p className="text-[11px] text-neutral-600">
+                            {hasBengaluruCityDraftCoverage
+                              ? `${BENGALURU_CITY_COVERAGE_LABEL} selected (${BENGALURU_CITY_COVERAGE_PINCODE})`
+                              : 'Use the city preset instead of pasting every pincode.'}
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => applyBengaluruCityCoveragePreset(provider.id)}
+                          disabled={isPending}
+                        >
+                          Use Bengaluru City
+                        </Button>
+                      </div>
                       <Input
                         label="Service Pincodes"
                         value={serviceDraftRow.service_pincodes}
@@ -2156,7 +2231,7 @@ export default function AdminProvidersView({
                         }
                       />
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs text-neutral-600">This section only enables selected services and applies coverage pincodes. Pricing and commission are managed in Services and Provider setup.</p>
+                        <p className="text-xs text-neutral-600">Applies selected rollout fields and unlinks unchecked existing services.</p>
                         <Button
                           type="button"
                           onClick={() => submitServiceRollout(provider.id, providerServiceTypeOptions, providerServicesRows)}

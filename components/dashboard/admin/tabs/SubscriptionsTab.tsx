@@ -197,9 +197,9 @@ export default function SubscriptionsTab({ openConfirm }: SubscriptionsTabProps)
           title="How to Use Subscription Plans"
           subtitle="Create and manage subscription plans with credit allocations"
           steps={[
-            { title: 'View Plans', description: 'All subscription plans are listed below with their pricing, duration, and included service credits.' },
-            { title: 'Create a Plan', description: 'Click "+ New Plan" to create a new subscription plan. Fill in the name, price, duration, and credits.' },
-            { title: 'Edit Credits', description: 'Each plan includes service credits (e.g., 2 grooming sessions). Adjust allocations per service type.' },
+            { title: 'View Plans', description: 'All subscription plans are listed below with their pricing, duration, and included credit value.' },
+            { title: 'Create a Plan', description: 'Click "+ New Plan" to create a new subscription plan. Fill in the name, price, duration, and credit value.' },
+            { title: 'Edit Credits', description: 'Each plan includes rupee-valued service credits. Adjust allocations per service type.' },
             { title: 'Manage Visibility', description: 'Plans can be active or hidden. Only active plans are shown to customers on the subscription page.' },
           ]}
         />

@@ -22,7 +22,7 @@ export default function Footer() {
       <div className={`${theme.layout.container} relative z-10 grid gap-5 md:grid-cols-2 md:gap-x-8 md:gap-y-5 lg:grid-cols-4`}>
         <div className="lg:col-span-1">
           <BrandMark compact />
-          <p className="mt-2 text-xs text-ink/60">© 2026 Dofurs - Premium Pet Grooming, Bangalore.</p>
+          <p className="mt-2 text-xs text-ink/60">© 2026 Dofurs - Premium Pet Grooming, Bengaluru.</p>
         </div>
 
         <div>

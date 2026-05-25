@@ -1,9 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Card, Input, Button, Alert, Badge } from '@/components/ui';
-import AdminSectionGuide from '@/components/dashboard/admin/AdminSectionGuide';
+import { Input, Button, Alert, Badge } from '@/components/ui';
 import AdminBookingFlow from '@/components/forms/AdminBookingFlow';
+import AdminBulkActionToolbar from '@/components/dashboard/admin/AdminBulkActionToolbar';
+import AdminDataTable from '@/components/dashboard/admin/AdminDataTable';
 import { bookingTimelineLabel } from '@/lib/bookings/timeline';
 import BookingDetailModal from '@/components/dashboard/admin/BookingDetailModal';
 import SendMessageModal from '@/components/dashboard/SendMessageModal';
@@ -114,6 +115,13 @@ function resolveBookingServiceLabel(booking: AdminBooking) {
   return buildIncludedServicesLabel(booking.included_services ?? [], booking.service_type);
 }
 
+function getStatusBadgeVariant(status: AdminBookingStatus) {
+  if (status === 'completed') return 'success';
+  if (status === 'pending') return 'warning';
+  if (status === 'cancelled' || status === 'no_show') return 'error';
+  return 'info';
+}
+
 type AdminBookingsViewProps = {
   bookingRiskSummary: BookingRiskSummary;
   bookingSearchQuery: string;
@@ -164,99 +172,260 @@ export default function AdminBookingsView({
     bookingId?: number;
   } | null>(null);
 
-  return (
-    <section className="space-y-6">
-      <AdminSectionGuide
-        title="How to Use Bookings"
-        subtitle="Create, track, and manage all pet service bookings"
-        steps={[
-          { title: 'Create a Booking', description: 'Use the booking form below to schedule a new service for a customer. Follow the 5-step wizard.' },
-          { title: 'Search & Filter', description: 'Find bookings by customer name, phone number, or status. Use the filters to narrow results.' },
-          { title: 'View Booking Details', description: 'Click on any booking row to see full details, provider info, and status history.' },
-          { title: 'Update Status', description: 'Change booking status (confirm, complete, cancel) using the actions in the detail view.' },
-          { title: 'Send Messages', description: 'Communicate with customers or providers directly from the booking detail panel.' },
-          { title: 'Export Data', description: 'Download all visible bookings as a CSV file for reporting or reconciliation.' },
-        ]}
-      />
+  function renderBookingBadges(booking: AdminBooking) {
+    const status = booking.booking_status ?? booking.status;
+    const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
+    const cashReceived = isCashBooking && booking.cash_collected === true;
+    const cashPending = isCashBooking && !cashReceived;
 
-      <AdminBookingFlow defaultMinimized />
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant={getStatusBadgeVariant(status)} dot>{status.replace('_', ' ')}</Badge>
+        {status === 'pending' ? <Badge variant="warning">SLA</Badge> : null}
+        {status === 'no_show' ? <Badge variant="error">High risk</Badge> : null}
+        {status === 'confirmed' && booking.completion_task_status === 'pending' ? <Badge variant="warning">Follow-up</Badge> : null}
+        {cashPending && (status === 'pending' || status === 'confirmed') ? <Badge variant="warning">Awaiting cash</Badge> : null}
+        {cashReceived ? <Badge variant="success">Cash received</Badge> : null}
+        {booking.completion_task_status === 'completed' ? <Badge variant="success">Feedback logged</Badge> : null}
+      </div>
+    );
+  }
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-section-title">All Bookings</h2>
-          <button
-            type="button"
-            className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-xs font-semibold text-neutral-700 hover:border-neutral-400"
-            onClick={() => exportToCsv('bookings-export', ['ID', 'Customer', 'Phone', 'Provider', 'Date', 'Status', 'Service', 'Mode'], visibleBookings.map((b) => [b.id, b.customer_name ?? b.user_id ?? '', b.customer_phone ?? '', b.provider_name ?? b.provider_id, b.booking_date ?? b.booking_start, b.booking_status ?? b.status, resolveBookingServiceLabel(b), b.booking_mode ?? '']))}
+  function renderBookingActions(booking: AdminBooking) {
+    const status = booking.booking_status ?? booking.status;
+    const allowedTransitions = ALLOWED_TRANSITIONS[status];
+    const canConfirm = allowedTransitions.includes('confirmed');
+    const canComplete = allowedTransitions.includes('completed');
+    const canNoShow = allowedTransitions.includes('no_show');
+    const canCancel = allowedTransitions.includes('cancelled');
+    const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
+    const cashPending = isCashBooking && booking.cash_collected !== true;
+    const isTerminalStatus = allowedTransitions.length === 0;
+
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {canConfirm ? (
+          <Button size="sm" variant="secondary" onClick={() => onOverrideStatus(booking.id, 'confirmed')} disabled={isPending}>
+            {status === 'pending' ? 'Clear SLA' : 'Confirm'}
+          </Button>
+        ) : null}
+        {canComplete ? (
+          <Button
+            size="sm"
+            variant="success"
+            onClick={() => onOverrideStatus(booking.id, 'completed')}
+            disabled={isPending || cashPending}
+            title={cashPending ? 'Mark cash as received first' : undefined}
           >
-            Export CSV
-          </button>
+            Complete
+          </Button>
+        ) : null}
+        {isCashBooking && (status === 'pending' || status === 'confirmed') && cashPending ? (
+          <Button size="sm" variant="secondary" onClick={() => onMarkCashPaymentReceived(booking.id)} disabled={isPending}>
+            Cash received
+          </Button>
+        ) : null}
+        {canNoShow ? (
+          <Button size="sm" variant="ghost" onClick={() => onOverrideStatus(booking.id, 'no_show')} disabled={isPending}>
+            No-show
+          </Button>
+        ) : null}
+        {canCancel ? (
+          <Button size="sm" variant="danger" onClick={() => onOverrideStatus(booking.id, 'cancelled')} disabled={isPending}>
+            Cancel
+          </Button>
+        ) : null}
+        {!isTerminalStatus ? (
+          <Button size="sm" variant="ghost" onClick={() => onApplyBookingAdjustment(booking.id)} disabled={isPending}>
+            Reverse
+          </Button>
+        ) : null}
+        <Button size="sm" variant="ghost" onClick={() => setDetailBookingId(booking.id)}>
+          Details
+        </Button>
+        {booking.user_id ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setMessageTarget({
+              recipientId: booking.user_id!,
+              recipientName: booking.customer_name || booking.customer_email || 'Pet Parent',
+              bookingId: booking.id,
+            })}
+          >
+            Message
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
+  const bookingColumns = [
+    {
+      key: 'booking',
+      header: 'Booking',
+      className: 'min-w-[13rem]',
+      render: (booking: AdminBooking) => {
+        const status = booking.booking_status ?? booking.status;
+        return (
+          <div>
+            <p className="font-semibold text-neutral-950">#{booking.id}</p>
+            <p className="mt-1 text-xs text-neutral-500">{bookingTimelineLabel(status)}</p>
+            <p className="mt-1 text-xs text-neutral-500">{resolveBookingServiceLabel(booking)}</p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      className: 'min-w-[14rem]',
+      render: (booking: AdminBooking) => (
+        <div>
+          <p className="font-medium text-neutral-950">{booking.customer_name ?? booking.user_id ?? 'Not assigned'}</p>
+          <p className="mt-1 text-xs text-neutral-500">{booking.customer_phone ?? booking.customer_email ?? 'No contact on booking'}</p>
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-sm text-neutral-600">
-          <span>Pending SLA: <span className="font-semibold text-neutral-900">{bookingRiskSummary.pending}</span></span>
-          <span className="hidden sm:inline text-neutral-300">•</span>
-          <span>No-show: <span className="font-semibold text-neutral-900">{bookingRiskSummary.noShow}</span></span>
-          <span className="hidden sm:inline text-neutral-300">•</span>
-          <span>Cancelled: <span className="font-semibold text-neutral-900">{bookingRiskSummary.cancelled}</span></span>
+      ),
+    },
+    {
+      key: 'schedule',
+      header: 'Schedule',
+      className: 'min-w-[13rem]',
+      render: (booking: AdminBooking) => (
+        <div>
+          <p className="font-medium text-neutral-950">{formatBookingDateTime(booking)}</p>
+          <p className="mt-1 text-xs text-neutral-500">{formatBookingMode(booking.booking_mode ?? 'home_visit')}</p>
+        </div>
+      ),
+    },
+    {
+      key: 'provider',
+      header: 'Provider',
+      className: 'min-w-[13rem]',
+      render: (booking: AdminBooking) => {
+        const status = booking.booking_status ?? booking.status;
+        const isTerminalStatus = ALLOWED_TRANSITIONS[status].length === 0;
+
+        if (isTerminalStatus) {
+          return <p className="font-medium text-neutral-950">{booking.provider_name ?? `#${booking.provider_id}`}</p>;
+        }
+
+        return (
+          <select
+            className="input-field !py-2 text-sm"
+            value={booking.provider_id ?? ''}
+            onChange={(event) => onReassignProvider(booking.id, Number(event.target.value))}
+            disabled={isPending}
+          >
+            <option value="">Reassign...</option>
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
+              </option>
+            ))}
+          </select>
+        );
+      },
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      className: 'min-w-[13rem]',
+      render: renderBookingBadges,
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      className: 'min-w-[20rem]',
+      render: renderBookingActions,
+    },
+  ];
+
+  return (
+    <section className="space-y-3.5">
+      <details className="rounded-xl border border-neutral-200 bg-white shadow-sm">
+        <summary className="cursor-pointer list-none px-3.5 py-2.5 text-xs font-semibold text-neutral-950 marker:hidden">
+          Create booking workflow
+          <span className="ml-2 text-xs font-medium text-neutral-500">Open only when scheduling manually</span>
+        </summary>
+        <div className="border-t border-neutral-200 p-3">
+          <AdminBookingFlow defaultMinimized />
+        </div>
+      </details>
+
+      <div className="grid gap-2.5 sm:grid-cols-4">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Pending SLA</p>
+          <p className="mt-1 text-lg font-semibold text-amber-900">{bookingRiskSummary.pending}</p>
+        </div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">In Progress</p>
+          <p className="mt-1 text-lg font-semibold text-blue-900">{bookingRiskSummary.inProgress}</p>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Completed</p>
+          <p className="mt-1 text-lg font-semibold text-emerald-900">{bookingRiskSummary.completed}</p>
+        </div>
+        <div className="rounded-xl border border-red-200 bg-red-50 p-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Exceptions</p>
+          <p className="mt-1 text-lg font-semibold text-red-900">{bookingRiskSummary.noShow + bookingRiskSummary.cancelled}</p>
         </div>
       </div>
 
-      <Card>
-        <div className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="sticky top-[4rem] z-10 rounded-xl border border-neutral-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <div className="grid flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
             <Input
               type="search"
               label="Search"
               placeholder="Booking ID, customer/provider name or ID"
               value={bookingSearchQuery}
               onChange={(event) => onSearchChange(event.target.value)}
+              className="!rounded-lg !px-3 !py-2 !text-xs"
             />
             <div>
-              <label className="text-sm font-medium text-neutral-700 block mb-2">Filter</label>
+              <label className="mb-1.5 block text-xs font-medium text-neutral-700">Filter</label>
               <select
                 value={bookingFilter}
                 onChange={(event) => onFilterChange(event.target.value as 'all' | 'sla' | 'high-risk')}
-                className="input-field w-full"
+                className="input-field !min-h-9 w-full !rounded-lg !px-2.5 !py-1.5 text-xs"
               >
                 <option value="all">All Bookings</option>
                 <option value="sla">SLA Queue</option>
                 <option value="high-risk">High Risk</option>
               </select>
             </div>
-            <div>
-              <label className="text-sm font-medium text-neutral-700 block mb-2">Bulk Action</label>
-              <select
-                value={bulkStatus}
-                onChange={(event) => onBulkStatusChange(event.target.value as 'confirmed' | 'completed' | 'cancelled' | 'no_show')}
-                className="input-field w-full"
-              >
-                <option value="confirmed">Mark: Confirmed</option>
-                <option value="completed">Mark: Completed</option>
-                <option value="cancelled">Mark: Cancelled</option>
-                <option value="no_show">Mark: No-show</option>
-              </select>
-            </div>
-            <div className="flex items-end">
-              <Button
-                onClick={onApplyBulkStatus}
-                disabled={isPending || selectedBookingIds.length === 0}
-                className="w-full"
-              >
-                Apply to {selectedBookingIds.length} Selected
-              </Button>
-            </div>
           </div>
+          <button
+            type="button"
+            className="min-h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral"
+            onClick={() => exportToCsv('bookings-export', ['ID', 'Customer', 'Phone', 'Provider', 'Date', 'Status', 'Service', 'Mode'], visibleBookings.map((b) => [b.id, b.customer_name ?? b.user_id ?? '', b.customer_phone ?? '', b.provider_name ?? b.provider_id, b.booking_date ?? b.booking_start, b.booking_status ?? b.status, resolveBookingServiceLabel(b), b.booking_mode ?? '']))}
+          >
+            Export CSV
+          </button>
+        </div>
+      </div>
 
-          <div className="flex justify-end">
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={onClearSelectedSla}
-              disabled={isPending || selectedBookingIds.length === 0}
-            >
-              Clear SLA (Selected)
-            </Button>
-          </div>
+      {selectedBookingIds.length > 0 ? (
+        <AdminBulkActionToolbar selectedCount={selectedBookingIds.length}>
+          <select
+            value={bulkStatus}
+            onChange={(event) => onBulkStatusChange(event.target.value as 'confirmed' | 'completed' | 'cancelled' | 'no_show')}
+            className="input-field !min-h-9 !w-auto !rounded-lg !px-2.5 !py-1.5 text-xs"
+          >
+            <option value="confirmed">Mark confirmed</option>
+            <option value="completed">Mark completed</option>
+            <option value="cancelled">Mark cancelled</option>
+            <option value="no_show">Mark no-show</option>
+          </select>
+          <Button size="sm" onClick={onApplyBulkStatus} disabled={isPending}>
+            Apply status
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onClearSelectedSla} disabled={isPending}>
+            Clear SLA
+          </Button>
+        </AdminBulkActionToolbar>
+      ) : null}
 
           {bookingModerationActivity ? (
             <Alert variant="success" className="!py-2 !text-sm">
@@ -264,166 +433,19 @@ export default function AdminBookingsView({
             </Alert>
           ) : null}
 
-          {visibleBookings.length === 0 ? (
-            <p className="text-body text-neutral-500 text-center py-8">No bookings found</p>
-          ) : (
-            <div className="space-y-3">
-              {visibleBookings.map((booking) => {
-                const status = booking.booking_status ?? booking.status;
-                const allowedTransitions = ALLOWED_TRANSITIONS[status];
-                const canConfirm = allowedTransitions.includes('confirmed');
-                const canComplete = allowedTransitions.includes('completed');
-                const canNoShow = allowedTransitions.includes('no_show');
-                const canCancel = allowedTransitions.includes('cancelled');
-                const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
-                const cashReceived = isCashBooking && booking.cash_collected === true;
-                const cashPending = isCashBooking && !cashReceived;
-                const isTerminalStatus = allowedTransitions.length === 0;
-                const nextAllowedStatusLabel = isTerminalStatus
-                  ? 'Final state'
-                  : `Next allowed: ${allowedTransitions.map((value) => value.replace('_', ' ')).join(', ')}`;
-
-                return (
-                  <div key={booking.id} className="border-b border-neutral-200/60 pb-4 last:border-b-0 last:pb-0">
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedBookingIds.includes(booking.id)}
-                          onChange={() => onToggleBookingSelection(booking.id)}
-                          className="w-4 h-4 rounded border-neutral-300 mt-1"
-                        />
-                        <div>
-                          <p className="font-semibold text-neutral-900">Booking #{booking.id}</p>
-                          <p className="text-xs text-neutral-500 mt-1">
-                            Customer: {booking.customer_name ?? booking.user_id ?? '—'}
-                            {booking.customer_phone ? ` • ${booking.customer_phone}` : ''}
-                          </p>
-                          <p className="text-xs text-neutral-500">
-                            Provider: {booking.provider_name ?? `#${booking.provider_id}`}
-                          </p>
-                          <p className="text-sm text-neutral-600">
-                            {formatBookingDateTime(booking)}
-                          </p>
-                          <p className="text-xs text-neutral-500 mt-1">{bookingTimelineLabel(status)}</p>
-                          <p className="text-xs text-neutral-500">
-                            {resolveBookingServiceLabel(booking)} • {formatBookingMode(booking.booking_mode ?? 'home_visit')}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-2 justify-end">
-                        {status === 'pending' && (
-                          <Alert variant="warning" className="!p-2 !text-xs">SLA Queue</Alert>
-                        )}
-                        {status === 'no_show' && (
-                          <Alert variant="error" className="!p-2 !text-xs">High Risk</Alert>
-                        )}
-                        {status === 'confirmed' && booking.completion_task_status === 'pending' && (
-                          <Alert variant="warning" className="!p-2 !text-xs">Provider Follow-up Pending</Alert>
-                        )}
-                        {cashPending && (status === 'pending' || status === 'confirmed') && (
-                          <Alert variant="warning" className="!p-2 !text-xs">Awaiting Cash</Alert>
-                        )}
-                        {cashReceived && (
-                          <Alert variant="success" className="!p-2 !text-xs">Cash Received</Alert>
-                        )}
-                        {booking.completion_task_status === 'completed' && (
-                          <Alert variant="success" className="!p-2 !text-xs">Provider Feedback Logged</Alert>
-                        )}
-                        <Badge>{status.replace('_', ' ')}</Badge>
-                        <span className="text-xs text-neutral-500 self-center">{nextAllowedStatusLabel}</span>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 pt-3 border-t border-neutral-200/60">
-                      {!isTerminalStatus && (
-                        <div className="grid gap-2 sm:grid-cols-2">
-                          <select
-                            className="input-field text-sm"
-                            defaultValue={booking.provider_id}
-                            onChange={(event) => onReassignProvider(booking.id, Number(event.target.value))}
-                            disabled={isPending}
-                          >
-                            <option value="">Reassign to provider...</option>
-                            {providers.map((provider) => (
-                              <option key={provider.id} value={provider.id}>
-                                {provider.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      <div className="flex flex-wrap gap-2">
-                        {canConfirm ? (
-                          <Button size="sm" variant="secondary" onClick={() => onOverrideStatus(booking.id, 'confirmed')} disabled={isPending}>
-                            {status === 'pending' ? 'Clear SLA' : 'Confirm'}
-                          </Button>
-                        ) : null}
-                        {canComplete ? (
-                          <Button
-                            size="sm"
-                            variant="success"
-                            onClick={() => onOverrideStatus(booking.id, 'completed')}
-                            disabled={isPending || cashPending}
-                            title={cashPending ? 'Mark cash as received first' : undefined}
-                          >
-                            Complete
-                          </Button>
-                        ) : null}
-                        {isCashBooking && (status === 'pending' || status === 'confirmed') && cashPending ? (
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            onClick={() => onMarkCashPaymentReceived(booking.id)}
-                            disabled={isPending}
-                          >
-                            Mark Cash Received
-                          </Button>
-                        ) : null}
-                        {canNoShow ? (
-                          <Button size="sm" variant="ghost" onClick={() => onOverrideStatus(booking.id, 'no_show')} disabled={isPending}>
-                            No-show
-                          </Button>
-                        ) : null}
-                        {canCancel ? (
-                          <Button size="sm" variant="danger" onClick={() => onOverrideStatus(booking.id, 'cancelled')} disabled={isPending}>
-                            Cancel
-                          </Button>
-                        ) : null}
-                        {!isTerminalStatus ? (
-                          <Button size="sm" variant="ghost" onClick={() => onApplyBookingAdjustment(booking.id)} disabled={isPending}>
-                            Cancel + Reverse
-                          </Button>
-                        ) : null}
-                        {isTerminalStatus ? (
-                          <span className="text-xs text-neutral-500 self-center">Finalized — no further actions.</span>
-                        ) : null}
-                        <Button size="sm" variant="ghost" onClick={() => setDetailBookingId(booking.id)}>
-                          View Details
-                        </Button>
-                        {booking.user_id && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setMessageTarget({
-                              recipientId: booking.user_id!,
-                              recipientName: booking.customer_name || booking.customer_email || 'Pet Parent',
-                              bookingId: booking.id,
-                            })}
-                          >
-                            Message
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </Card>
+      <AdminDataTable
+        rows={visibleBookings}
+        columns={bookingColumns}
+        getRowId={(booking) => booking.id}
+        selectedRowIds={selectedBookingIds}
+        onToggleRow={(booking) => onToggleBookingSelection(booking.id)}
+        emptyState={(
+          <div>
+            <p className="text-sm font-semibold text-neutral-950">No bookings found</p>
+            <p className="mt-1 text-sm text-neutral-500">Adjust filters or create a new booking from the workflow above.</p>
+          </div>
+        )}
+      />
       <BookingDetailModal
         bookingId={detailBookingId}
         isOpen={detailBookingId !== null}

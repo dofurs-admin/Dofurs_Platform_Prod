@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { getProviderServicesWithPincodes } from './service';
+import { deleteProviderServiceRolloutEntry, getProviderServicesWithPincodes } from './service';
 
 describe('getProviderServicesWithPincodes', () => {
   it('loads pincodes only for the provider service ids and filters disabled/duplicates', async () => {
@@ -103,5 +103,115 @@ describe('getProviderServicesWithPincodes', () => {
     expect(result).toEqual([]);
     expect(supabase.from).toHaveBeenCalledWith('provider_services');
     expect(supabase.from).not.toHaveBeenCalledWith('provider_service_pincodes');
+  });
+});
+
+describe('deleteProviderServiceRolloutEntry', () => {
+  it('cleans dependent rollout rows and unlinks historical bookings before deleting the provider service row', async () => {
+    const serviceLookupQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'svc-1' }, error: null }),
+    };
+
+    const serviceDeleteQuery = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn(),
+      select: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: 'svc-1' }, error: null }),
+    };
+    serviceDeleteQuery.eq.mockReturnValue(serviceDeleteQuery);
+
+    const refreshedServicesQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+
+    const addonMappingsLookupQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ data: [{ id: 'mapping-1' }], error: null }),
+    };
+
+    const bookingAddonsUpdateQuery = {
+      update: vi.fn().mockReturnThis(),
+      in: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const addonMappingsDeleteQuery = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const serviceAddonsDeleteQuery = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const packageServicesDeleteQuery = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const pincodeDeleteQuery = {
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const bookingsUpdateQuery = {
+      update: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    };
+
+    const providerServiceQueries = [serviceLookupQuery, serviceDeleteQuery, refreshedServicesQuery];
+    const addonMappingQueries = [addonMappingsLookupQuery, addonMappingsDeleteQuery];
+    const supabase = {
+      from: vi.fn((table: string) => {
+        if (table === 'provider_services') {
+          const nextQuery = providerServiceQueries.shift();
+          if (!nextQuery) {
+            throw new Error('Unexpected provider_services query');
+          }
+          return nextQuery;
+        }
+        if (table === 'provider_service_addon_mappings') {
+          const nextQuery = addonMappingQueries.shift();
+          if (!nextQuery) {
+            throw new Error('Unexpected provider_service_addon_mappings query');
+          }
+          return nextQuery;
+        }
+        if (table === 'booking_addon_items') {
+          return bookingAddonsUpdateQuery;
+        }
+        if (table === 'service_addons') {
+          return serviceAddonsDeleteQuery;
+        }
+        if (table === 'package_services') {
+          return packageServicesDeleteQuery;
+        }
+        if (table === 'provider_service_pincodes') {
+          return pincodeDeleteQuery;
+        }
+        if (table === 'bookings') {
+          return bookingsUpdateQuery;
+        }
+        throw new Error(`Unexpected table ${table}`);
+      }),
+    };
+
+    await expect(deleteProviderServiceRolloutEntry(supabase as never, 55, 'svc-1')).resolves.toEqual([]);
+
+    expect(bookingAddonsUpdateQuery.update).toHaveBeenCalledWith({ provider_service_addon_mapping_id: null });
+    expect(bookingAddonsUpdateQuery.in).toHaveBeenCalledWith('provider_service_addon_mapping_id', ['mapping-1']);
+    expect(addonMappingsDeleteQuery.eq).toHaveBeenCalledWith('provider_service_id', 'svc-1');
+    expect(serviceAddonsDeleteQuery.eq).toHaveBeenCalledWith('provider_service_id', 'svc-1');
+    expect(packageServicesDeleteQuery.eq).toHaveBeenCalledWith('provider_service_id', 'svc-1');
+    expect(pincodeDeleteQuery.eq).toHaveBeenCalledWith('provider_service_id', 'svc-1');
+    expect(bookingsUpdateQuery.update).toHaveBeenCalledWith({ provider_service_id: null });
+    expect(bookingsUpdateQuery.eq).toHaveBeenCalledWith('provider_service_id', 'svc-1');
+    expect(serviceDeleteQuery.delete).toHaveBeenCalled();
+    expect(serviceDeleteQuery.select).toHaveBeenCalledWith('id');
+    expect(serviceDeleteQuery.maybeSingle).toHaveBeenCalled();
   });
 });

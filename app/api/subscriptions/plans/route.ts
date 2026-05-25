@@ -11,6 +11,7 @@ export async function GET() {
     .from('subscription_plans')
     .select('id, code, name, description, duration_days, price_inr, is_active, subscription_plan_services(service_type, credits_included:credit_count)')
     .eq('is_active', true)
+    .is('deleted_at', null)
     .order('price_inr', { ascending: true });
 
   if (error) {

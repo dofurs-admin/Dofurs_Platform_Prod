@@ -204,14 +204,14 @@ export default function AdminPaymentsView({
           <div className="inline-flex rounded-lg border border-neutral-300 bg-white p-0.5">
             <button
               type="button"
-              className={`rounded-md px-2 py-1 text-xs font-semibold ${density === 'compact' ? 'bg-neutral-900 text-white' : 'text-neutral-700'}`}
+              className={`rounded-md px-2 py-1 text-xs font-semibold ${density === 'compact' ? 'bg-coral text-white' : 'text-neutral-700'}`}
               onClick={() => setDensity('compact')}
             >
               Compact
             </button>
             <button
               type="button"
-              className={`rounded-md px-2 py-1 text-xs font-semibold ${density === 'expanded' ? 'bg-neutral-900 text-white' : 'text-neutral-700'}`}
+              className={`rounded-md px-2 py-1 text-xs font-semibold ${density === 'expanded' ? 'bg-coral text-white' : 'text-neutral-700'}`}
               onClick={() => setDensity('expanded')}
             >
               Expanded

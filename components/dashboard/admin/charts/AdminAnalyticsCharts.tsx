@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from 'react';
 import BookingTrendChart from './BookingTrendChart';
 import RevenueChart from './RevenueChart';
 import BookingStatusDistribution from './BookingStatusDistribution';
+import OperationsHealthCard from './OperationsHealthCard';
 
 type DailyPoint = { date: string; bookings: number; revenue: number };
 type StatusPoint = { status: string; count: number };
@@ -29,11 +30,11 @@ export default function AdminAnalyticsCharts() {
   }, [days]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-neutral-900">Analytics</h3>
+        <h3 className="text-xs font-semibold uppercase tracking-[0.14em] text-neutral-500">Analytics</h3>
         <select
-          className="input-field text-xs py-1 px-2 w-auto"
+          className="input-field !min-h-8 !w-auto !rounded-lg !px-2 !py-1 text-xs"
           value={days}
           onChange={(e) => setDays(Number(e.target.value))}
         >
@@ -45,12 +46,13 @@ export default function AdminAnalyticsCharts() {
       </div>
 
       {isLoading ? (
-        <p className="text-sm text-neutral-400 py-4 text-center">Loading charts…</p>
+        <p className="py-4 text-center text-xs text-neutral-400">Loading charts…</p>
       ) : !data ? null : (
-        <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-2">
           <BookingTrendChart data={data.dailySeries} />
           <RevenueChart data={data.dailySeries} />
           <BookingStatusDistribution data={data.statusDistribution} />
+          <OperationsHealthCard dailySeries={data.dailySeries} statusDistribution={data.statusDistribution} days={data.days} />
         </div>
       )}
     </div>

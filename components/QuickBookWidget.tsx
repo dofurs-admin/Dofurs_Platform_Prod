@@ -17,7 +17,7 @@ export default function QuickBookWidget() {
   function handleFind() {
     if (!selected) return;
     const params = pincode.trim() ? `?pincode=${encodeURIComponent(pincode.trim())}` : '';
-    router.push(`/services/${selected}/bangalore${params}`);
+    router.push(`/services/${selected}/bengaluru${params}`);
   }
 
   return (

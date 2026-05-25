@@ -70,7 +70,7 @@ function makeSupabaseMock(options?: {
     final_price: 1200,
     discount_code: null,
     created_at: '2026-04-01T10:00:00.000Z',
-    users: { name: 'Alice', email: 'alice@example.com', phone: '+919999999999', address: 'Bangalore' },
+    users: { name: 'Alice', email: 'alice@example.com', phone: '+919999999999', address: 'Bengaluru' },
     providers: { name: 'Bob', email: 'bob@example.com', phone_number: '+918888888888' },
     pets: null,
   };

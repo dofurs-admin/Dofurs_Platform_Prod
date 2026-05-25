@@ -4,7 +4,7 @@ import ContentPageLayout from '@/components/ContentPageLayout';
 export const metadata: Metadata = {
   title: 'Cancellation & Adjustment Policy',
   description:
-    'Dofurs cancellation and adjustment policy — timelines, reschedule rules, support-led adjustments, and direct-to-provider payment handling for Bangalore pet bookings.',
+    'Dofurs cancellation and adjustment policy — timelines, reschedule rules, support-led adjustments, and direct-to-provider payment handling for Bengaluru pet bookings.',
   alternates: { canonical: 'https://dofurs.in/cancellation-adjustment-policy' },
   openGraph: {
     title: 'Cancellation & Adjustment Policy | Dofurs',

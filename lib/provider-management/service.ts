@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { isBengaluruCityCoveragePincode } from '@/lib/service-coverage';
 import { getISTTimestamp } from '@/lib/utils/date';
 import type {
   AdminProviderLocationModeration,
@@ -35,6 +36,14 @@ function ensureProviderFound<T>(value: T | null, message = 'Provider not found')
   }
 
   return value;
+}
+
+function hasOwnProperty<T extends object>(value: T, key: keyof T) {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
+function isMissingSchemaError(error: { code?: string } | null | undefined) {
+  return error?.code === '42P01' || error?.code === '42703';
 }
 
 async function getProviderByUserId(supabase: SupabaseClient, userId: string) {
@@ -656,23 +665,68 @@ export async function deleteProviderServiceRolloutEntry(
     throw new Error('Service rollout not found for this provider.');
   }
 
-  const { error: deletePincodeError } = await supabase
-    .from('provider_service_pincodes')
-    .delete()
+  const { data: addonMappings, error: addonMappingsLookupError } = await supabase
+    .from('provider_service_addon_mappings')
+    .select('id')
     .eq('provider_service_id', providerServiceId);
 
-  if (deletePincodeError && deletePincodeError.code !== '42P01') {
-    throw deletePincodeError;
+  if (addonMappingsLookupError && !isMissingSchemaError(addonMappingsLookupError)) {
+    throw addonMappingsLookupError;
   }
 
-  const { error: deleteServiceError } = await supabase
+  const addonMappingIds = (addonMappings ?? [])
+    .map((row) => row.id)
+    .filter((id): id is string => typeof id === 'string' && id.trim().length > 0);
+
+  if (addonMappingIds.length > 0) {
+    const { error: unlinkBookingAddonsError } = await supabase
+      .from('booking_addon_items')
+      .update({ provider_service_addon_mapping_id: null })
+      .in('provider_service_addon_mapping_id', addonMappingIds);
+
+    if (unlinkBookingAddonsError && !isMissingSchemaError(unlinkBookingAddonsError)) {
+      throw unlinkBookingAddonsError;
+    }
+  }
+
+  const dependentProviderServiceTables = [
+    'provider_service_addon_mappings',
+    'service_addons',
+    'package_services',
+    'provider_service_pincodes',
+  ];
+
+  for (const tableName of dependentProviderServiceTables) {
+    const { error } = await supabase.from(tableName).delete().eq('provider_service_id', providerServiceId);
+
+    if (error && !isMissingSchemaError(error)) {
+      throw error;
+    }
+  }
+
+  const { error: unlinkBookingsError } = await supabase
+    .from('bookings')
+    .update({ provider_service_id: null })
+    .eq('provider_service_id', providerServiceId);
+
+  if (unlinkBookingsError && !isMissingSchemaError(unlinkBookingsError)) {
+    throw unlinkBookingsError;
+  }
+
+  const { data: deletedService, error: deleteServiceError } = await supabase
     .from('provider_services')
     .delete()
     .eq('id', providerServiceId)
-    .eq('provider_id', providerId);
+    .eq('provider_id', providerId)
+    .select('id')
+    .maybeSingle();
 
   if (deleteServiceError) {
     throw deleteServiceError;
+  }
+
+  if (!deletedService) {
+    throw new Error('Service rollout could not be deleted. Please refresh and try again.');
   }
 
   return getProviderServicesWithPincodes(supabase, providerId);
@@ -746,16 +800,18 @@ export async function updateProviderServiceRollout(
     const existingService = row.id ? existingById.get(row.id) : existingByType.get(normalizedType);
     const templateService = templateByType.get(normalizedType);
 
-    const resolvedBasePrice = row.base_price ?? existingService?.base_price ?? templateService?.base_price ?? 0;
-    const resolvedSurgePrice =
-      row.surge_price ?? existingService?.surge_price ?? templateService?.surge_price ?? null;
-    const resolvedCommission =
-      row.commission_percentage ?? existingService?.commission_percentage ?? templateService?.commission_percentage ?? null;
-    const resolvedDuration =
-      row.service_duration_minutes ??
-      existingService?.service_duration_minutes ??
-      templateService?.service_duration_minutes ??
-      null;
+    const resolvedBasePrice = hasOwnProperty(row, 'base_price') && typeof row.base_price === 'number'
+      ? row.base_price
+      : existingService?.base_price ?? templateService?.base_price ?? 0;
+    const resolvedSurgePrice = hasOwnProperty(row, 'surge_price')
+      ? row.surge_price ?? null
+      : existingService?.surge_price ?? templateService?.surge_price ?? null;
+    const resolvedCommission = hasOwnProperty(row, 'commission_percentage')
+      ? row.commission_percentage ?? null
+      : existingService?.commission_percentage ?? templateService?.commission_percentage ?? null;
+    const resolvedDuration = hasOwnProperty(row, 'service_duration_minutes')
+      ? row.service_duration_minutes ?? null
+      : existingService?.service_duration_minutes ?? templateService?.service_duration_minutes ?? null;
 
     const payload = {
       provider_id: providerId,
@@ -1945,7 +2001,10 @@ export async function getAdminProviderCoverageWarnings(
   const clinicPincode = location.pincode?.trim() ?? null;
   const serviceRadius = location.service_radius_km;
   const coveragePincodeList = Array.from(enabledPincodes);
-  const nonClinicCoverageCount = clinicPincode
+  const hasBengaluruCityCoverage = coveragePincodeList.some(isBengaluruCityCoveragePincode);
+  const nonClinicCoverageCount = hasBengaluruCityCoverage
+    ? 10
+    : clinicPincode
     ? coveragePincodeList.filter((item) => item !== clinicPincode).length
     : coveragePincodeList.length;
 
@@ -1963,7 +2022,7 @@ export async function getAdminProviderCoverageWarnings(
     warnings.push('Service radius is very small for the current pincode rollout footprint.');
   }
 
-  if (serviceRadius === null && enabledPincodes.size >= 10) {
+  if (serviceRadius === null && (hasBengaluruCityCoverage || enabledPincodes.size >= 10)) {
     warnings.push('Large pincode rollout is configured without a service radius baseline.');
   }
 

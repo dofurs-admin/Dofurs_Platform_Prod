@@ -119,6 +119,10 @@ type CreditEligibilityResponse = {
   totalCredits: number;
 };
 
+function formatCreditAmount(value: number) {
+  return `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
+}
+
 const BOOKING_SUCCESS_FLAG_KEY = 'dofurs.booking.confirmation-active';
 const BOOKING_SUCCESS_EVENT = 'dofurs:booking-confirmation-visibility';
 
@@ -1860,14 +1864,14 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
               <span>
                 Use subscription credit
                 {creditEligibility?.eligible
-                  ? ` (${creditEligibility.availableCredits} credits available)`
+                  ? ` (${formatCreditAmount(creditEligibility.availableCredits)} credit value available)`
                   : isCheckingCreditEligibility
                     ? ' (checking availability...)'
                     : ' (not available for this service)'}
               </span>
             </label>
             <p className="mt-2 text-[11px] text-neutral-500">
-              Subscription credits are deducted only when booking is completed and restored if booking is cancelled.
+              Subscription credit value is reserved when the booking is created and restored if the booking is cancelled.
             </p>
           </div>
 

@@ -67,7 +67,7 @@ export default function GroomingServiceGrid() {
         </h2>
         <p className="mx-auto mt-1.5 max-w-md text-xs text-[#6e4d35] md:text-sm">
           Professionally curated for your pet&apos;s well-being. All services available at your
-          doorstep across Bangalore.
+          doorstep across Bengaluru.
         </p>
       </motion.div>
 

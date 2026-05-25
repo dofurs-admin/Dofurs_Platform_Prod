@@ -77,6 +77,7 @@ export async function POST(request: Request) {
     .select('id, name, price_inr, is_active')
     .eq('id', planId)
     .eq('is_active', true)
+    .is('deleted_at', null)
     .single();
 
   if (planError || !plan) {

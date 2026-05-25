@@ -2,10 +2,10 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Dofurs — Premium Pet Grooming in Bangalore',
+    name: 'Dofurs — Premium Pet Grooming in Bengaluru',
     short_name: 'Dofurs',
     description:
-      'Book verified doorstep pet grooming across Bangalore with transparent packages and pet-safe products.',
+      'Book verified doorstep pet grooming across Bengaluru with transparent packages and pet-safe products.',
     start_url: '/',
     scope: '/',
     display: 'standalone',

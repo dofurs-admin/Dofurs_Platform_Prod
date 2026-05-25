@@ -43,7 +43,7 @@ export default function CTASection() {
 
                   <p className="inline-flex items-center justify-center gap-2 text-sm text-[#7a7a7a] lg:justify-start">
                     <Star className="h-4 w-4 fill-[#d4a73b] text-[#d4a73b]" aria-hidden="true" />
-                    Trusted by 1,000+ Pet Parents in Bangalore
+                    Trusted by 1,000+ Pet Parents in Bengaluru
                   </p>
                 </div>
               </div>

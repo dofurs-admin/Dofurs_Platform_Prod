@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import AdminProvidersView from '@/components/dashboard/admin/views/AdminProvidersView';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAdminProviderApprovalRealtime, useOptimisticUpdate } from '@/lib/hooks/useRealtime';
+import { BENGALURU_CITY_COVERAGE_PINCODE_CSV } from '@/lib/service-coverage';
 import type { ConfirmConfig } from '@/components/dashboard/admin/AdminDashboardShell';
 import type { AdminProviderModerationItem } from '@/lib/provider-management/types';
 import type {
@@ -101,6 +102,10 @@ type AdminProviderService = {
 
 type ServiceRolloutDraft = {
   id?: string;
+  base_price: string;
+  surge_price: string;
+  commission_percentage: string;
+  service_duration_minutes: string;
   service_pincodes: string;
 };
 
@@ -172,6 +177,63 @@ function applyLocationWarningToDraft(draft: LocationDraft, warning: string, cove
     next.service_radius_km = '5';
   }
   return next;
+}
+
+function getDefaultServiceRolloutDraft(): ServiceRolloutDraft {
+  return {
+    base_price: '',
+    surge_price: '',
+    commission_percentage: '',
+    service_duration_minutes: '',
+    service_pincodes: '',
+  };
+}
+
+function parseServicePincodeCsv(value: string) {
+  const entries = value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+  const invalid = entries.filter((item) => !/^[1-9]\d{5}$/.test(item));
+  return { entries, invalid };
+}
+
+function parseOptionalServiceRolloutNumber(
+  value: string,
+  label: string,
+  options: { min: number; max?: number; integer?: boolean; exclusiveMin?: boolean },
+) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue) {
+    return { value: undefined as number | undefined };
+  }
+
+  const numericValue = Number(trimmedValue);
+
+  if (!Number.isFinite(numericValue)) {
+    return { value: undefined, error: `${label} must be a valid number.` };
+  }
+
+  if (options.integer && !Number.isInteger(numericValue)) {
+    return { value: undefined, error: `${label} must be a whole number.` };
+  }
+
+  const isBelowMinimum = options.exclusiveMin ? numericValue <= options.min : numericValue < options.min;
+
+  if (isBelowMinimum) {
+    return {
+      value: undefined,
+      error: options.exclusiveMin ? `${label} must be greater than ${options.min}.` : `${label} must be at least ${options.min}.`,
+    };
+  }
+
+  if (typeof options.max === 'number' && numericValue > options.max) {
+    return { value: undefined, error: `${label} must be at most ${options.max}.` };
+  }
+
+  return { value: numericValue };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -746,14 +808,24 @@ export default function ProvidersTab({
 
   // Service rollout management
   function setServiceDraftField(providerId: number, field: keyof ServiceRolloutDraft, value: string | boolean) {
+    const normalizedValue =
+      field === 'service_pincodes' && typeof value === 'string'
+        ? value.replace(/[^\d,\s]/g, '')
+        : value;
+
     setServiceDraft((c) => ({
       ...c,
       [providerId]: {
+        ...getDefaultServiceRolloutDraft(),
+        ...c[providerId],
         id: c[providerId]?.id,
-        service_pincodes: c[providerId]?.service_pincodes ?? '',
-        [field]: value,
+        [field]: normalizedValue,
       },
     }));
+  }
+
+  function applyBengaluruCityCoveragePreset(providerId: number) {
+    setServiceDraftField(providerId, 'service_pincodes', BENGALURU_CITY_COVERAGE_PINCODE_CSV);
   }
 
   function copyServiceIntoDraft(providerId: number, serviceId: string) {
@@ -761,7 +833,14 @@ export default function ProvidersTab({
     if (!service) return;
     setServiceDraft((c) => ({
       ...c,
-      [providerId]: { id: service.id, service_pincodes: (pincodesByService[service.id] ?? []).join(', ') },
+      [providerId]: {
+        id: service.id,
+        base_price: String(service.base_price),
+        surge_price: service.surge_price === null ? '' : String(service.surge_price),
+        commission_percentage: service.commission_percentage === null ? '' : String(service.commission_percentage),
+        service_duration_minutes: service.service_duration_minutes === null ? '' : String(service.service_duration_minutes),
+        service_pincodes: (pincodesByService[service.id] ?? []).join(', '),
+      },
     }));
 
     setSelectedServiceTypesByProvider((c) => ({
@@ -799,39 +878,107 @@ export default function ProvidersTab({
     providerServiceTypeOptions: string[],
     providerServicesRows: AdminProviderService[],
   ) {
-    const draft = serviceDraft[providerId];
+    const draft = serviceDraft[providerId] ?? getDefaultServiceRolloutDraft();
     const selectedServiceTypes = selectedServiceTypesByProvider[providerId] ?? providerServicesRows.map((s) => s.service_type);
     const normalized = Array.from(
       new Set(selectedServiceTypes.map((v) => v.trim()).filter((v) => v.length > 0)),
     ).filter((v) => providerServiceTypeOptions.includes(v));
 
-    if (normalized.length === 0) { showToast('Select at least one service to apply rollout.', 'error'); return; }
-    if (!draft) { showToast('Provide service configuration before saving.', 'error'); return; }
+    if (normalized.length === 0 && providerServicesRows.length === 0) {
+      showToast('Select at least one service to apply rollout.', 'error');
+      return;
+    }
 
     const existingByType = new Map<string, AdminProviderService>();
     for (const svc of providerServicesRows) existingByType.set(svc.service_type.trim().toLowerCase(), svc);
 
-    const servicePincodes = draft.service_pincodes.split(',').map((v) => v.trim()).filter((v) => v.length > 0);
+    const { entries: servicePincodes, invalid: invalidPincodes } = parseServicePincodeCsv(draft.service_pincodes);
+
+    if (invalidPincodes.length > 0) {
+      showToast(
+        `Service pincodes must be valid 6-digit numbers. Invalid: ${invalidPincodes.slice(0, 3).join(', ')}${invalidPincodes.length > 3 ? '...' : ''}`,
+        'error',
+      );
+      return;
+    }
+
+    const basePrice = parseOptionalServiceRolloutNumber(draft.base_price, 'Base price', { min: 0 });
+    const surgePrice = parseOptionalServiceRolloutNumber(draft.surge_price, 'Surge price', { min: 0 });
+    const commission = parseOptionalServiceRolloutNumber(draft.commission_percentage, 'Commission', { min: 0, max: 100 });
+    const serviceDuration = parseOptionalServiceRolloutNumber(draft.service_duration_minutes, 'Duration', {
+      min: 0,
+      integer: true,
+      exclusiveMin: true,
+    });
+
+    const firstPricingError = basePrice.error ?? surgePrice.error ?? commission.error ?? serviceDuration.error;
+
+    if (firstPricingError) {
+      showToast(firstPricingError, 'error');
+      return;
+    }
+
+    const pricingOverrides = {
+      ...(basePrice.value !== undefined ? { base_price: basePrice.value } : {}),
+      ...(surgePrice.value !== undefined ? { surge_price: surgePrice.value } : {}),
+      ...(commission.value !== undefined ? { commission_percentage: commission.value } : {}),
+      ...(serviceDuration.value !== undefined ? { service_duration_minutes: serviceDuration.value } : {}),
+    };
 
     startTransition(async () => {
       try {
+        const selectedTypeSet = new Set(normalized.map((serviceType) => serviceType.trim().toLowerCase()));
+        const servicesToUnlink = providerServicesRows.filter(
+          (service) => !selectedTypeSet.has(service.service_type.trim().toLowerCase()),
+        );
+        let latestServices: Array<AdminProviderService & { service_pincodes?: string[] }> | null = null;
+
+        for (const service of servicesToUnlink) {
+          const deleteResponse = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
+            `/api/admin/providers/${providerId}/services`,
+            {
+              method: 'DELETE',
+              body: JSON.stringify({ serviceId: service.id }),
+            },
+          );
+          latestServices = deleteResponse.services;
+        }
+
         const rolloutPayload = normalized.map((serviceType) => {
           const existing = existingByType.get(serviceType.toLowerCase());
           const existingPincodes = existing ? pincodesByService[existing.id] ?? [] : [];
-          return { id: existing?.id, service_type: serviceType, is_active: true, service_pincodes: servicePincodes.length > 0 ? servicePincodes : existingPincodes };
+          return {
+            id: existing?.id,
+            service_type: serviceType,
+            is_active: true,
+            ...pricingOverrides,
+            service_pincodes: servicePincodes.length > 0 ? servicePincodes : existingPincodes,
+          };
         });
 
-        const response = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
-          `/api/admin/providers/${providerId}/services`,
-          { method: 'PUT', body: JSON.stringify(rolloutPayload) },
-        );
-        setServicesByProvider((c) => ({ ...c, [providerId]: response.services }));
+        if (rolloutPayload.length > 0) {
+          const response = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
+            `/api/admin/providers/${providerId}/services`,
+            { method: 'PUT', body: JSON.stringify(rolloutPayload) },
+          );
+          latestServices = response.services;
+        }
+
+        const nextServices = latestServices ?? [];
+
+        setServicesByProvider((c) => ({ ...c, [providerId]: nextServices }));
         setPincodesByService((c) => {
           const next = { ...c };
-          for (const svc of response.services) next[svc.id] = svc.service_pincodes ?? [];
+          for (const service of servicesToUnlink) {
+            delete next[service.id];
+          }
+          for (const svc of nextServices) next[svc.id] = svc.service_pincodes ?? [];
           return next;
         });
-        showToast('Service rollout updated.', 'success');
+        showToast(
+          servicesToUnlink.length > 0 ? 'Service rollout links updated.' : 'Service rollout updated.',
+          'success',
+        );
       } catch (error) {
         showToast(error instanceof Error ? error.message : 'Unable to update service rollout.', 'error');
       }
@@ -1325,6 +1472,7 @@ export default function ProvidersTab({
       submitServiceRollout={submitServiceRollout}
       setProviderServiceActivation={setProviderServiceActivation}
       deleteProviderServiceRollout={deleteProviderServiceRollout}
+      applyBengaluruCityCoveragePreset={applyBengaluruCityCoveragePreset}
       handleOnboardingSuccess={handleOnboardingSuccess}
     />
   );

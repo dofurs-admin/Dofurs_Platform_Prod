@@ -1,11 +1,11 @@
 /**
- * Service-area data for Bangalore neighbourhood grooming landing pages.
+ * Service-area data for Bengaluru neighbourhood grooming landing pages.
  *
  * Each entry powers locally anchored routes at /locations/[slug]. Keep the data
  * grooming-specific so retired service lines do not leak back into public SEO.
  */
 
-export type BangaloreArea = {
+export type BengaluruArea = {
   slug: string;
   name: string;
   shortName?: string;
@@ -40,7 +40,7 @@ function buildArea({
   nearbyAreas: string[];
   landmarks: string[];
   setupNote: string;
-}): BangaloreArea {
+}): BengaluruArea {
   const areaLabel = shortName ?? name;
   const landmarkSummary = landmarks.slice(0, 3).join(', ');
   const nearbySummary = nearbyAreas.slice(0, 4).join(', ');
@@ -52,8 +52,8 @@ function buildArea({
     pincodes,
     nearbyAreas,
     landmarks,
-    metaTitle: `Pet Grooming in ${name}, Bangalore — Doorstep Groomers | Dofurs`,
-    metaDescription: `Book verified doorstep pet grooming in ${name}, Bangalore. Dofurs serves ${pincodes.join(', ')} and nearby ${nearbySummary} with grooming packages from Rs.699.`,
+    metaTitle: `Pet Grooming in ${name}, Bengaluru — Doorstep Groomers | Dofurs`,
+    metaDescription: `Book verified doorstep pet grooming in ${name}, Bengaluru. Dofurs serves ${pincodes.join(', ')} and nearby ${nearbySummary} with grooming packages from Rs.699.`,
     heroTagline: `Doorstep grooming across ${areaLabel} near ${landmarkSummary}.`,
     intro: `Dofurs brings verified doorstep pet grooming to ${name}, with package-led bath care, haircuts, de-shedding, nail care, ear cleaning and hygiene trims handled at home.`,
     sections: [
@@ -87,7 +87,7 @@ function buildArea({
   };
 }
 
-export const bangaloreAreas: BangaloreArea[] = [
+export const bengaluruAreas: BengaluruArea[] = [
   buildArea({
     slug: 'indiranagar',
     name: 'Indiranagar',
@@ -140,6 +140,6 @@ export const bangaloreAreas: BangaloreArea[] = [
   }),
 ];
 
-export const bangaloreAreaBySlug = Object.fromEntries(
-  bangaloreAreas.map((area) => [area.slug, area]),
+export const bengaluruAreaBySlug = Object.fromEntries(
+  bengaluruAreas.map((area) => [area.slug, area]),
 );
