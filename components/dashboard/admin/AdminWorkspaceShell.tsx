@@ -1,26 +1,30 @@
 'use client';
 
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, ReactNode } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Bell,
   CalendarDays,
+  ChevronDown,
   Command,
   CreditCard,
   FileClock,
   GripVertical,
   HeartPulse,
   LayoutDashboard,
+  LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptIndianRupee,
   Search,
   Scissors,
+  Settings,
   ShieldCheck,
   Sparkles,
+  UserRound,
   UsersRound,
   UserRoundCog,
   X,
@@ -104,11 +108,14 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarReady, setSidebarReady] = useState(false);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+  const [isSigningOut, startSignOutTransition] = useTransition();
   const shellRef = useRef<HTMLDivElement | null>(null);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const commandInputRef = useRef<HTMLInputElement | null>(null);
   const sidebarResizeStartRef = useRef({ x: 0, width: SIDEBAR_DEFAULT_WIDTH });
   const activeItem = findActiveItem(activeView);
@@ -127,6 +134,7 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
     setMobileNavOpen(false);
     setCommandOpen(false);
     setCommandQuery('');
+    setAccountMenuOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -206,11 +214,27 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
 
       if (event.key === 'Escape') {
         setCommandOpen(false);
+        setAccountMenuOpen(false);
       }
     }
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    function handleOutsideClick(event: MouseEvent) {
+      const target = event.target;
+
+      if (!(target instanceof Node)) return;
+
+      if (accountMenuRef.current && !accountMenuRef.current.contains(target)) {
+        setAccountMenuOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
   useEffect(() => {
@@ -222,6 +246,21 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
   function navigateTo(item: AdminNavItem) {
     router.push(item.href);
   }
+
+  function handleSignOut() {
+    startSignOutTransition(async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      setAccountMenuOpen(false);
+      router.replace('/auth/sign-in?mode=signin');
+      router.refresh();
+    });
+  }
+
+  const adminAccountLinks = [
+    { href: '/dashboard/admin', label: 'Profile', icon: UserRound },
+    { href: '/dashboard/admin/access', label: 'Settings', icon: Settings },
+    { href: '/dashboard/admin/users', label: 'User Directory', icon: UsersRound },
+  ];
 
   function beginSidebarResize(event: ReactPointerEvent<HTMLDivElement>) {
     if (sidebarCollapsed || event.button !== 0) return;
@@ -453,12 +492,54 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
               >
                 <Bell className="h-4 w-4" aria-hidden="true" />
               </button>
-              <Link
-                href="/dashboard"
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:bg-brand-50 hover:text-coral"
-              >
-                Account
-              </Link>
+              <div className="relative" ref={accountMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setAccountMenuOpen((open) => !open)}
+                  className={cn(
+                    'inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:bg-brand-50 hover:text-coral',
+                    accountMenuOpen ? 'border-brand-200 bg-brand-50/60 text-coral' : null,
+                  )}
+                  aria-haspopup="menu"
+                  aria-expanded={accountMenuOpen}
+                >
+                  Account
+                  <ChevronDown className={cn('h-3.5 w-3.5 transition', accountMenuOpen ? 'rotate-180' : null)} aria-hidden="true" />
+                </button>
+
+                {accountMenuOpen ? (
+                  <div className="absolute right-0 top-[calc(100%+0.5rem)] z-40 w-56 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-xl" role="menu" aria-label="Admin account options">
+                    <div className="px-2.5 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-neutral-400">Admin Account</div>
+                    {adminAccountLinks.map((item) => {
+                      const Icon = item.icon;
+
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => setAccountMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-xs font-medium text-neutral-700 transition hover:bg-brand-50 hover:text-neutral-950"
+                          role="menuitem"
+                        >
+                          <Icon className="h-4 w-4 text-neutral-400" aria-hidden="true" />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
+                    <div className="my-1 border-t border-neutral-100" />
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      disabled={isSigningOut}
+                      className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs font-medium text-neutral-700 transition hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      role="menuitem"
+                    >
+                      <LogOut className="h-4 w-4 text-neutral-400" aria-hidden="true" />
+                      {isSigningOut ? 'Signing out...' : 'Sign out'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
         </header>
