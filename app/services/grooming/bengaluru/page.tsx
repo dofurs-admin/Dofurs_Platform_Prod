@@ -555,9 +555,9 @@ export default function BengaluruGroomingLandingPage() {
               {coverageStats.map((item) => {
                 const Icon = item.icon;
                 return (
-                  <div key={item.label} className="flex items-center justify-center gap-4 border-b border-[#ead6c3] px-5 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
-                    <Icon className="h-10 w-10 shrink-0 text-[#d47a1b]" aria-hidden="true" />
-                    <div>
+                  <div key={item.label} className="grid grid-cols-[56px_minmax(0,220px)] items-center justify-center gap-4 border-b border-[#ead6c3] px-5 py-4 last:border-b-0 md:border-b-0 md:border-r md:last:border-r-0">
+                    <Icon className="h-10 w-10 justify-self-center text-[#d47a1b]" aria-hidden="true" />
+                    <div className="min-w-0">
                       <p className="text-[30px] font-black leading-none text-neutral-950">{item.value}</p>
                       <p className="mt-1 text-[12px] font-semibold text-neutral-600">{item.label}</p>
                     </div>
