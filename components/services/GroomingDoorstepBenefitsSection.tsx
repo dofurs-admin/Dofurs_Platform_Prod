@@ -129,9 +129,9 @@ export default function GroomingDoorstepBenefitsSection({ locationName }: Groomi
               const borderClass = index < benefitStats.length - 1 ? 'sm:border-r sm:border-[#f0dfcf]' : '';
 
               return (
-                <div key={stat.label} className={`flex items-center justify-center gap-2.5 px-4 py-2.5 ${borderClass}`}>
-                  <Icon className="h-5 w-5 shrink-0 text-[#d98d45]" aria-hidden="true" />
-                  <div>
+                <div key={stat.label} className={`grid grid-cols-[1.25rem_10rem] items-center justify-center gap-2.5 px-4 py-2.5 ${borderClass}`}>
+                  <Icon className="h-5 w-5 text-[#d98d45]" aria-hidden="true" />
+                  <div className="min-w-0 text-left">
                     <p className="text-[28px] font-extrabold leading-[0.92] tracking-[-0.01em] text-[#121212]">{stat.value}</p>
                     <p className="mt-1 text-[11px] font-semibold text-[#5b5149] sm:text-[12px]">{stat.label}</p>
                   </div>
