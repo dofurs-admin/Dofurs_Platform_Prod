@@ -117,7 +117,7 @@ const trustSignals = [
 const stressFreeCards = [
   {
     step: '01',
-    image: '/v1.2.2/travel - 1 .png',
+    image: '/v1.2.2/travel-1.png',
     icon: MapPin,
     title: 'Relief from Bengaluru travel',
     body: 'No long drives through traffic or summer heat. We come to your doorstep with the grooming setup.',
@@ -125,7 +125,7 @@ const stressFreeCards = [
   },
   {
     step: '02',
-    image: '/v1.2.2/waiting time.png',
+    image: '/v1.2.2/waiting-time.png',
     icon: Clock3,
     title: 'Save waiting time',
     body: 'No queues. No salon delays. Pick a convenient slot and keep the day moving.',
@@ -133,7 +133,7 @@ const stressFreeCards = [
   },
   {
     step: '03',
-    image: '/v1.2.2/Stress Free for pets.png',
+    image: '/v1.2.2/stress-free-for-pets.png',
     icon: Heart,
     title: 'Stress-free for pets',
     body: 'Pets stay comfortable in their familiar environment while grooming happens at their pace.',
@@ -141,7 +141,7 @@ const stressFreeCards = [
   },
   {
     step: '04',
-    image: '/v1.2.2/vacuum trim.png',
+    image: '/v1.2.2/vacuum-trim.png',
     icon: Sparkles,
     title: 'Clean and modern grooming',
     body: 'Grooms, trims and vacuum support help reduce mess during coat care at home.',
