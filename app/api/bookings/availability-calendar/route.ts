@@ -40,6 +40,11 @@ import { getAvailableSlotsMultiDay } from '@/lib/bookings/service';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 
+const AVAILABILITY_CALENDAR_RATE_LIMIT = {
+  windowMs: 60_000,
+  maxRequests: 60,
+};
+
 const availabilityCalendarSchema = z.object({
   providerId: z.coerce.number().int().positive(),
   fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -54,7 +59,7 @@ export async function GET(request: Request) {
     return unauthorized();
   }
 
-  const rate = await isRateLimited(supabase, getRateLimitKey('availability-calendar', user.id), { windowMs: 60_000, maxRequests: 10 });
+  const rate = await isRateLimited(supabase, getRateLimitKey('availability-calendar', user.id), AVAILABILITY_CALENDAR_RATE_LIMIT);
   if (rate.limited) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again shortly.' }, { status: 429 });
   }

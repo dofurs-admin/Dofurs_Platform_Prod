@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PUBLIC_BOOKABLE_SERVICE_ERROR,
   assertPublicBookableService,
+  filterActiveCatalogProviderServices,
   filterPublicBookableCategories,
   filterPublicBookableServices,
   isGenericGroomingServiceQuery,
@@ -43,7 +44,7 @@ describe('service-policy grooming gate', () => {
 
   it('filters public services and categories to grooming only', () => {
     const services = [
-      { id: 1, service_type: 'Complete Grooming', category: 'Grooming' },
+      { id: 1, provider_id: 'provider-uuid', service_type: 'Complete Grooming', category: 'Grooming' },
       { id: 2, service_type: 'Vet Visit', category: 'Veterinary' },
       { id: 3, service_type: 'Pet Sitting', category: 'Pet Sitting' },
     ];
@@ -55,6 +56,24 @@ describe('service-policy grooming gate', () => {
 
     expect(filterPublicBookableServices(services)).toEqual([services[0]]);
     expect(filterPublicBookableCategories(categories)).toEqual([categories[0]]);
+  });
+
+  it('filters customer catalog services to active catalog templates', () => {
+    const providerServices = [
+      { id: 'legacy-basic', provider_id: 10, service_type: 'Doorstep Pet Grooming (Basic Package)' },
+      { id: 'legacy-offer', provider_id: 10, service_type: 'Summer Bonanza (Offer Package)' },
+      { id: 'active-fur-bath', provider_id: 10, service_type: 'Fur Bath Care' },
+      { id: 'inactive-complete', provider_id: 10, service_type: 'Complete Care' },
+      { id: 'template-row', provider_id: null, service_type: 'Fur Bath Care' },
+    ];
+    const catalogTemplates = [
+      { provider_id: null, service_type: 'Fur Bath Care', is_active: true },
+      { provider_id: null, service_type: 'Complete Care', is_active: false },
+    ];
+
+    expect(filterActiveCatalogProviderServices(providerServices, catalogTemplates).map((service) => service.id)).toEqual([
+      'active-fur-bath',
+    ]);
   });
 
   it('throws the public booking error for non-grooming services', () => {

@@ -7,7 +7,11 @@ import { toFriendlyApiError } from '@/lib/api/errors';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
 import { claimPendingPetShares, listAccessiblePetsForUser } from '@/lib/pets/share-access';
 import { getISTTimestamp } from '@/lib/utils/date';
-import { filterPublicBookableServices, isGroomingServiceType } from '@/lib/service-catalog/service-policy';
+import {
+  filterActiveCatalogProviderServices,
+  filterPublicBookableServices,
+  isGroomingServiceType,
+} from '@/lib/service-catalog/service-policy';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -193,6 +197,12 @@ export async function GET(request: Request) {
         .eq('is_active', true)
         .order('service_type', { ascending: true });
 
+  const catalogTemplatesRequest = adminClient
+    .from('provider_services')
+    .select('id, provider_id, service_type, is_active')
+    .is('provider_id', null)
+    .limit(10000);
+
   const addressesRequest = selectedUserId
     ? (canBookForUsers && selectedUserId !== user.id ? adminClient : supabase)
         .from('user_addresses')
@@ -202,14 +212,15 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: false })
     : Promise.resolve({ data: [], error: null });
 
-  const [providersResult, providerServicesResult, addressesResult] = await Promise.all([
+  const [providersResult, providerServicesResult, catalogTemplatesResult, addressesResult] = await Promise.all([
     providersRequest,
     providerServicesRequest,
+    catalogTemplatesRequest,
     addressesRequest,
   ]);
 
-  if (providersResult.error || providerServicesResult.error || (addressesResult.error && addressesResult.error.code !== '42P01')) {
-    const error = providersResult.error || providerServicesResult.error || addressesResult.error;
+  if (providersResult.error || providerServicesResult.error || catalogTemplatesResult.error || (addressesResult.error && addressesResult.error.code !== '42P01')) {
+    const error = providersResult.error || providerServicesResult.error || catalogTemplatesResult.error || addressesResult.error;
     const mapped = toFriendlyApiError(error, 'Failed to load booking catalog');
     return NextResponse.json({ error: mapped.message }, { status: mapped.status });
   }
@@ -248,7 +259,10 @@ export async function GET(request: Request) {
   }
 
   const rawProviderServices = providerServicesResult.data ?? [];
-  const providerServices = includeLegacyServices ? rawProviderServices : filterPublicBookableServices(rawProviderServices);
+  const publicBookableServices = filterPublicBookableServices(rawProviderServices);
+  const providerServices = includeLegacyServices
+    ? rawProviderServices
+    : filterActiveCatalogProviderServices(publicBookableServices, catalogTemplatesResult.data ?? []);
   const providerRows = providersResult.data ?? [];
 
   let resolvedProviders = providerRows;

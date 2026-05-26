@@ -7,6 +7,12 @@ import AsyncState from '@/components/ui/AsyncState';
 import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import type { PricingBreakdown } from '@/lib/bookings/types';
 import { ApiClientError, apiRequest } from '@/lib/api/client';
+import {
+  BOOKING_THANK_YOU_PATH,
+  BOOKING_THANK_YOU_SESSION_KEY,
+  buildBookingConfirmationPath,
+  serializeBookingThankYouSession,
+} from '@/lib/bookings/thank-you-session';
 import { bookingCreateSchema } from '@/lib/flows/validation';
 import { isGenericGroomingServiceQuery } from '@/lib/service-catalog/service-policy';
 import { formatSavedAddress } from '@/lib/utils/address';
@@ -369,6 +375,8 @@ export default function PremiumUserBookingFlow() {
   const [selectedPetIds, setSelectedPetIds] = useState<number[]>([]);
   const [petServiceSelections, setPetServiceSelections] = useState<Record<number, PetServiceSelection>>({});
   const [bookingDate, setBookingDate] = useState('');
+  const bookingDateRef = useRef(bookingDate);
+  bookingDateRef.current = bookingDate;
   const [bookingEndDate, setBookingEndDate] = useState('');
   const [slotStartTime, setSlotStartTime] = useState('');
   const [bookingMode, setBookingMode] = useState<'home_visit' | 'clinic_visit' | 'teleconsult' | null>(DEFAULT_CUSTOMER_BOOKING_MODE);
@@ -1673,7 +1681,8 @@ export default function PremiumUserBookingFlow() {
         return;
       }
 
-      if (!bookingDate || !sortedAvailableDates.includes(bookingDate)) {
+      const selectedBookingDate = bookingDateRef.current;
+      if (!selectedBookingDate || !sortedAvailableDates.includes(selectedBookingDate)) {
         setBookingDate(sortedAvailableDates[0]);
         setSlotStartTime('');
       }
@@ -1687,7 +1696,6 @@ export default function PremiumUserBookingFlow() {
     isSelectedAddressServiceable,
     maxBookableDate,
     minBookableDate,
-    bookingDate,
     selectedServiceTypesParam,
     serviceTypeSelection,
     totalDurationMinutes,
@@ -2942,8 +2950,25 @@ export default function PremiumUserBookingFlow() {
       return;
     }
 
-    const conversionQuery = isRescheduleMode ? '' : '?conversion=booking';
-    router.replace(`/forms/customer-booking/confirmation/${bookingId}${conversionQuery}`);
+    const confirmationPath = buildBookingConfirmationPath(bookingId);
+
+    if (isRescheduleMode) {
+      router.replace(confirmationPath);
+      return;
+    }
+
+    const serializedSession = serializeBookingThankYouSession(bookingId);
+    if (!serializedSession) {
+      router.replace(confirmationPath);
+      return;
+    }
+
+    try {
+      window.sessionStorage.setItem(BOOKING_THANK_YOU_SESSION_KEY, serializedSession);
+      router.replace(BOOKING_THANK_YOU_PATH);
+    } catch {
+      router.replace(confirmationPath);
+    }
   }, [isRescheduleMode, router]);
 
   const addMinutesToTime = (time: string, minutesToAdd: number) => {

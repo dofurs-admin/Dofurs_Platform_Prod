@@ -341,6 +341,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   const [subscriptionCreditUnavailableReason, setSubscriptionCreditUnavailableReason] = useState<string | null>(null);
 
   const [bookingDate, setBookingDate] = useState('');
+  const bookingDateRef = useRef(bookingDate);
+  bookingDateRef.current = bookingDate;
   const [slotStartTime, setSlotStartTime] = useState('');
   const [slotEndTime, setSlotEndTime] = useState('');
   const [allowPastSlots, setAllowPastSlots] = useState(false);
@@ -359,6 +361,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   });
   const [serviceOptions, setServiceOptions] = useState<AvailabilityServiceSummary[]>([]);
   const availabilityRequestSeqRef = useRef(0);
+  const availabilityProvidersRef = useRef<AdminFlowAvailabilityResponse['providers']>([]);
+  availabilityProvidersRef.current = availability.providers;
 
   const selectedUser = useMemo(
     () => bookableUsers.find((item) => item.id === selectedBookingUserId) ?? null,
@@ -995,7 +999,7 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     setIsLoadingAvailableDateOptions(true);
 
     try {
-      let providerIds = Array.from(new Set(availability.providers.map((provider) => provider.providerId))).slice(0, 10);
+      let providerIds = Array.from(new Set(availabilityProvidersRef.current.map((provider) => provider.providerId))).slice(0, 10);
 
       if (providerIds.length === 0) {
         const params = new URLSearchParams({ pincode, serviceType });
@@ -1061,7 +1065,8 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
         return;
       }
 
-      if (!bookingDate || !sortedAvailableDates.includes(bookingDate)) {
+      const selectedBookingDate = bookingDateRef.current;
+      if (!selectedBookingDate || !sortedAvailableDates.includes(selectedBookingDate)) {
         setBookingDate(sortedAvailableDates[0]);
         setSlotStartTime('');
         setSlotEndTime('');
@@ -1071,8 +1076,6 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
     }
   }, [
     allowPastSlots,
-    availability.providers,
-    bookingDate,
     maxBookableDate,
     minBookableDate,
     pincode,

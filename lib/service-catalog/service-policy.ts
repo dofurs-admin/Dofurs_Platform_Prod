@@ -4,6 +4,8 @@ export const PUBLIC_BOOKABLE_SERVICE_ERROR = 'Dofurs currently accepts grooming 
 
 type ServiceLike = {
   service_type?: string | null;
+  provider_id?: string | number | bigint | null;
+  is_active?: boolean | null;
   category?: {
     name?: string | null;
     slug?: string | null;
@@ -112,6 +114,30 @@ export function assertPublicBookableServiceType(serviceType: string | null | und
 
 export function filterPublicBookableServices<T extends ServiceLike>(services: T[]): T[] {
   return services.filter((service) => isPublicBookableService(service));
+}
+
+export function filterActiveCatalogProviderServices<T extends ServiceLike>(
+  services: T[],
+  catalogTemplates: ServiceLike[],
+): T[] {
+  const activeCatalogServiceTypes = new Set(
+    catalogTemplates
+      .filter((service) => service.provider_id === null && service.is_active === true)
+      .map((service) => normalizeServiceText(service.service_type ?? service.name))
+      .filter((serviceType) => serviceType.length > 0),
+  );
+
+  if (activeCatalogServiceTypes.size === 0) {
+    return [];
+  }
+
+  return services.filter((service) => {
+    if (typeof service.provider_id !== 'number' || !Number.isFinite(service.provider_id)) {
+      return false;
+    }
+
+    return activeCatalogServiceTypes.has(normalizeServiceText(service.service_type ?? service.name));
+  });
 }
 
 export function filterPublicBookableCategories<T extends CategoryLike>(categories: T[]): T[] {
