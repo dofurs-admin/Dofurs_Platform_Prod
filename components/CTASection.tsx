@@ -25,7 +25,7 @@ export default function CTASection() {
                 </div>
 
                 <h2 className="text-4xl font-bold tracking-tight text-ink sm:text-[42px] lg:text-5xl">
-                  Book Doorstep Grooming in Minutes
+                  Book Doorstep Pet Grooming in Minutes
                 </h2>
 
                 <p className="mx-auto mt-4 max-w-xl whitespace-pre-line text-base text-[#6b6b6b] sm:text-lg lg:mx-0">
@@ -34,7 +34,7 @@ export default function CTASection() {
 
                 <div className="mt-8 flex flex-col items-center gap-4 lg:items-start">
                   <Link
-                    href={`${links.booking}?serviceType=grooming&mode=home_visit#start-your-booking`}
+                    href={`${links.booking}?serviceType=pet-grooming&mode=home_visit#start-your-booking`}
                     className={premiumBookingCtaClassName}
                     aria-label="Book now"
                   >

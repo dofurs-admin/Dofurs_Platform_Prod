@@ -1,4 +1,10 @@
 import type { NextConfig } from 'next';
+import {
+  PET_GROOMING_CITY_PATH,
+  bengaluruAreas,
+  getPetGroomingAreaPath,
+  isPublishedPetGroomingArea,
+} from './lib/service-areas';
 
 process.env.TZ = 'Asia/Kolkata';
 
@@ -49,52 +55,81 @@ const securityHeaders = [
   },
 ];
 
+const legacyLocationRedirects = bengaluruAreas.map((area) => ({
+  source: `/locations/${area.slug}`,
+  destination: isPublishedPetGroomingArea(area)
+    ? getPetGroomingAreaPath(area)
+    : `${PET_GROOMING_CITY_PATH}#bengaluru-coverage`,
+  permanent: true,
+}));
+
 const nextConfig: NextConfig = {
   async redirects() {
     return [
+      ...legacyLocationRedirects,
+      {
+        source: '/pet-grooming',
+        destination: PET_GROOMING_CITY_PATH,
+        permanent: true,
+      },
       {
         source: '/services/grooming',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/grooming/bangalore',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
+        permanent: true,
+      },
+      {
+        source: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
+        permanent: true,
+      },
+      {
+        source: '/grooming',
+        destination: PET_GROOMING_CITY_PATH,
+        permanent: true,
+      },
+      {
+        source: '/grooming/:slug',
+        destination: '/pet-grooming/:slug',
         permanent: true,
       },
       {
         source: '/services/vet',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/teleconsult',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/vet-visits',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/pet-boarding',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/pet-sitting',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/training',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {
         source: '/services/pet-birthday',
-        destination: '/services/grooming/bengaluru',
+        destination: PET_GROOMING_CITY_PATH,
         permanent: true,
       },
       {

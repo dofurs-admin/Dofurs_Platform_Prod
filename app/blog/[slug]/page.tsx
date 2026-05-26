@@ -279,7 +279,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             Book verified doorstep grooming in Bengaluru in minutes, with transparent packages and pet-safe products.
           </p>
           <Link
-            href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
+            href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking"
             className="mt-4 inline-flex rounded-full bg-coral px-6 py-2.5 text-sm font-semibold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#cf8448] hover:shadow-[0_10px_22px_rgba(227,154,93,0.35)]"
           >
             Book Now

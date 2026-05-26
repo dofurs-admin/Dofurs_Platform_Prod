@@ -1,0 +1,617 @@
+import type { Metadata } from 'next';
+import Image from 'next/image';
+import Link from 'next/link';
+import {
+  BadgeCheck,
+  CalendarCheck2,
+  CheckCircle2,
+  Clock3,
+  Home,
+  MapPin,
+  MessageCircle,
+  PawPrint,
+  ShieldCheck,
+  ShowerHead,
+  Sparkles,
+} from 'lucide-react';
+import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
+import PremiumCard from '@/components/PremiumCard';
+import WelcomeOfferModal from '@/components/WelcomeOfferModal';
+import MarketingSubscriptionGroupCard from '@/components/payments/MarketingSubscriptionGroupCard';
+import {
+  bengaluruAreas,
+  getPetGroomingAreaPath,
+  groupBengaluruAreasByRegion,
+} from '@/lib/service-areas';
+import { GROOMING_PACKAGES, type GroomingPackage } from '@/lib/service-catalog/grooming-packages';
+import { buildBreadcrumbSchema, buildServiceSchema, jsonLdScript } from '@/lib/seo/schemas';
+import { links, supportContact, whatsappLinks } from '@/lib/site-data';
+import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
+import { marketingSubscriptionPlanGroups } from '@/lib/subscriptions/marketing-plans';
+
+const SITE_URL = 'https://dofurs.in';
+const PAGE_PATH = '/pet-grooming/bengaluru';
+const PAGE_URL = `${SITE_URL}${PAGE_PATH}`;
+const HERO_IMAGE = '/v1.2.2/Dofurs-Grooming.png';
+const HERO_IMAGE_URL = `${SITE_URL}${HERO_IMAGE}`;
+const PAGE_DESCRIPTION =
+  'Book pincode-aware doorstep pet grooming in Bengaluru and Bangalore. Dofurs offers dog grooming, cat grooming, mobile grooming and home grooming packages across priority neighbourhoods.';
+const genericBookingHref = `${links.booking}?serviceType=pet-grooming&mode=home_visit#start-your-booking`;
+
+export const metadata: Metadata = {
+  title: 'Pet Grooming in Bengaluru | Doorstep Dog & Cat Grooming Bangalore',
+  description: PAGE_DESCRIPTION,
+  alternates: { canonical: PAGE_URL },
+  keywords: [
+    'pet grooming Bengaluru',
+    'pet grooming Bangalore',
+    'dog grooming in Bengaluru',
+    'cat grooming at home Bangalore',
+    'home pet grooming Bengaluru',
+    'mobile pet grooming Bangalore',
+    'doorstep dog grooming Bengaluru',
+    'Pet Grooming Whitefield',
+    'Pet Grooming HSR Layout',
+    'Pet Grooming Electronic City',
+  ],
+  openGraph: {
+    title: 'Pet Grooming in Bengaluru | Dofurs',
+    description: PAGE_DESCRIPTION,
+    type: 'website',
+    url: PAGE_URL,
+    siteName: 'Dofurs',
+    locale: 'en_IN',
+    images: [{ url: HERO_IMAGE_URL, width: 1080, height: 1080, alt: 'Dofurs pet grooming in Bengaluru' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Pet Grooming in Bengaluru | Dofurs',
+    description: 'Doorstep dog and cat grooming in Bengaluru from verified Dofurs professionals.',
+    images: [HERO_IMAGE_URL],
+  },
+};
+
+const packageDetails: Record<string, { description: string; bestFor: string; duration: string }> = {
+  'Monthly Care': {
+    description: 'A quick hygiene upkeep session for pets who need regular nail, paw, knot, eye, ear and coat care.',
+    bestFor: 'Monthly maintenance between full baths',
+    duration: '45-75 min',
+  },
+  'Fur Bath Care': {
+    description: 'A bath-and-coat refresh with anti-tick medicated shampoo, drying, brushing and de-matting support.',
+    bestFor: 'Dust, odour, ticks and seasonal shedding',
+    duration: '60-90 min',
+  },
+  'Fur Makeover': {
+    description: 'A trim-focused refresh for coat shape, paw hair, hygiene areas, knots and shedding.',
+    bestFor: 'Haircut and hygiene trims without full spa styling',
+    duration: '75-105 min',
+  },
+  'Essential Grooming': {
+    description: 'The balanced full grooming package covering bath, hygiene trim, coat care, paw care and machine trim.',
+    bestFor: 'Routine full grooming for most dogs',
+    duration: '90-120 min',
+  },
+  'Complete Care': {
+    description: 'A full spa grooming session with scissor haircut, face styling, smooth nail finish, paw massage and nose care.',
+    bestFor: 'Premium grooming, styling and heavy coat care',
+    duration: '120-150 min',
+  },
+};
+
+const badgeClasses: Record<NonNullable<GroomingPackage['badgeVariant']>, string> = {
+  popular: 'border-[#f0c89a] bg-[#fff4e6] text-[#b9692f]',
+  'best-value': 'border-[#d88b45] bg-[linear-gradient(115deg,#de9158,#c7773b)] text-white shadow-[0_2px_10px_rgba(199,119,59,0.32)]',
+  premium: 'border-neutral-900 bg-neutral-950 text-white',
+  deal: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  special: 'border-sky-200 bg-sky-50 text-sky-700',
+  'coming-soon': 'border-neutral-200 bg-neutral-100 text-neutral-600',
+};
+
+const keywordCards = [
+  {
+    title: 'Dog Grooming Bangalore',
+    body: 'Bath care, de-shedding, haircuts, nail trimming and hygiene trims for dogs at home, with availability checked by pincode and package.',
+  },
+  {
+    title: 'Cat Grooming Bangalore',
+    body: 'Cat grooming is matched carefully to temperament, coat condition and provider availability before a bath, brushing or nail-care session is confirmed.',
+  },
+  {
+    title: 'Mobile Dog Grooming Bangalore',
+    body: 'A doorstep grooming setup helps dogs avoid traffic, salon waiting rooms and post-bath travel across supported Bengaluru pincodes.',
+  },
+  {
+    title: 'Pet Grooming Whitefield',
+    body: 'Whitefield bookings cover ITPL, Brookefield, Kadugodi, Varthur and Hoodi requests when the exact address and slots are available.',
+  },
+  {
+    title: 'Pet Grooming HSR Layout',
+    body: 'HSR Layout grooming supports pet parents around Agara Lake, 27th Main and HSR sectors with pincode-aware home appointments.',
+  },
+  {
+    title: 'Pet Grooming Electronic City',
+    body: 'Electronic City pet parents can request home grooming around Phase 1, Phase 2, Neeladri Road and nearby Hosur Road stretches.',
+  },
+  {
+    title: 'Home Pet Grooming Bangalore',
+    body: 'Home sessions are confirmed by groomer route, pincode, pet size, coat condition and package duration, not by broad city claims.',
+  },
+];
+
+const highlightedAreas = ['Whitefield', 'Sarjapur Road', 'Bellandur', 'HSR Layout', 'Koramangala', 'Electronic City', 'Indiranagar'];
+const coverageGroups = groupBengaluruAreasByRegion();
+
+function formatPriceInr(price: string | number): string {
+  if (typeof price === 'number') {
+    return `₹${price.toLocaleString('en-IN')}`;
+  }
+
+  const normalized = price.trim();
+  return normalized.startsWith('₹') ? normalized : `₹${normalized}`;
+}
+
+function getNumericPrice(price: string | number): number | undefined {
+  if (typeof price === 'number') {
+    return Number.isFinite(price) ? Math.max(0, Math.round(price)) : undefined;
+  }
+
+  const match = price.match(/(\d[\d,]*)/);
+  if (!match?.[1]) return undefined;
+  const parsed = Number.parseInt(match[1].replace(/,/g, ''), 10);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function packageBookingHref(pkg: GroomingPackage): string {
+  return `${links.booking}?serviceType=${encodeURIComponent(pkg.title)}&mode=home_visit#start-your-booking`;
+}
+
+const groomingServiceSchema = buildServiceSchema({
+  name: 'Pet Grooming in Bengaluru',
+  alternateName: ['Pet Grooming in Bangalore', 'Home Pet Grooming Bangalore', 'Mobile Dog Grooming Bangalore'],
+  description:
+    'Doorstep dog and cat grooming in Bengaluru by Dofurs, including bath care, haircuts, nail trimming, de-shedding, de-matting, ear cleaning, paw care and full grooming packages with pincode-aware availability.',
+  url: PAGE_URL,
+  serviceType: 'Pet Grooming',
+  category: 'Pet Grooming',
+  image: HERO_IMAGE_URL,
+  offers: GROOMING_PACKAGES.map((pkg) => ({
+    name: pkg.title,
+    priceFrom: getNumericPrice(pkg.price),
+    description: `${packageDetails[pkg.title]?.description ?? pkg.features.join(', ')} Includes ${pkg.features.join(', ')}.`,
+  })),
+});
+
+const localBusinessSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'LocalBusiness',
+  '@id': `${PAGE_URL}#localbusiness`,
+  name: 'Dofurs Pet Grooming in Bengaluru',
+  alternateName: 'Dofurs Pet Grooming in Bangalore',
+  description: PAGE_DESCRIPTION,
+  url: PAGE_URL,
+  telephone: supportContact.whatsappDisplay.replace(/\s/g, ''),
+  image: HERO_IMAGE_URL,
+  priceRange: '₹699-₹1,999',
+  parentOrganization: { '@id': `${SITE_URL}/#organization` },
+  address: {
+    '@type': 'PostalAddress',
+    addressLocality: 'Bengaluru',
+    addressRegion: 'Karnataka',
+    addressCountry: 'IN',
+  },
+  geo: {
+    '@type': 'GeoCoordinates',
+    latitude: 12.9716,
+    longitude: 77.5946,
+  },
+  areaServed: [
+    { '@type': 'City', name: 'Bengaluru', alternateName: 'Bangalore' },
+    ...bengaluruAreas.map((area) => ({
+      '@type': 'Place' as const,
+      name: `${area.name}, Bengaluru`,
+      alternateName: area.aliases.length > 0 ? area.aliases.map((alias) => `${alias}, Bangalore`) : undefined,
+    })),
+  ],
+  openingHoursSpecification: [
+    {
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      opens: '08:00',
+      closes: '21:00',
+    },
+  ],
+};
+
+const breadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Pet Grooming', url: PAGE_PATH },
+  { name: 'Bengaluru', url: PAGE_PATH },
+]);
+
+export default function PetGroomingBengaluruPage() {
+  const primaryCtaClass = premiumPrimaryCtaClass('h-11 gap-2 px-5 text-sm font-semibold sm:h-12 sm:px-7');
+  const secondaryCtaClass = premiumSecondaryCtaClass('h-11 gap-2 px-5 text-sm font-semibold sm:h-12 sm:px-6');
+  const heroPrimaryCtaClass = premiumPrimaryCtaClass('h-9 gap-1.5 px-3.5 text-[12px] font-semibold sm:h-10 sm:px-4');
+  const heroSecondaryCtaClass = premiumSecondaryCtaClass('h-9 gap-1.5 px-3.5 text-[12px] font-semibold sm:h-10 sm:px-4');
+
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(groomingServiceSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(localBusinessSchema)} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(breadcrumbSchema)} />
+      <Navbar />
+      <WelcomeOfferModal />
+      <main className="dofurs-mobile-main relative overflow-hidden bg-white text-ink">
+        <section className="relative isolate overflow-hidden bg-[linear-gradient(102deg,#fff3ec_0%,#fffaf6_52%,#f7faf5_100%)] px-4 pb-6 pt-24 sm:px-6 sm:pt-28 lg:min-h-[560px] lg:px-12 lg:pb-0 lg:pt-28 xl:px-[92px]">
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,#fffaf6_100%)]" aria-hidden="true" />
+          <div className="relative mx-auto grid w-full max-w-[1280px] items-start gap-8 lg:grid-cols-2 lg:gap-8 xl:gap-10">
+            <div className="relative z-10 max-w-[480px] pb-4 lg:flex lg:min-h-[500px] lg:flex-col lg:justify-center lg:pb-0">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-[#e5c4a8] bg-white/86 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-normal text-[#7f5a3d] shadow-[0_8px_22px_rgba(115,77,43,0.1)]">
+                <MapPin className="h-3 w-3" aria-hidden="true" />
+                Pet grooming across Bengaluru and Bangalore
+              </span>
+              <h1 className="mt-4 max-w-[460px] text-[30px] font-bold leading-[1.08] text-neutral-950 sm:text-[38px] lg:text-[44px] xl:text-[48px]">
+                Pet Grooming in Bengaluru
+              </h1>
+              <p className="mt-3 max-w-[470px] text-[13px] leading-6 text-[#4a4a4a] sm:text-[14px] sm:leading-7">
+                Book pet grooming in Bengaluru with pincode-aware doorstep slots for dog grooming, cat grooming, home pet grooming and mobile pet grooming across Bangalore. Choose a package, share your address and Dofurs confirms availability before the visit.
+              </p>
+
+              <div className="mt-4 flex max-w-[460px] flex-wrap gap-2">
+                {[{ icon: BadgeCheck, label: 'Verified groomers' }, { icon: Home, label: 'Doorstep setup' }, { icon: ShieldCheck, label: 'Pet-safe products' }, { icon: MessageCircle, label: 'WhatsApp support' }].map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <span key={item.label} className="inline-flex items-center gap-1.5 rounded-full border border-[#ead4bf] bg-white/92 px-2.5 py-1.5 text-[10px] font-semibold text-[#745238] shadow-[0_8px_18px_rgba(115,77,43,0.08)]">
+                      <Icon className="h-3 w-3 text-coral" aria-hidden="true" />
+                      {item.label}
+                    </span>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center gap-2.5">
+                <Link href={genericBookingHref} className={heroPrimaryCtaClass}>
+                  <CalendarCheck2 className="h-3 w-3" aria-hidden="true" />
+                  Book Pet Grooming
+                </Link>
+                <Link href="#packages" className={heroSecondaryCtaClass}>
+                  <PawPrint className="h-3 w-3" aria-hidden="true" />
+                  View Packages
+                </Link>
+              </div>
+
+              <p className="mt-3 max-w-[460px] text-[11px] font-semibold leading-[1.55] text-neutral-500">
+                Priority coverage includes Whitefield, Sarjapur Road, Bellandur, HSR Layout, Koramangala, Electronic City and Indiranagar. Availability depends on pincode, pet size and package.
+              </p>
+            </div>
+
+            <div className="relative z-0 min-h-[280px] sm:min-h-[380px] md:min-h-[460px] lg:min-h-[500px] xl:min-h-[500px]">
+              <Image
+                src={HERO_IMAGE}
+                alt="Professional pet grooming at home in Bengaluru"
+                fill
+                priority
+                sizes="(max-width: 1024px) 94vw, 54vw"
+                className="object-contain object-bottom drop-shadow-[0_24px_34px_rgba(111,78,47,0.16)] lg:object-right"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section id="packages" className="relative scroll-mt-28 px-4 py-10 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1200px]">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase text-coral">Pet grooming packages</p>
+                <h2 className="mt-2 text-2xl font-bold text-neutral-950 md:text-3xl">Choose the right grooming session</h2>
+                <p className="mt-2 max-w-2xl text-[13px] leading-6 text-neutral-600">
+                  Compare pricing, session length and included grooming steps before booking. Package-level service types stay unchanged for booking, pricing, subscription credits and provider matching.
+                </p>
+              </div>
+              <Link href={genericBookingHref} className="text-sm font-semibold text-coral underline-offset-4 hover:underline">
+                Start a pet grooming booking
+              </Link>
+            </div>
+
+            <div className="mt-5 grid gap-3 pt-5 sm:grid-cols-2 lg:grid-cols-6 xl:grid-cols-5">
+              {GROOMING_PACKAGES.map((pkg, index) => {
+                const details = packageDetails[pkg.title];
+                const badgeClass = pkg.badgeVariant ? badgeClasses[pkg.badgeVariant] : badgeClasses.popular;
+                const centeredBottomCardClass = index === 3 ? 'lg:col-start-2 xl:col-start-auto' : '';
+
+                return (
+                  <div key={pkg.title} id={pkg.title === 'Fur Makeover' ? 'fur-makeover' : undefined} className={`min-w-0 self-stretch lg:col-span-2 xl:col-span-1 ${centeredBottomCardClass}`}>
+                    <PremiumCard className={`flex h-full flex-col rounded-2xl border p-4 shadow-[0_4px_16px_rgba(79,47,25,0.06)] sm:p-3.5 xl:min-h-[420px] ${
+                      pkg.highlighted
+                        ? 'border-[#dc8f47] bg-[linear-gradient(165deg,#fffdfb_0%,#fff3e8_100%)]'
+                        : 'border-[#e9d7c7] bg-[linear-gradient(165deg,#fffdfb_0%,#fff8f4_100%)]'
+                    }`}
+                    >
+                      <div className="mb-2.5 flex h-[22px] items-center">
+                        <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase ${badgeClass}`}>
+                          {pkg.badge ?? 'Available'}
+                        </span>
+                      </div>
+
+                      <h3 className="min-h-[34px] text-[13px] font-semibold leading-snug text-neutral-950">{pkg.title}</h3>
+
+                      <div className="mt-1.5 space-y-1">
+                        {pkg.mrp ? (
+                          <p className="text-[10px] font-medium leading-none text-[#9a7258]">
+                            MRP <span className="line-through decoration-[#b78258]/70 decoration-1">{formatPriceInr(pkg.mrp)}</span>
+                          </p>
+                        ) : null}
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                          {pkg.mrp ? <span className="text-[10px] font-semibold uppercase text-[#c7773b]">Now</span> : null}
+                          <span className="text-[19px] font-bold leading-none text-neutral-950">{formatPriceInr(pkg.price)}</span>
+                          <span className="text-[10px] text-[#9a7258]">/ session</span>
+                        </div>
+                      </div>
+
+                      <div className="my-2 border-t border-[#f0e4d6]" />
+
+                      <div className="flex items-start gap-1.5 rounded-xl border border-[#f1dfcf] bg-white/70 px-2.5 py-1.5 text-[10px] font-semibold leading-4 text-[#7a5a45]">
+                        <PawPrint className="mt-0.5 h-3 w-3 shrink-0 text-coral" aria-hidden="true" />
+                        <span>{details?.bestFor ?? 'Routine coat and hygiene care'}</span>
+                      </div>
+
+                      <ul className="mt-2 flex-1 space-y-1.5">
+                        {pkg.features.map((feature) => (
+                          <li key={feature} className="flex items-start gap-1.5">
+                            <CheckCircle2 className="mt-[1px] h-3.5 w-3.5 shrink-0 text-[#c7773b]" aria-hidden="true" />
+                            <span className="text-[11px] leading-snug text-[#5c3d22]">{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+
+                      <div className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-[#f1dfcf] bg-white/70 px-2.5 py-1.5 text-[10px] font-semibold text-[#7a5a45]">
+                        <Clock3 className="h-3 w-3 shrink-0 text-coral" aria-hidden="true" />
+                        {details?.duration ?? '60-120 min'}
+                      </div>
+
+                      <Link href={packageBookingHref(pkg)} className="mt-2.5 inline-flex h-11 w-full items-center justify-center rounded-full border border-[#e0c4a8] bg-white px-3 text-center text-[12px] font-semibold text-[#7c5335] transition hover:-translate-y-0.5 hover:border-[#c7773b] hover:bg-[#fffaf5] hover:text-[#c7773b] xl:h-9">
+                        Book {pkg.title}
+                      </Link>
+                    </PremiumCard>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="subscriptions" className="scroll-mt-28 px-4 py-10 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1200px] rounded-[22px] border border-[#ead5c0] bg-[linear-gradient(140deg,#fff9f4_0%,#fffefc_55%,#fff8f1_100%)] p-4 shadow-premium sm:p-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-coral">Subscription services</p>
+                <h2 className="mt-1 text-2xl font-bold tracking-[-0.01em] text-neutral-950 md:text-3xl">
+                  Pet Grooming Subscription Packs in Bengaluru
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#675245]">
+                  Buy a grooming pack, receive subscription credit value after purchase, and use it to book eligible doorstep grooming services at your preferred date and time.
+                </p>
+              </div>
+              <p className="rounded-full border border-[#ead6c2] bg-white/84 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#7a5a45]">
+                Credit value after purchase. Flexible booking.
+              </p>
+            </div>
+
+            <ul className="mt-4 grid gap-2 text-[12px] font-semibold text-[#5d4739] sm:grid-cols-3">
+              <li className="flex items-center gap-2 rounded-xl border border-[#f0dfcf] bg-white/78 px-3 py-2">
+                <Sparkles className="h-4 w-4 shrink-0 text-coral" aria-hidden="true" />
+                Pay for 2 or 5 services and unlock extra grooming value.
+              </li>
+              <li className="flex items-center gap-2 rounded-xl border border-[#f0dfcf] bg-white/78 px-3 py-2">
+                <CalendarCheck2 className="h-4 w-4 shrink-0 text-coral" aria-hidden="true" />
+                Book eligible grooming services for your chosen slot.
+              </li>
+              <li className="flex items-center gap-2 rounded-xl border border-[#f0dfcf] bg-white/78 px-3 py-2">
+                <ShowerHead className="h-4 w-4 shrink-0 text-coral" aria-hidden="true" />
+                6M packs include herbal shampoo on the final service.
+              </li>
+            </ul>
+
+            <div className="mx-auto mt-5 grid max-w-[980px] items-stretch gap-4 lg:grid-cols-2">
+              {marketingSubscriptionPlanGroups.map((group) => (
+                <MarketingSubscriptionGroupCard key={group.title} group={group} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="questions-before-booking" className="relative scroll-mt-40 overflow-hidden bg-[linear-gradient(180deg,#fffaf6_0%,#fff4eb_46%,#ffffff_100%)] px-4 py-10 sm:px-6 lg:px-8">
+          <div className="relative mx-auto grid w-full max-w-[1200px] gap-5 lg:grid-cols-[0.74fr_1.26fr] lg:items-start lg:gap-7">
+            <div className="lg:self-start">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[#ead7c5] bg-white/86 px-3 py-1.5 text-[11px] font-semibold uppercase text-[#8a6549] shadow-[0_8px_22px_rgba(93,57,28,0.08)]">
+                <MessageCircle className="h-3.5 w-3.5 text-coral" aria-hidden="true" />
+                Questions before booking
+              </span>
+              <h2 className="mt-3 max-w-xl text-[28px] font-bold leading-[1.08] text-[#2f261f] md:text-[32px]">
+                Clear answers for Bengaluru pet grooming
+              </h2>
+              <p className="mt-3 max-w-xl text-[13px] font-normal leading-6 text-[#6b5a4e]">
+                Practical details about doorstep grooming, package pricing, same-day slot expectations and home setup before you confirm a session.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <Link href={genericBookingHref} className={primaryCtaClass}>
+                  <CalendarCheck2 className="h-4 w-4" aria-hidden="true" />
+                  Book Pet Grooming
+                </Link>
+                <a href={whatsappLinks.support} target="_blank" rel="noopener noreferrer" className={secondaryCtaClass}>
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  WhatsApp Us
+                </a>
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              {[
+                {
+                  q: 'How much does pet grooming cost in Bengaluru?',
+                  a: 'Dofurs grooming packages start at Rs.699 for Monthly Care. Full grooming packages currently range up to Rs.1,999 before optional add-ons or special handling needs.',
+                },
+                {
+                  q: 'Do you provide dog grooming at home in Bengaluru?',
+                  a: 'Yes. Doorstep grooming is the primary booking mode for grooming packages. The booking flow checks your pet, address, pincode and available provider slots.',
+                },
+                {
+                  q: 'Is Bengaluru coverage the same as Bangalore coverage?',
+                  a: 'Bengaluru is the official city name, while many pet parents still search for Bangalore. Dofurs uses pincode-aware availability across supported 560-series Bengaluru pincodes and selected confirm-availability suburbs.',
+                },
+                {
+                  q: 'Do you groom cats?',
+                  a: 'Cat grooming depends on temperament, coat condition and provider availability. Share pet details during booking or WhatsApp us before selecting a full package.',
+                },
+                {
+                  q: 'Can I book same-day grooming?',
+                  a: 'Same-day slots may be possible when groomers are available in your area, but availability is never guaranteed. Weekends fill faster, so next-day booking is safer for full grooming or haircut packages.',
+                },
+              ].map((faq, index) => (
+                <details key={faq.q} className="group rounded-[14px] border border-[#ead6c3] bg-white/92 shadow-[0_10px_22px_rgba(93,57,28,0.07)] transition duration-300 open:border-[#e3b07c] open:shadow-[0_14px_28px_rgba(93,57,28,0.1)]">
+                  <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-3 marker:hidden sm:px-4 [&::-webkit-details-marker]:hidden">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(145deg,#f59a18,#dc790f)] text-[12px] font-bold text-white shadow-[0_8px_18px_rgba(220,121,15,0.2)]">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="min-w-0 flex-1 text-[13px] font-semibold leading-5 text-[#49372c] sm:text-[14px]">
+                      {faq.q}
+                    </span>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#ead6c3] bg-[#fff7ef] text-base font-semibold leading-none text-[#b56b24] transition duration-300 group-open:rotate-45 group-open:border-[#de9158] group-open:bg-[#fff1e4]">
+                      +
+                    </span>
+                  </summary>
+                  <p className="border-t border-[#f0dfcf] px-3 pb-3 pt-3 text-[12px] font-normal leading-5 text-[#6f6259] sm:ml-[48px] sm:px-4">
+                    {faq.a}
+                  </p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 pb-16 pt-8 sm:px-6 lg:px-8">
+          <div className="mx-auto w-full max-w-[1200px] overflow-hidden rounded-[1.75rem] border border-[#dca977] bg-[linear-gradient(135deg,#2b211a,#7b4d2e)] p-6 text-white shadow-premium-xl md:p-8">
+            <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#f9cba7]">Ready for a cleaner, calmer pet?</p>
+                <h2 className="mt-2 text-2xl font-semibold text-white/94 md:text-3xl">Book pet grooming in Bengaluru today</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-white/72">
+                  Pick a package, choose your pet and confirm a slot. We will match you with available Dofurs grooming professionals for your exact address.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href={genericBookingHref} className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-white px-6 text-sm font-semibold text-[#684126] transition hover:bg-[#fff3e7]">
+                  <CalendarCheck2 className="h-4 w-4" aria-hidden="true" />
+                  Book Now
+                </Link>
+                <a href={whatsappLinks.support} target="_blank" rel="noopener noreferrer" className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/35 px-5 text-sm font-semibold text-white/90 transition hover:bg-white/10 hover:text-white">
+                  <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                  WhatsApp
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="bengaluru-coverage" className="scroll-mt-28 bg-[linear-gradient(180deg,#fffaf6_0%,#fff3ea_56%,#fffaf6_100%)] px-4 pb-16 pt-2 sm:px-6 lg:px-8">
+          <details className="group mx-auto w-full max-w-[1200px] overflow-hidden rounded-[24px] border border-[#e4c3a6] bg-white/88 shadow-[0_14px_34px_rgba(93,57,28,0.08)]">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center justify-between gap-4 px-4 py-4 marker:hidden sm:px-5 [&::-webkit-details-marker]:hidden">
+              <span>
+                <span className="block text-xs font-semibold uppercase text-coral">Coverage checker</span>
+                <span className="mt-1 block text-2xl font-bold text-neutral-950 md:text-3xl">Check Bengaluru pet grooming coverage</span>
+                <span className="mt-2 block max-w-2xl text-sm leading-6 text-neutral-600">
+                  Open locality search coverage, pincode clusters and canonical area links only when you need them.
+                </span>
+              </span>
+              <span className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#de9158] bg-[linear-gradient(135deg,#de9158,#c7773b)] px-5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(199,119,59,0.2)] transition group-open:bg-[linear-gradient(135deg,#c7773b,#a85d28)]">
+                <MapPin className="h-4 w-4" aria-hidden="true" />
+                Check Coverage
+              </span>
+            </summary>
+
+            <div className="border-t border-[#ead6c3] px-4 pb-5 pt-5 sm:px-5">
+              <div className="max-w-3xl">
+                <p className="text-xs font-semibold uppercase text-coral">Bengaluru search coverage</p>
+                <h2 className="mt-2 text-2xl font-bold text-neutral-950 md:text-3xl">Useful local grooming searches, handled carefully</h2>
+                <p className="mt-3 text-sm leading-6 text-neutral-600">
+                  These are not separate claims for every street. They are common ways pet parents search for pincode-aware doorstep pet grooming across key Bangalore neighbourhoods, with confirmation for your exact address before the appointment.
+                </p>
+              </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {keywordCards.map((card) => (
+                  <article key={card.title} className="rounded-2xl border border-[#ead6c3] bg-white p-4 shadow-[0_8px_20px_rgba(93,57,28,0.06)]">
+                    <h3 className="text-sm font-bold text-neutral-950">{card.title}</h3>
+                    <p className="mt-2 text-[12px] leading-5 text-neutral-600">{card.body}</p>
+                  </article>
+                ))}
+              </div>
+
+              <div className="mt-8 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-end">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-coral">All-Bengaluru coverage</p>
+                  <h2 className="mt-2 text-3xl font-bold text-neutral-950">Coverage by Bengaluru region</h2>
+                  <p className="mt-3 text-sm leading-6 text-neutral-600">
+                    Every locality in this list is visible for coverage discovery. Published priority pages link to canonical pet grooming locality guides; coverage-only areas remain listed without thin pages. Peripheral areas are marked for confirm availability.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[#ead6c3] bg-white/82 p-4 text-sm leading-6 text-neutral-700 shadow-sm">
+                  <p className="font-semibold text-neutral-950">Pincode-aware availability</p>
+                  <p className="mt-1">
+                    Dofurs checks supported Bengaluru pincodes, groomer route, pet size, coat condition, package duration and slot availability before confirming a doorstep session. For confirm-tier areas, availability is address-specific.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-wrap gap-2">
+                {highlightedAreas.map((area) => (
+                  <span key={area} className="rounded-full border border-[#dfbea0] bg-white px-3 py-1.5 text-[12px] font-bold text-[#7a4f31] shadow-sm">
+                    {area}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-8 grid gap-5">
+                {coverageGroups.map((group) => (
+                  <section key={group.region} className="rounded-2xl border border-[#ead6c3] bg-white/88 p-4 shadow-[0_10px_24px_rgba(93,57,28,0.07)] sm:p-5">
+                    <div className="flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <h3 className="text-lg font-bold text-neutral-950">{group.region}</h3>
+                        <p className="mt-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-[#8b633f]">
+                          {group.areas.length} localities
+                        </p>
+                      </div>
+                      <p className="text-[12px] text-neutral-500">
+                        {group.areas.filter((area) => area.pageStatus === 'published').length} canonical pages
+                      </p>
+                    </div>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {group.areas.map((area) => {
+                        const sharedClass = 'rounded-full border px-3 py-1.5 text-[12px] font-semibold transition';
+                        if (area.pageStatus === 'published') {
+                          return (
+                            <Link key={area.slug} href={getPetGroomingAreaPath(area)} className={`${sharedClass} border-[#e4c7ad] bg-white text-[#704b31] hover:border-coral/60 hover:text-coral`}>
+                              Pet Grooming {area.name}
+                            </Link>
+                          );
+                        }
+
+                        return (
+                          <span key={area.slug} className={`${sharedClass} ${area.coverageTier === 'confirm' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-[#ead4bf] bg-[#fff8f0] text-[#745238]'}`}>
+                            {area.name}{area.coverageTier === 'confirm' ? ' - confirm pincode' : ''}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+          </details>
+        </section>
+      </main>
+      <Footer />
+    </>
+  );
+}

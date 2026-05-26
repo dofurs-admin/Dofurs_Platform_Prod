@@ -31,7 +31,7 @@ export const footerPolicyLinks = [
 
 // Navigation dropdown items — explicit hrefs to service landing pages
 export const navServiceItems = [
-  { title: 'Grooming', href: '/services/grooming/bengaluru', availability: 'active', badge: 'Live' },
+  { title: 'Pet Grooming', href: '/pet-grooming/bengaluru', availability: 'active', badge: 'Live' },
 ] as const;
 
 type ServiceSummary = {
@@ -43,7 +43,7 @@ type ServiceSummary = {
 
 export const services: ServiceSummary[] = [
   {
-    title: 'Grooming',
+    title: 'Pet Grooming',
     description: 'Doorstep grooming packages for baths, haircuts, de-shedding, nail care, ear cleaning, and hygiene trims.',
     icon: Bath,
     availability: 'active',

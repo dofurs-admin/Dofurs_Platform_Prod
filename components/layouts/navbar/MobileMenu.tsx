@@ -114,7 +114,7 @@ export function MobileMenu({
 
           {!isBookingPage ? (
             <Link
-              href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
+              href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking"
               className="inline-flex h-11 w-full items-center justify-center rounded-full bg-[linear-gradient(135deg,#d6884f,#bf6c37)] px-5 text-[13px] font-semibold text-white shadow-[0_12px_24px_rgba(190,106,53,0.32)] transition hover:bg-[linear-gradient(135deg,#ca7b42,#b05f2c)]"
               aria-label="Go to grooming booking page"
               onClick={(event) => {

@@ -73,7 +73,7 @@ const serviceDiscoveryExperiments: Record<
     heading: 'Doorstep Pet Grooming, From Verified Groomers Across Bengaluru',
     headerCtaLabel: 'Book Now',
     headerCtaHref: buildBookingHref(),
-    panelLabel: 'Grooming Packages',
+    panelLabel: 'Pet Grooming Packages',
     panelBody:
       'Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit.',
     chips: ['Doorstep grooming', 'Background-verified', 'Safe for anxious pets', 'Pet-safe products'],
@@ -329,12 +329,12 @@ export default async function HomePage({
                       Book Now
                     </Link>
                     <Link href="#service-discovery" className={heroSecondaryCtaClassName}>
-                      View Grooming Packages
+                      View Pet Grooming Packages
                     </Link>
                   </div>
 
                   <div className="mt-3.5 rounded-xl border border-[#e6c9af] bg-white/72 p-3 lg:hidden">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#925229]">Grooming Care</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#925229]">Pet Grooming Care</p>
                     <div className="mt-2 grid grid-cols-3 gap-1.5">
                       <PremiumCard as="article" className="rounded-lg border border-[#ead1bb] bg-[linear-gradient(180deg,rgba(255,255,255,1)_0%,rgba(255,255,255,0.72)_100%)] px-2 py-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,1)]">
                         <House className="mx-auto h-3.5 w-3.5 text-coral" />
@@ -520,7 +520,7 @@ export default async function HomePage({
                   <div>
                     <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-coral">Subscription Services</p>
                     <h3 className="mt-1 text-xl font-semibold leading-tight text-[#2d221a] sm:text-2xl">
-                      Grooming Subscription Packs
+                      Pet Grooming Subscription Packs
                     </h3>
                     <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#675245]">
                       Buy a grooming pack, receive subscription credit value after purchase, and use it to book eligible grooming services at your preferred date and time.
@@ -643,7 +643,7 @@ export default async function HomePage({
               <div className="pointer-events-none absolute inset-[1px] rounded-[27px] bg-[linear-gradient(180deg,rgba(255,255,255,0.72)_0%,rgba(255,255,255,0.02)_50%,transparent_100%)]" aria-hidden="true" />
 
               <p className="relative z-10 text-sm font-semibold uppercase tracking-[0.16em] text-coral">Booking Experience</p>
-              <h2 className="relative z-10 mt-2 text-3xl font-semibold leading-[1.16] tracking-[-0.008em] text-[#2d221a] sm:text-4xl sm:leading-[1.1] sm:tracking-[-0.012em]">Three Steps to a Fresh Grooming Session</h2>
+              <h2 className="relative z-10 mt-2 text-3xl font-semibold leading-[1.16] tracking-[-0.008em] text-[#2d221a] sm:text-4xl sm:leading-[1.1] sm:tracking-[-0.012em]">Three Steps to a Fresh Pet Grooming Session</h2>
 
               <div className="relative z-10 mt-8 grid gap-4 lg:grid-cols-3">
                 {bookingSteps.map((step, index) => (
@@ -674,7 +674,7 @@ export default async function HomePage({
                   href={buildBookingHref()}
                     className={bookingSecondaryCtaClassName}
                 >
-                  View Grooming Packages
+                  View Pet Grooming Packages
                 </Link>
               </div>
             </section>

@@ -18,7 +18,7 @@ export default function BookingConfirmationNotFound() {
             <Link href="/dashboard/user?view=bookings" className={premiumPrimaryCtaClass('justify-center px-5 py-3 text-sm font-semibold')}>
               View bookings
             </Link>
-            <Link href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking" className={premiumSecondaryCtaClass('justify-center px-5 py-3 text-sm font-semibold')}>
+            <Link href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking" className={premiumSecondaryCtaClass('justify-center px-5 py-3 text-sm font-semibold')}>
               Book Now
             </Link>
           </div>

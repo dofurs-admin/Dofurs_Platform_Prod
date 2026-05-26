@@ -99,6 +99,7 @@ export const viewport: Viewport = {
 
 const isDevelopment = process.env.NODE_ENV === 'development';
 const googleAdsId = GOOGLE_ADS_ID;
+const googleTagManagerId = 'GTM-NHNVFFVX';
 const googleTagIds = Array.from(
   new Set([googleAdsId, process.env.NEXT_PUBLIC_GA_ID].filter((id): id is string => Boolean(id))),
 );
@@ -242,6 +243,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-IN" suppressHydrationWarning>
       <head>
+        <Script id="google-tag-manager" strategy="beforeInteractive">
+          {`
+            (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+            new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+            j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+            'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+            })(window,document,'script','dataLayer','${googleTagManagerId}');
+          `}
+        </Script>
         <Script src={`https://www.googletagmanager.com/gtag/js?id=${googleAdsId}`} strategy="afterInteractive" />
         <Script id="google-tag" strategy="afterInteractive">
           {`
@@ -357,6 +367,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         ) : null}
       </head>
       <body suppressHydrationWarning className="dofurs-mobile-app-theme">
+        <noscript>
+          <iframe
+            src={`https://www.googletagmanager.com/ns.html?id=${googleTagManagerId}`}
+            height="0"
+            width="0"
+            style={{ display: 'none', visibility: 'hidden' }}
+          />
+        </noscript>
         <LoadingScreen />
         <a
           href="#main-content"

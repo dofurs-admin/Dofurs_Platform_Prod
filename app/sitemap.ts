@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { blogPosts } from '@/lib/blog-posts';
-import { bengaluruAreas } from '@/lib/service-areas';
+import { getPetGroomingAreaPath, publishedBengaluruPetGroomingAreas } from '@/lib/service-areas';
 
 const SITE_URL = 'https://dofurs.in';
 
@@ -20,7 +20,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/faqs`, lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE_URL}/blog`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
     { url: `${SITE_URL}/services`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
-    { url: `${SITE_URL}/services/grooming/bengaluru`, lastModified: now, changeFrequency: 'weekly', priority: 0.98 },
+    { url: `${SITE_URL}/pet-grooming/bengaluru`, lastModified: now, changeFrequency: 'weekly', priority: 0.98 },
     { url: `${SITE_URL}/locations`, lastModified: now, changeFrequency: 'monthly', priority: 0.85 },
     { url: `${SITE_URL}/refer-and-earn`, lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/privacy-policy`, lastModified: now, changeFrequency: 'yearly', priority: 0.3 },
@@ -40,14 +40,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     };
   });
 
-  const locationRoutes: MetadataRoute.Sitemap = bengaluruAreas.map((area) => ({
-    url: `${SITE_URL}/locations/${area.slug}`,
+  const petGroomingLocationRoutes: MetadataRoute.Sitemap = publishedBengaluruPetGroomingAreas.map((area) => ({
+    url: `${SITE_URL}${getPetGroomingAreaPath(area)}`,
     lastModified: now,
     changeFrequency: 'monthly',
     priority: 0.8,
   }));
 
-  return [...staticRoutes, ...blogRoutes, ...locationRoutes];
+  return [...staticRoutes, ...blogRoutes, ...petGroomingLocationRoutes];
 }
 
 function parsePublishedDate(input: string): Date | null {

@@ -7,7 +7,7 @@ import { GROOMING_PACKAGES } from '@/lib/service-catalog/grooming-packages';
 import { links } from '@/lib/site-data';
 
 const SITE_URL = 'https://dofurs.in';
-const GROOMING_URL = `${SITE_URL}/services/grooming/bengaluru`;
+const GROOMING_URL = `${SITE_URL}/pet-grooming/bengaluru`;
 
 export const metadata: Metadata = {
   title: 'Doorstep Pet Grooming Services in Bengaluru',
@@ -46,8 +46,8 @@ const servicesItemListSchema = {
   '@context': 'https://schema.org',
   '@type': 'ItemList',
   '@id': `${SITE_URL}/services#list`,
-  name: 'Dofurs Grooming Packages in Bengaluru',
-  alternateName: 'Dofurs Grooming Packages in Bangalore',
+  name: 'Dofurs Pet Grooming Packages in Bengaluru',
+  alternateName: 'Dofurs Pet Grooming Packages in Bangalore',
   description: 'Doorstep pet grooming packages in Bengaluru from verified Dofurs groomers.',
   url: `${SITE_URL}/services`,
   itemListElement: GROOMING_PACKAGES.map((pkg, index) => ({
@@ -63,12 +63,12 @@ const servicesBreadcrumbSchema = {
   '@type': 'BreadcrumbList',
   itemListElement: [
     { '@type': 'ListItem', position: 1, name: 'Home', item: `${SITE_URL}/` },
-    { '@type': 'ListItem', position: 2, name: 'Grooming Services', item: `${SITE_URL}/services` },
+    { '@type': 'ListItem', position: 2, name: 'Pet Grooming Services', item: `${SITE_URL}/services` },
   ],
 };
 
 export default function ServicesPage() {
-  const bookingHref = `${links.booking}?serviceType=grooming&mode=home_visit#start-your-booking`;
+  const bookingHref = `${links.booking}?serviceType=pet-grooming&mode=home_visit#start-your-booking`;
 
   return (
     <>
@@ -85,7 +85,7 @@ export default function ServicesPage() {
         <div className="mx-auto w-full max-w-[1200px] px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
           <section className="grid gap-8 lg:grid-cols-[1fr_0.82fr] lg:items-center">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-coral">Dofurs Grooming</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-coral">Dofurs Pet Grooming</p>
               <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-[-0.01em] text-neutral-950 sm:text-5xl">
                 Doorstep Pet Grooming Services in Bengaluru
               </h1>
@@ -101,7 +101,7 @@ export default function ServicesPage() {
                   Book Now
                 </Link>
                 <Link
-                  href="/services/grooming/bengaluru#packages"
+                  href="/pet-grooming/bengaluru#packages"
                   className="inline-flex h-11 items-center justify-center rounded-full border border-[#e2c2a4] bg-white px-6 text-sm font-semibold text-[#6e4123] transition hover:border-coral/50 hover:text-coral"
                 >
                   View Packages
@@ -138,8 +138,8 @@ export default function ServicesPage() {
                 <p className="text-xs font-semibold uppercase tracking-widest text-coral">Packages & pricing</p>
                 <h2 className="mt-2 text-3xl font-bold text-neutral-950">Choose the grooming session your pet needs</h2>
               </div>
-              <Link href="/services/grooming/bengaluru" className="text-sm font-semibold text-coral underline-offset-4 hover:underline">
-                Open full grooming page
+              <Link href="/pet-grooming/bengaluru" className="text-sm font-semibold text-coral underline-offset-4 hover:underline">
+                Open full pet grooming page
               </Link>
             </div>
 

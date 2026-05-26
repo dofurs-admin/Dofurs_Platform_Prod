@@ -146,7 +146,7 @@ export function DesktopToolbar({
       {/* Book now CTA */}
       {!isBookingPage ? (
         <Link
-          href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
+          href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking"
           className="inline-flex h-10 items-center rounded-full border border-[#dc8f56] bg-[linear-gradient(135deg,#de9158,#c7773b)] px-5 text-[13px] font-semibold text-white shadow-[0_10px_20px_rgba(199,119,59,0.27)] transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-[linear-gradient(135deg,#d7864f,#bf6f34)] hover:shadow-[0_14px_24px_rgba(199,119,59,0.32)]"
           aria-label="Go to grooming booking page"
           onClick={onBookingAnchorClick}

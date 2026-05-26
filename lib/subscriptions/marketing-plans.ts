@@ -121,3 +121,6 @@ export const marketingSubscriptionPlanGroups = [
     ],
   },
 ] as const;
+
+export type MarketingSubscriptionPlanGroup = (typeof marketingSubscriptionPlanGroups)[number];
+export type MarketingSubscriptionPlan = MarketingSubscriptionPlanGroup['plans'][number];

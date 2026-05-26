@@ -393,7 +393,7 @@ export default function UserDashboardClient({
           <p className="text-sm leading-relaxed text-neutral-600 sm:text-body sm:max-w-2xl">Plan grooming, track bookings, and keep pet passports complete.</p>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:gap-3">
-          <Link href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking" className="block">
+          <Link href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking" className="block">
             <Button variant="premium" className="h-11 w-full px-4 text-sm tracking-[0.01em] sm:w-auto sm:px-6">Book Now</Button>
           </Link>
           <Button
@@ -456,7 +456,7 @@ export default function UserDashboardClient({
           <p className="mt-1 text-sm text-amber-800/80">Add your pets and book your first grooming appointment to unlock the full Dofurs experience.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Button variant="premium" size="sm" type="button" onClick={() => openPetManagerModal(null)}>Add Your First Pet</Button>
-            <Link href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking">
+            <Link href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking">
               <Button variant="premium" size="sm" type="button">Book Now</Button>
             </Link>
             <Link href="/dashboard/user/profile">

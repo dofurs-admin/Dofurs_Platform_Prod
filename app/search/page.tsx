@@ -51,7 +51,7 @@ const staticPages = [
 ];
 
 const serviceIcons: Record<string, React.ElementType> = {
-  Grooming: Bath,
+  'Pet Grooming': Bath,
 };
 
 function matches(text: string, query: string) {
@@ -146,7 +146,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           {/* Services */}
           {matchedServices.length > 0 && (
             <section className="mt-12">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-coral">Grooming</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-coral">Pet Grooming</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {matchedServices.map((service) => {
                   const Icon = serviceIcons[service.title] ?? Bath;

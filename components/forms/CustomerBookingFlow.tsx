@@ -13,6 +13,7 @@ import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 import PremiumBookingConfirmation from './PremiumBookingConfirmation';
 import { useOptimisticSelection } from '@/lib/hooks/useOptimisticSelection';
 import { bookingCreateSchema } from '@/lib/flows/validation';
+import { isGenericGroomingServiceQuery } from '@/lib/service-catalog/service-policy';
 import { isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
 import { formatSavedAddress } from '@/lib/utils/address';
 
@@ -138,8 +139,9 @@ export default function CustomerBookingFlow({ allowBookForUsers = false }: { all
   const providerNameQueryRaw = (searchParams.get('providerName') ?? '').trim();
   const modeParam = searchParams.get('mode');
   const requestedMode = modeParam === 'home_visit' ? modeParam : null;
-  const filterTerms = [searchQueryRaw, serviceTypeQueryRaw, providerNameQueryRaw].filter((value) => value.length > 0);
-  const filterTokens = [searchQueryRaw, serviceTypeQueryRaw, providerNameQueryRaw]
+  const serviceTypeQueryIsGenericGrooming = isGenericGroomingServiceQuery(serviceTypeQueryRaw);
+  const filterTerms = [searchQueryRaw, serviceTypeQueryIsGenericGrooming ? '' : serviceTypeQueryRaw, providerNameQueryRaw].filter((value) => value.length > 0);
+  const filterTokens = [searchQueryRaw, serviceTypeQueryIsGenericGrooming ? '' : serviceTypeQueryRaw, providerNameQueryRaw]
     .map((value) => value.toLowerCase())
     .filter((value) => value.length > 0);
 

@@ -89,7 +89,7 @@ function PackageCard({ pkg }: { pkg: GroomingPackage }) {
 
         {isBookable ? (
           <Link
-            href="/forms/customer-booking#start-your-booking"
+            href="/forms/customer-booking?serviceType=pet-grooming#start-your-booking"
             className="mt-4 block w-full rounded-full border border-[#e0c4a8] bg-white px-3 py-1.5 text-center text-[12px] font-semibold text-[#7c5335] transition-all duration-200 hover:-translate-y-0.5 hover:border-[#c7773b] hover:bg-[#fffaf5] hover:text-[#c7773b] focus:outline-none"
           >
             Book Now

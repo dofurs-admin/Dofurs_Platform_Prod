@@ -8,6 +8,7 @@ import LoadingSkeleton from '@/components/ui/LoadingSkeleton';
 import type { PricingBreakdown } from '@/lib/bookings/types';
 import { ApiClientError, apiRequest } from '@/lib/api/client';
 import { bookingCreateSchema } from '@/lib/flows/validation';
+import { isGenericGroomingServiceQuery } from '@/lib/service-catalog/service-policy';
 import { formatSavedAddress } from '@/lib/utils/address';
 import PremiumBookingConfirmation from './PremiumBookingConfirmation';
 import PetAndServiceStep from './steps/PetAndServiceStep';
@@ -332,6 +333,7 @@ export default function PremiumUserBookingFlow() {
   const serviceTypeQueryRaw = (searchParams.get('serviceType') ?? '').trim();
   const searchQuery = searchQueryRaw.toLowerCase();
   const serviceTypeQuery = serviceTypeQueryRaw.toLowerCase();
+  const serviceTypeQueryIsGenericGrooming = isGenericGroomingServiceQuery(serviceTypeQueryRaw);
   const modeQuery = searchParams.get('mode');
   const requestedMode = modeQuery === DEFAULT_CUSTOMER_BOOKING_MODE ? DEFAULT_CUSTOMER_BOOKING_MODE : null;
   const rescheduleQuery = searchParams.get('reschedule');
@@ -344,8 +346,8 @@ export default function PremiumUserBookingFlow() {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
   }, [rescheduleQuery]);
   const isRescheduleMode = rescheduleBookingId !== null;
-  const filterTokens = [searchQuery, serviceTypeQuery].filter((value) => value.length > 0);
-  const filterTerms = [searchQueryRaw, serviceTypeQueryRaw].filter((value) => value.length > 0);
+  const filterTokens = [searchQuery, serviceTypeQueryIsGenericGrooming ? '' : serviceTypeQuery].filter((value) => value.length > 0);
+  const filterTerms = [searchQueryRaw, serviceTypeQueryIsGenericGrooming ? '' : serviceTypeQueryRaw].filter((value) => value.length > 0);
 
   // Catalog data
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -586,7 +588,7 @@ export default function PremiumUserBookingFlow() {
     };
 
     // Check query param first
-    if (serviceTypeQueryRaw) {
+    if (serviceTypeQueryRaw && !serviceTypeQueryIsGenericGrooming) {
       applyServiceSelection(serviceTypeQueryRaw);
     }
 

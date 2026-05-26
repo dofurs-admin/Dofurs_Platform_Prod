@@ -4,6 +4,7 @@ import {
   assertPublicBookableService,
   filterPublicBookableCategories,
   filterPublicBookableServices,
+  isGenericGroomingServiceQuery,
   isPublicBookableService,
   normalizeServiceFamily,
 } from './service-policy';
@@ -13,7 +14,18 @@ describe('service-policy grooming gate', () => {
     expect(normalizeServiceFamily('grooming')).toBe('grooming');
     expect(normalizeServiceFamily('Dog Grooming')).toBe('grooming');
     expect(normalizeServiceFamily('cat-grooming')).toBe('grooming');
+    expect(normalizeServiceFamily('pet grooming')).toBe('grooming');
+    expect(normalizeServiceFamily('pet-grooming')).toBe('grooming');
     expect(normalizeServiceFamily('Full Spa Grooming')).toBe('grooming');
+  });
+
+  it('identifies generic public grooming aliases without swallowing package names', () => {
+    expect(isGenericGroomingServiceQuery('grooming')).toBe(true);
+    expect(isGenericGroomingServiceQuery('pet grooming')).toBe(true);
+    expect(isGenericGroomingServiceQuery('pet-grooming')).toBe(true);
+    expect(isGenericGroomingServiceQuery('Dog Grooming Bangalore')).toBe(true);
+    expect(isGenericGroomingServiceQuery('Essential Grooming')).toBe(false);
+    expect(isGenericGroomingServiceQuery('Fur Bath Care')).toBe(false);
   });
 
   it('does not normalize retired service families as public bookable services', () => {

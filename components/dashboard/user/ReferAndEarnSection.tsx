@@ -284,7 +284,7 @@ export default function ReferAndEarnSection() {
       <div className="rounded-3xl border border-[#f1e6da] bg-[#fffdfb] p-5 text-center shadow-soft-sm">
         <p className="text-sm text-ink/70">Ready to use your credits?</p>
         <Link
-          href="/forms/customer-booking?serviceType=grooming&mode=home_visit#start-your-booking"
+          href="/forms/customer-booking?serviceType=pet-grooming&mode=home_visit#start-your-booking"
           className="mt-3 inline-flex items-center gap-2 rounded-full bg-coral px-7 py-3 text-sm font-semibold text-white shadow-soft-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#cf8448] hover:shadow-[0_14px_28px_rgba(227,154,93,0.32)]"
         >
           Book Now

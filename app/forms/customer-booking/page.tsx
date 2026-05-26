@@ -30,7 +30,7 @@ export default async function CustomerBookingFormPage({ searchParams }: Customer
   const rescheduleId = Number.parseInt(rescheduleIdRaw ?? '', 10);
   const isRescheduleMode = Number.isInteger(rescheduleId) && rescheduleId > 0;
 
-  const pageTitle = isRescheduleMode ? 'Reschedule Your Grooming Booking' : 'Book Doorstep Grooming in Minutes';
+  const pageTitle = isRescheduleMode ? 'Reschedule Your Pet Grooming Booking' : 'Book Doorstep Pet Grooming in Minutes';
   const pageDescription = isRescheduleMode
     ? 'Pick a new date and time slot to update your existing booking.'
     : 'Certified groomers. Doorstep service. 100% hygiene-first protocols.';

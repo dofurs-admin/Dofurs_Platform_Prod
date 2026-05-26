@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { permanentRedirect } from 'next/navigation';
 
 export default function VetVisitsRedirectPage() {
-  redirect('/services/grooming/bengaluru');
+  permanentRedirect('/pet-grooming/bengaluru');
 }

@@ -58,6 +58,20 @@ export function normalizeServiceFamily(value: string | null | undefined): string
   return normalized.replace(/\s+/g, '_');
 }
 
+export function isGenericGroomingServiceQuery(value: string | null | undefined): boolean {
+  const normalized = normalizeServiceText(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  if (getGroomingPackageByServiceType(normalized)) {
+    return false;
+  }
+
+  return normalizeServiceFamily(normalized) === 'grooming';
+}
+
 export function isGroomingServiceType(serviceType: string | null | undefined): boolean {
   return normalizeServiceFamily(serviceType) === 'grooming';
 }

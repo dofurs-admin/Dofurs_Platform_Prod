@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { permanentRedirect } from 'next/navigation';
 
 export default function PetBoardingRedirectPage() {
-  redirect('/services/grooming/bengaluru');
+  permanentRedirect('/pet-grooming/bengaluru');
 }

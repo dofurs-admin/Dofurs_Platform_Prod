@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { forbidden, getApiAuthContext, unauthorized } from '@/lib/auth/api-auth';
 import { getAvailableSlots } from '@/lib/bookings/service';
 import { toFriendlyApiError } from '@/lib/api/errors';
+import { isGenericGroomingServiceQuery, normalizeServiceFamily } from '@/lib/service-catalog/service-policy';
 import { hasServiceCoverageForPincode } from '@/lib/service-coverage';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
@@ -155,19 +156,31 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Invalid query parameters' }, { status: 400 });
   }
 
+  const requestedServiceTypeFilters = [
+    ...(parsed.data.serviceTypes
+      ? parsed.data.serviceTypes
+          .split(',')
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0)
+      : []),
+    ...(serviceType ? [serviceType] : []),
+  ].map((value) => ({
+    raw: value,
+    normalized: normalizeServiceType(value),
+    isGenericGrooming: isGenericGroomingServiceQuery(value),
+  }));
   const requestedServiceTypes = Array.from(
+    new Set(requestedServiceTypeFilters.map((filter) => filter.normalized).filter((value) => value.length > 0)),
+  );
+  const requestedSpecificServiceTypes = Array.from(
     new Set(
-      [
-        ...(parsed.data.serviceTypes
-          ? parsed.data.serviceTypes
-              .split(',')
-              .map((value) => normalizeServiceType(value))
-              .filter((value) => value.length > 0)
-          : []),
-        ...(serviceType ? [normalizeServiceType(serviceType)] : []),
-      ],
+      requestedServiceTypeFilters
+        .filter((filter) => !filter.isGenericGrooming)
+        .map((filter) => filter.normalized)
+        .filter((value) => value.length > 0),
     ),
   );
+  const hasGenericGroomingRequest = requestedServiceTypeFilters.some((filter) => filter.isGenericGrooming);
   const limitProviders = parsed.data.limitProviders ?? 60;
   const allowCoverageFallback = parsed.data.allowCoverageFallback ?? false;
   const strictCoverage = parsed.data.strictCoverage ?? false;
@@ -185,6 +198,8 @@ export async function GET(request: Request) {
           pincode,
           serviceType: serviceType ?? null,
           serviceTypes: requestedServiceTypes,
+          requestedSpecificServiceTypes,
+          hasGenericGroomingRequest,
           bookingMode: bookingMode ?? null,
           bookingDate: bookingDate ?? null,
           startTime: startTime ?? null,
@@ -257,47 +272,52 @@ export async function GET(request: Request) {
     let providerServices: NormalizedProviderServiceRow[] = [];
 
     for (const row of ((providerServicesRows ?? []) as ProviderServiceRow[])) {
-        const normalizedId = normalizeServiceId(row.id);
-        const normalizedProviderId = Number(row.provider_id);
+      const normalizedId = normalizeServiceId(row.id);
+      const normalizedProviderId = Number(row.provider_id);
 
-        if (!normalizedId || !Number.isFinite(normalizedProviderId) || normalizedProviderId <= 0) {
-          if (debug) {
-            debug.counts.excludedInvalidProviderServiceRows += 1;
-          }
-          continue;
+      if (!normalizedId || !Number.isFinite(normalizedProviderId) || normalizedProviderId <= 0) {
+        if (debug) {
+          debug.counts.excludedInvalidProviderServiceRows += 1;
         }
+        continue;
+      }
 
-        const normalizedRow: NormalizedProviderServiceRow = {
-          ...row,
-          id: normalizedId,
-          provider_id: normalizedProviderId,
-        };
+      const normalizedRow: NormalizedProviderServiceRow = {
+        ...row,
+        id: normalizedId,
+        provider_id: normalizedProviderId,
+      };
 
-        if (bookingMode && !matchesBookingMode(normalizedRow.service_mode, bookingMode)) {
-          if (debug) {
-            debug.counts.excludedByBookingMode += 1;
-            pushDebug(debug.exclusions.byBookingMode, {
-              providerServiceId: normalizedRow.id,
-              providerId: normalizedRow.provider_id,
-              serviceType: normalizedRow.service_type,
-              serviceMode: normalizedRow.service_mode,
-            });
-          }
-          continue;
+      if (bookingMode && !matchesBookingMode(normalizedRow.service_mode, bookingMode)) {
+        if (debug) {
+          debug.counts.excludedByBookingMode += 1;
+          pushDebug(debug.exclusions.byBookingMode, {
+            providerServiceId: normalizedRow.id,
+            providerId: normalizedRow.provider_id,
+            serviceType: normalizedRow.service_type,
+            serviceMode: normalizedRow.service_mode,
+          });
         }
+        continue;
+      }
 
-        providerServices.push(normalizedRow);
+      providerServices.push(normalizedRow);
     }
 
     if (debug) {
       debug.counts.afterBookingModeFilter = providerServices.length;
     }
 
-    if (requestedServiceTypes.length > 0) {
+    if (requestedSpecificServiceTypes.length > 0 || hasGenericGroomingRequest) {
       const filtered: NormalizedProviderServiceRow[] = [];
 
       for (const row of providerServices) {
-        if (requestedServiceTypes.includes(normalizeServiceType(row.service_type))) {
+        const normalizedRowServiceType = normalizeServiceType(row.service_type);
+        const rowMatchesSpecificType = requestedSpecificServiceTypes.includes(normalizedRowServiceType);
+        const rowMatchesGenericGrooming =
+          hasGenericGroomingRequest && requestedSpecificServiceTypes.length === 0 && normalizeServiceFamily(row.service_type) === 'grooming';
+
+        if (rowMatchesSpecificType || rowMatchesGenericGrooming) {
           filtered.push(row);
           continue;
         }
@@ -509,11 +529,11 @@ export async function GET(request: Request) {
       left.serviceType.localeCompare(right.serviceType),
     );
 
-    let scopedProviderServices = requestedServiceTypes.length > 0
-      ? effectiveProviderServices.filter((row) => requestedServiceTypes.includes(normalizeServiceType(row.service_type)))
+    let scopedProviderServices = requestedSpecificServiceTypes.length > 0
+      ? effectiveProviderServices.filter((row) => requestedSpecificServiceTypes.includes(normalizeServiceType(row.service_type)))
       : effectiveProviderServices;
 
-    if (requestedServiceTypes.length > 1 || serviceDurationMinutes !== undefined) {
+    if (requestedSpecificServiceTypes.length > 1 || serviceDurationMinutes !== undefined) {
       const supportedServiceTypesByProvider = new Map<number, Set<string>>();
 
       for (const row of scopedProviderServices) {
@@ -524,7 +544,7 @@ export async function GET(request: Request) {
 
       const eligibleProviderIds = new Set<number>(
         Array.from(supportedServiceTypesByProvider.entries())
-          .filter(([, supportedTypes]) => requestedServiceTypes.every((type) => supportedTypes.has(type)))
+          .filter(([, supportedTypes]) => requestedSpecificServiceTypes.every((type) => supportedTypes.has(type)))
           .map(([providerId]) => providerId),
       );
 
@@ -582,7 +602,7 @@ export async function GET(request: Request) {
       }));
     }
 
-    if (requestedServiceTypes.length > 1) {
+    if (requestedSpecificServiceTypes.length > 1) {
       const rowsByProvider = new Map<number, Array<(typeof scopedProviderServices)[number]>>();
 
       for (const row of scopedProviderServices) {
@@ -595,7 +615,7 @@ export async function GET(request: Request) {
 
       await Promise.all(
         Array.from(rowsByProvider.entries()).map(async ([providerId, providerRows]) => {
-          const primaryServiceType = serviceType?.trim().toLowerCase() ?? null;
+          const primaryServiceType = requestedSpecificServiceTypes[0] ?? null;
           const representativeRow =
             (primaryServiceType
               ? [...providerRows]
@@ -605,7 +625,7 @@ export async function GET(request: Request) {
 
           const providerBundleDuration =
             serviceDurationMinutes ??
-            (requestedServiceTypes.length > 1
+            (requestedSpecificServiceTypes.length > 1
               ? providerRows.reduce((sum, item) => sum + (item.service_duration_minutes ?? 30), 0)
               : representativeRow?.service_duration_minutes ?? 30);
 

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const SERVICE_OPTIONS = [
-  { label: '✂️ Grooming', slug: 'grooming' },
+  { label: 'Pet Grooming', slug: 'pet-grooming' },
 ] as const;
 
 type ServiceSlug = (typeof SERVICE_OPTIONS)[number]['slug'];
@@ -17,13 +17,13 @@ export default function QuickBookWidget() {
   function handleFind() {
     if (!selected) return;
     const params = pincode.trim() ? `?pincode=${encodeURIComponent(pincode.trim())}` : '';
-    router.push(`/services/${selected}/bengaluru${params}`);
+    router.push(`/pet-grooming/bengaluru${params}`);
   }
 
   return (
     <div className="rounded-2xl border border-[#e7c4a7] bg-white/90 px-4 py-4 shadow-[0_4px_20px_rgba(79,47,25,0.07)] backdrop-blur-sm sm:px-6 sm:py-5">
       <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[#9a6a44]">
-        Quick Grooming
+        Quick Pet Grooming
       </p>
 
       {/* Service type pills */}
@@ -34,7 +34,7 @@ export default function QuickBookWidget() {
             type="button"
             onClick={() => setSelected(svc.slug)}
             aria-pressed={selected === svc.slug}
-            aria-label="Select grooming"
+            aria-label="Select pet grooming"
             className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all ${
               selected === svc.slug
                 ? 'border-coral bg-coral text-white shadow-sm'
@@ -64,7 +64,7 @@ export default function QuickBookWidget() {
           onClick={handleFind}
           className="flex-1 rounded-xl bg-[linear-gradient(135deg,#e49a57,#cf8347)] px-4 py-2 text-sm font-bold text-white shadow-sm transition-opacity disabled:opacity-40"
         >
-          {selected ? 'Find Groomers →' : 'Select Grooming'}
+          {selected ? 'Find Groomers' : 'Select Pet Grooming'}
         </button>
       </div>
     </div>
