@@ -19,6 +19,8 @@ import Footer from '@/components/Footer';
 import PremiumCard from '@/components/PremiumCard';
 import WelcomeOfferModal from '@/components/WelcomeOfferModal';
 import MarketingSubscriptionGroupCard from '@/components/payments/MarketingSubscriptionGroupCard';
+import GroomingDoorstepBenefitsSection from '@/components/services/GroomingDoorstepBenefitsSection';
+import GroomingBeforeAfterReviews from '@/components/services/GroomingBeforeAfterReviews';
 import {
   bengaluruAreas,
   getPetGroomingAreaPath,
@@ -421,6 +423,10 @@ export default function PetGroomingBengaluruPage() {
             </div>
           </div>
         </section>
+
+        <GroomingDoorstepBenefitsSection locationName="Bengaluru" />
+
+        <GroomingBeforeAfterReviews bookingHref={genericBookingHref} locationName="Bengaluru" />
 
         <section id="questions-before-booking" className="relative scroll-mt-40 overflow-hidden bg-[linear-gradient(180deg,#fffaf6_0%,#fff4eb_46%,#ffffff_100%)] px-4 py-10 sm:px-6 lg:px-8">
           <div className="relative mx-auto grid w-full max-w-[1200px] gap-5 lg:grid-cols-[0.74fr_1.26fr] lg:items-start lg:gap-7">
