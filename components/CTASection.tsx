@@ -51,7 +51,7 @@ export default function CTASection() {
               <div className="relative mx-auto w-full max-w-xl">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-[20px] shadow-xl">
                   <Image
-                    src="/Birthday/book-a-service.png"
+                    src="/Birthday/book-a-service.webp"
                     alt="Professional pet grooming service"
                     fill
                     sizes="(max-width: 1024px) 100vw, 50vw"

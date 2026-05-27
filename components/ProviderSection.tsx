@@ -18,7 +18,7 @@ export default function ProviderSection() {
               <div className="relative mx-auto w-full max-w-xl">
                 <div className="group relative aspect-[4/3] overflow-hidden rounded-[20px] shadow-xl">
                   <Image
-                    src="/Birthday/partners-with-dofurs.png"
+                    src="/Birthday/partners-with-dofurs.webp"
                     alt="Partner with Dofurs"
                     fill
                     sizes="(max-width: 1024px) 100vw, 50vw"

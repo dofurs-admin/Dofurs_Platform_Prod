@@ -9,6 +9,8 @@ import {
 process.env.TZ = 'Asia/Kolkata';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
+const enableStaticWebpRewrite = process.env.NEXT_PUBLIC_ENABLE_STATIC_WEBP_REWRITE === 'true';
+const staticWebpRewriteBases = ['/Birthday', '/v1.2.2', '/services'];
 const scriptSrcDirective = isDevelopment
   ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://scripts.clarity.ms https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net"
   : "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://scripts.clarity.ms https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net";
@@ -234,6 +236,28 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async rewrites() {
+    if (!enableStaticWebpRewrite) {
+      return [];
+    }
+
+    return {
+      beforeFiles: staticWebpRewriteBases.flatMap((basePath) => [
+        {
+          source: `${basePath}/:path*.png`,
+          destination: `${basePath}/:path*.webp`,
+        },
+        {
+          source: `${basePath}/:path*.jpg`,
+          destination: `${basePath}/:path*.webp`,
+        },
+        {
+          source: `${basePath}/:path*.jpeg`,
+          destination: `${basePath}/:path*.webp`,
+        },
+      ]),
+    };
+  },
   async headers() {
     return [
       {
@@ -243,6 +267,7 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',

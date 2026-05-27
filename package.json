@@ -9,6 +9,10 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "images:webp:audit": "node scripts/optimize-public-images.mjs --mode=audit",
+    "images:webp:convert": "node scripts/optimize-public-images.mjs --mode=convert",
+    "images:webp:audit:all": "node scripts/optimize-public-images.mjs --mode=audit --includeAll",
+    "images:webp:convert:all": "node scripts/optimize-public-images.mjs --mode=convert --includeAll",
     "test:billing": "vitest run lib/payments/invoiceDetails.contract.test.ts lib/payments/invoiceService.test.ts app/api/admin/billing/invoices/__tests__/route.test.ts",
     "graphify:rebuild": "npx graphify hook-rebuild",
     "graphify:watch": "npx graphify watch .",
@@ -51,6 +55,7 @@
     "eslint-config-next": "^15.5.12",
     "graphifyy": "^0.3.28",
     "postcss": "^8.4.49",
+    "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2",
     "vitest": "^4.0.18"

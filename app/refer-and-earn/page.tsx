@@ -51,7 +51,7 @@ export default async function ReferAndEarnPage() {
     <ContentPageLayout
       title="Refer & Earn"
       description="Invite pet parents to Dofurs. You both earn ₹500 in Dofurs Credits — applicable on eligible grooming bookings."
-      heroImageSrc="/Birthday/partners-with-dofurs.png"
+      heroImageSrc="/Birthday/partners-with-dofurs.webp"
       heroImageAlt="Refer and earn with Dofurs"
       hideHero
     >

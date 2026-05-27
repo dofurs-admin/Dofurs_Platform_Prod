@@ -22,7 +22,7 @@ export default function AboutPage() {
     <ContentPageLayout
       title="About Dofurs"
       description="Premium doorstep grooming, simplified for modern pet parents. Trusted, transparent, and built with a pet-first mindset."
-      heroImageSrc="/Birthday/about%20us_new.png"
+      heroImageSrc="/Birthday/about%20us_new.webp"
       heroImageAlt="About Dofurs"
     >
       <p className="mx-auto max-w-4xl rounded-full border border-[#f1e6da] bg-[#fffaf6] px-5 py-2.5 text-center text-[14.5px] leading-6 text-ink/80 md:text-[15px]">

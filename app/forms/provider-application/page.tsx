@@ -23,7 +23,7 @@ export default function ProviderApplicationFormPage() {
     <ContentPageLayout
       title="Scale Your Grooming Business With Dofurs"
       description="A premium partner network for independent groomers, mobile grooming teams, and grooming centers ready to grow with curated demand and modern operations."
-      heroImageSrc="/Birthday/partners-with-dofurs.png"
+      heroImageSrc="/Birthday/partners-with-dofurs.webp"
       heroImageAlt="Partner with Dofurs"
     >
       <div className="relative overflow-hidden rounded-3xl border border-[#e0bea3] bg-[linear-gradient(140deg,#fff1df_0%,#fffdf9_42%,#ffe8ce_100%)] p-6 text-ink shadow-[0_24px_56px_rgba(137,93,56,0.2)] md:p-8">

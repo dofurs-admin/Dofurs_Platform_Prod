@@ -4,9 +4,9 @@ import { steps } from '@/lib/site-data';
 import { theme } from '@/lib/theme';
 
 const stepBackgrounds: Record<string, string> = {
-  'Choose Service': '/Birthday/chose%20service_card.png',
-  'Book Instantly': '/Birthday/book%20instantly_card.png',
-  'Relax & Enjoy': '/Birthday/relax%20%26%20enjoy%20_card.png',
+  'Choose Service': '/Birthday/chose%20service_card.webp',
+  'Book Instantly': '/Birthday/book%20instantly_card.webp',
+  'Relax & Enjoy': '/Birthday/relax%20%26%20enjoy%20_card.webp',
 };
 
 export default function HowItWorksSection() {
@@ -25,7 +25,7 @@ export default function HowItWorksSection() {
                 <article className="group relative flex h-full flex-col overflow-hidden rounded-3xl border border-[#f0e4d7] bg-white p-7 shadow-soft transition-all duration-300 ease-out hover:-translate-y-1.5 hover:shadow-[0_22px_40px_rgba(0,0,0,0.12)]">
                   <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                     <Image
-                      src={stepBackgrounds[step.title] ?? '/Birthday/chose%20service_card.png'}
+                      src={stepBackgrounds[step.title] ?? '/Birthday/chose%20service_card.webp'}
                       alt=""
                       fill
                       sizes="(max-width: 768px) 100vw, 33vw"

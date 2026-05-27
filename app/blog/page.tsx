@@ -80,7 +80,7 @@ export default function BlogPage() {
     <ContentPageLayout
       title="Blog"
       description="Expert guides, care tips, and practical advice that help pet parents make confident care decisions."
-      heroImageSrc="/Birthday/Blog_new.png"
+      heroImageSrc="/Birthday/Blog_new.webp"
       heroImageAlt="Dofurs blog"
     >
       {/* Featured post */}

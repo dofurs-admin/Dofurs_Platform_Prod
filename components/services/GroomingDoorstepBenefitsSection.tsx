@@ -32,7 +32,7 @@ export default function GroomingDoorstepBenefitsSection({ locationName }: Groomi
   const benefitCards: BenefitCard[] = [
     {
       id: '01',
-      imageSrc: '/v1.2.2/travel-1.png',
+      imageSrc: '/v1.2.2/travel-1.webp',
       imageAlt: `Pet parent choosing doorstep grooming in ${locationName}`,
       title: 'Relief from Bengaluru travel',
       description:
@@ -43,7 +43,7 @@ export default function GroomingDoorstepBenefitsSection({ locationName }: Groomi
     },
     {
       id: '02',
-      imageSrc: '/v1.2.2/waiting-time.png',
+      imageSrc: '/v1.2.2/waiting-time.webp',
       imageAlt: `Pet parents waiting less for grooming in ${locationName}`,
       title: 'Save waiting time',
       description: 'No queues. No salon delays. Pick a convenient slot and keep the day moving.',
@@ -53,7 +53,7 @@ export default function GroomingDoorstepBenefitsSection({ locationName }: Groomi
     },
     {
       id: '03',
-      imageSrc: '/v1.2.2/stress-free-for-pets.png',
+      imageSrc: '/v1.2.2/stress-free-for-pets.webp',
       imageAlt: 'Pet staying calm during a doorstep grooming session',
       title: 'Stress-free for pets',
       description: 'Pets stay comfortable in their familiar environment while grooming happens at their pace.',
@@ -63,7 +63,7 @@ export default function GroomingDoorstepBenefitsSection({ locationName }: Groomi
     },
     {
       id: '04',
-      imageSrc: '/v1.2.2/vacuum-trim.png',
+      imageSrc: '/v1.2.2/vacuum-trim.webp',
       imageAlt: 'Modern grooming tools used at home for cleaner trims',
       title: 'Clean and modern grooming',
       description: 'Grooms, trims and vacuum support help reduce mess during coat care at home.',

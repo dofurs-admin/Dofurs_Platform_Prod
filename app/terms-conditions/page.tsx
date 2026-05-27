@@ -20,7 +20,7 @@ export default function TermsConditionsPage() {
     <ContentPageLayout
       title="Terms & Conditions"
       description="Legally binding terms governing access to and use of the Dofurs grooming platform and services."
-      heroImageSrc="/Birthday/terms%20%26%20conditions%20_new.png"
+      heroImageSrc="/Birthday/terms%20%26%20conditions%20_new.webp"
       heroImageAlt="Terms and conditions"
     >
       <div className="mx-auto w-full max-w-3xl">

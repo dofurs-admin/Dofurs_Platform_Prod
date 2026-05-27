@@ -37,7 +37,7 @@ import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/p
 import { marketingSubscriptionPlanGroups } from '@/lib/subscriptions/marketing-plans';
 
 const SITE_URL = 'https://dofurs.in';
-const HERO_IMAGE = '/v1.2.2/Dofurs-Grooming.png';
+const HERO_IMAGE = '/v1.2.2/Dofurs-Grooming.webp';
 const HERO_IMAGE_URL = `${SITE_URL}${HERO_IMAGE}`;
 
 type PetGroomingLocalityPageProps = {

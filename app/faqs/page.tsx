@@ -12,7 +12,7 @@ export default function FaqsPage() {
     <ContentPageLayout
       title="Pet Grooming FAQs — Dofurs Bengaluru"
       description="Everything you need to know about doorstep grooming bookings, packages, groomer verification, payments, coverage areas, and support on Dofurs in Bengaluru."
-      heroImageSrc="/Birthday/faqs_new.png"
+      heroImageSrc="/Birthday/faqs_new.webp"
       heroImageAlt="Dofurs pet grooming FAQs for Bengaluru pet parents"
       heroImageFirstOnMobile
     >

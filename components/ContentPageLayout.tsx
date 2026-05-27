@@ -26,7 +26,7 @@ type ContentPageLayoutProps = {
 export default function ContentPageLayout({
   title,
   description,
-  heroImageSrc = '/Birthday/partners-with-dofurs.png',
+  heroImageSrc = '/Birthday/partners-with-dofurs.webp',
   heroImageAlt = 'Dofurs pet grooming',
   heroImageFirstOnMobile = false,
   heroImageObjectPosition = 'center',

@@ -125,21 +125,21 @@ const bookingSteps = [
     description:
       "Share your pet's breed and size, pick the grooming package that fits, and see the price before you commit. No hidden costs.",
     icon: BriefcaseBusiness,
-    image: '/Birthday/chose%20service_card.png',
+    image: '/Birthday/chose%20service_card.webp',
   },
   {
     title: 'Pick a Time That Works',
     description:
       "Choose a slot, confirm your address, and you're done. We come to your home — no dropping off, no waiting in queues.",
     icon: CalendarClock,
-    image: '/Birthday/book%20instantly_card.png',
+    image: '/Birthday/book%20instantly_card.webp',
   },
   {
     title: 'We Handle the Rest',
     description:
       "Your specialist arrives on time with everything they need. Watch your pet get cared for, or step away and trust us to handle it.",
     icon: ShieldCheck,
-    image: '/Birthday/relax%20%26%20enjoy%20_card.png',
+    image: '/Birthday/relax%20%26%20enjoy%20_card.webp',
   },
 ];
 
@@ -148,25 +148,25 @@ const trustPoints = [
     title: 'Verified Professionals',
     description: 'Every provider is vetted before joining the Dofurs network.',
     icon: BadgeCheck,
-    backgroundImage: '/Birthday/varifiedProfessionals_card.png',
+    backgroundImage: '/Birthday/varifiedProfessionals_card.webp',
   },
   {
     title: 'Background Checks',
     description: 'All groomers pass identity and conduct verification.',
     icon: ShieldCheck,
-    backgroundImage: '/Birthday/backgroundCheck_card.jpeg',
+    backgroundImage: '/Birthday/backgroundCheck_card.webp',
   },
   {
     title: 'Transparent Pricing',
     description: 'See full pricing before you confirm — no surprises at checkout.',
     icon: Wallet,
-    backgroundImage: '/Birthday/transparentPricing_card.png',
+    backgroundImage: '/Birthday/transparentPricing_card.webp',
   },
   {
     title: 'Pet Safety Guarantee',
     description: 'Gentle handling protocols and hygiene-first standards on every visit.',
     icon: HeartHandshake,
-    backgroundImage: '/Birthday/patSafetyGuarantee_card.jpeg',
+    backgroundImage: '/Birthday/patSafetyGuarantee_card.webp',
   },
 ];
 

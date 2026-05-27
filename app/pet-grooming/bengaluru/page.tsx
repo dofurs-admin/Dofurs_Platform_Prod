@@ -35,7 +35,7 @@ import { marketingSubscriptionPlanGroups } from '@/lib/subscriptions/marketing-p
 const SITE_URL = 'https://dofurs.in';
 const PAGE_PATH = '/pet-grooming/bengaluru';
 const PAGE_URL = `${SITE_URL}${PAGE_PATH}`;
-const HERO_IMAGE = '/v1.2.2/Dofurs-Grooming.png';
+const HERO_IMAGE = '/v1.2.2/Dofurs-Grooming.webp';
 const HERO_IMAGE_URL = `${SITE_URL}${HERO_IMAGE}`;
 const PAGE_DESCRIPTION =
   'Book pincode-aware doorstep pet grooming in Bengaluru and Bangalore. Dofurs offers dog grooming, cat grooming, mobile grooming and home grooming packages across priority neighbourhoods.';

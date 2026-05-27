@@ -4,7 +4,7 @@ import { services } from '@/lib/site-data';
 import { theme } from '@/lib/theme';
 
 const serviceBackgrounds: Record<string, string> = {
-  Grooming: '/Birthday/grooming_service.png',
+  Grooming: '/Birthday/grooming_service.webp',
 };
 
 export default function ServicesSection() {
@@ -27,7 +27,7 @@ export default function ServicesSection() {
                   <div className="pointer-events-none absolute inset-0" aria-hidden="true">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_84%_16%,rgba(227,154,93,0.18),transparent_42%),radial-gradient(circle_at_16%_88%,rgba(227,154,93,0.16),transparent_48%)]" />
                     <Image
-                      src={serviceBackgrounds[service.title] ?? '/Birthday/grooming_service.png'}
+                      src={serviceBackgrounds[service.title] ?? '/Birthday/grooming_service.webp'}
                       alt=""
                       fill
                       sizes="(max-width: 768px) 100vw, 25vw"

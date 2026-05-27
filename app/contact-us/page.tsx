@@ -21,7 +21,7 @@ export default function ContactUsPage() {
     <ContentPageLayout
       title="Contact Us"
       description="Have a grooming question, booking issue, feedback, or partnership request? We are here to help."
-      heroImageSrc="/Birthday/contact%20us_new.png"
+      heroImageSrc="/Birthday/contact%20us_new.webp"
       heroImageAlt="Contact Dofurs"
     >
       <div className="h-px w-full bg-[#efdecd]" aria-hidden="true" />

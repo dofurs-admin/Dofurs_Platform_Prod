@@ -39,7 +39,7 @@ export default async function CustomerBookingFormPage({ searchParams }: Customer
     <ContentPageLayout
       title={pageTitle}
       description={pageDescription}
-      heroImageSrc="/Birthday/book-a-service.png"
+      heroImageSrc="/Birthday/book-a-service.webp"
       heroImageAlt="Book doorstep pet grooming with Dofurs"
       heroImageFirstOnMobile
       hideHero

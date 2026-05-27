@@ -81,7 +81,7 @@ export default function LocationsIndexPage() {
       <ContentPageLayout
         title="Pet Grooming Across Bengaluru"
         description="Browse Dofurs grooming coverage by locality. Priority areas link to canonical pet grooming pages; the rest stay visible for coverage discovery without duplicate location pages."
-        heroImageSrc="/Birthday/partners-with-dofurs.png"
+        heroImageSrc="/Birthday/partners-with-dofurs.webp"
         heroImageAlt="Dofurs pet grooming across Bengaluru neighbourhoods"
         heroImageObjectPosition="center"
         belowContent={

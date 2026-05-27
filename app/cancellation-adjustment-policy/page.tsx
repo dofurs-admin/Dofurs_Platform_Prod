@@ -20,7 +20,7 @@ export default function CancellationAdjustmentPolicyPage() {
     <ContentPageLayout
       title="Cancellation & Adjustment Policy"
       description="Policy governing booking cancellation timelines, direct-to-provider payment handling, and support-led adjustments."
-      heroImageSrc="/Birthday/refund%20%26%20cancelation%20_new.png"
+      heroImageSrc="/Birthday/refund%20%26%20cancelation%20_new.webp"
       heroImageAlt="Cancellation and adjustment policy"
     >
       <h2 className="mt-2 text-2xl font-semibold text-ink">6.1 Cancellation by User</h2>
