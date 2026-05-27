@@ -1,38 +1,43 @@
 import type { Metadata } from 'next';
 import ContentPageLayout from '@/components/ContentPageLayout';
 import Link from 'next/link';
-import { blogPosts } from '@/lib/blog-posts';
+import type { BlogPost } from '@/lib/blog-posts';
+import { getPublishedBlogPosts } from '@/lib/blog-posts.server';
 
 const SITE_URL = 'https://dofurs.in';
 
-const blogListingSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'Blog',
-  '@id': `${SITE_URL}/blog#blog`,
-  name: 'Dofurs Blog',
-  description:
-    'Expert grooming guides, coat-care tips, seasonal hygiene advice and practical pet care notes for Bengaluru pet parents.',
-  url: `${SITE_URL}/blog`,
-  inLanguage: 'en-IN',
-  publisher: { '@id': `${SITE_URL}/#organization` },
-  blogPost: blogPosts.map((post) => ({
-    '@type': 'BlogPosting',
-    headline: post.title,
-    description: post.excerpt,
-    url: `${SITE_URL}/blog/${post.slug}`,
-    image: post.heroImageSrc.startsWith('http')
-      ? post.heroImageSrc
-      : `${SITE_URL}${post.heroImageSrc}`,
-    datePublished: post.datePublished ?? post.publishedOn,
-    dateModified: post.dateModified ?? post.datePublished ?? post.publishedOn,
-    author: {
-      '@type': 'Organization',
-      name: post.author ?? 'Dofurs Editorial',
-    },
-    keywords: post.tags,
-    articleSection: post.category,
-  })),
-};
+export const revalidate = 3600;
+
+function buildBlogListingSchema(posts: BlogPost[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    '@id': `${SITE_URL}/blog#blog`,
+    name: 'Dofurs Blog',
+    description:
+      'Expert grooming guides, coat-care tips, seasonal hygiene advice and practical pet care notes for Bengaluru pet parents.',
+    url: `${SITE_URL}/blog`,
+    inLanguage: 'en-IN',
+    publisher: { '@id': `${SITE_URL}/#organization` },
+    blogPost: posts.map((post) => ({
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.excerpt,
+      url: `${SITE_URL}/blog/${post.slug}`,
+      image: post.heroImageSrc.startsWith('http')
+        ? post.heroImageSrc
+        : `${SITE_URL}${post.heroImageSrc}`,
+      datePublished: post.datePublished ?? post.publishedOn,
+      dateModified: post.dateModified ?? post.datePublished ?? post.publishedOn,
+      author: {
+        '@type': 'Organization',
+        name: post.author ?? 'Dofurs Editorial',
+      },
+      keywords: post.tags,
+      articleSection: post.category,
+    })),
+  };
+}
 
 const blogBreadcrumbSchema = {
   '@context': 'https://schema.org',
@@ -65,8 +70,10 @@ export const metadata: Metadata = {
   ],
 };
 
-export default function BlogPage() {
-  const [featured, ...rest] = blogPosts;
+export default async function BlogPage() {
+  const posts = await getPublishedBlogPosts();
+  const blogListingSchema = buildBlogListingSchema(posts);
+  const [featured, ...rest] = posts;
   return (
     <>
       <script

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { blogPosts } from '@/lib/blog-posts';
+import { getPublishedBlogPosts } from '@/lib/blog-posts.server';
 import { getPetGroomingAreaPath, publishedBengaluruPetGroomingAreas } from '@/lib/service-areas';
 
 const SITE_URL = 'https://dofurs.in';
@@ -10,8 +10,9 @@ function toAbsolute(pathOrUrl: string): string {
   return `${SITE_URL}${pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`}`;
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
+  const blogPosts = await getPublishedBlogPosts();
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, lastModified: now, changeFrequency: 'weekly', priority: 1.0 },

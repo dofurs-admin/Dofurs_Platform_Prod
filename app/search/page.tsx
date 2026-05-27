@@ -5,7 +5,7 @@ import { Plus_Jakarta_Sans } from 'next/font/google';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { services, links } from '@/lib/site-data';
-import { blogPosts } from '@/lib/blog-posts';
+import { getPublishedBlogPosts } from '@/lib/blog-posts.server';
 import { premiumPrimaryCtaClass } from '@/lib/styles/premium-cta';
 
 export const metadata: Metadata = {
@@ -65,6 +65,7 @@ type SearchPageProps = {
 export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q } = await searchParams;
   const query = q?.trim() ?? '';
+  const blogPosts = await getPublishedBlogPosts();
 
   const matchedServices = query
     ? services.filter((s) => matches(s.title, query) || matches(s.description, query))

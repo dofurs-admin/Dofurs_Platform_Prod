@@ -3,7 +3,7 @@
 import { compressImageBeforeUpload } from './image-compression';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 
-type BucketName = 'user-photos' | 'pet-photos' | 'service-images';
+type BucketName = 'user-photos' | 'pet-photos' | 'service-images' | 'blog-images';
 
 function formatUploadError(raw: unknown) {
   const fallback = 'Image upload failed. Please try again.';
@@ -84,6 +84,16 @@ export async function uploadCompressedImage(file: File, bucket: BucketName) {
       throw new Error(error.message || 'Upload failed while writing file to storage.');
     }
 
+    if (bucket === 'blog-images') {
+      const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(signedData.path);
+
+      return {
+        path: signedData.path,
+        signedUrl: publicData.publicUrl,
+        publicUrl: publicData.publicUrl,
+      };
+    }
+
     const readResponse = await fetch('/api/storage/signed-read-url', {
       method: 'POST',
       credentials: 'include',
@@ -100,6 +110,7 @@ export async function uploadCompressedImage(file: File, bucket: BucketName) {
     return {
       path: signedData.path,
       signedUrl: readData.signedUrl,
+      publicUrl: null,
     };
   } catch (error) {
     throw new Error(formatUploadError(error));

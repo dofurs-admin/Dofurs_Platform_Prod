@@ -28,6 +28,7 @@ export type AdminDashboardView =
   | 'users'
   | 'providers'
   | 'services'
+  | 'blog'
   | 'access'
   | 'health'
   | 'payments'
@@ -155,6 +156,11 @@ const ServicesTab = dynamic(
   { loading: () => <TabSkeleton />, ssr: false },
 );
 
+const BlogTab = dynamic(
+  () => import('@/components/dashboard/admin/tabs/BlogTab'),
+  { loading: () => <TabSkeleton />, ssr: false },
+);
+
 const PaymentsTab = dynamic(
   () => import('@/components/dashboard/admin/tabs/PaymentsTab'),
   { loading: () => <TabSkeleton />, ssr: false },
@@ -221,6 +227,10 @@ const viewCopy: Record<AdminDashboardView, { title: string; description: string 
   services: {
     title: 'Service Catalog',
     description: 'Maintain service types, catalog templates, add-ons, discounts, and provider-facing rollout controls.',
+  },
+  blog: {
+    title: 'Blog Publishing',
+    description: 'Write, upload, publish, and archive public blog posts from the admin operations console.',
   },
   payments: {
     title: 'Payment Operations',
@@ -372,6 +382,10 @@ export default function AdminDashboardShell({
             moderationProviders={moderationProviders}
             openConfirm={openConfirm}
           />
+        )}
+
+        {view === 'blog' && (
+          <BlogTab openConfirm={openConfirm} />
         )}
 
         {view === 'payments' && (

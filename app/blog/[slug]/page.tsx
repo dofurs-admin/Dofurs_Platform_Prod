@@ -2,12 +2,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import ContentPageLayout from '@/components/ContentPageLayout';
-import {
-  blogPostBySlug,
-  blogPosts,
-  getRelatedPosts,
-  type BlogPost,
-} from '@/lib/blog-posts';
+import { blogPosts, type BlogPost } from '@/lib/blog-posts';
+import { getPublishedBlogPostBySlug, getRelatedPublishedBlogPosts } from '@/lib/blog-posts.server';
 
 type BlogPostPageProps = {
   params: Promise<{ slug: string }>;
@@ -15,13 +11,16 @@ type BlogPostPageProps = {
 
 const SITE_URL = 'https://dofurs.in';
 
+export const revalidate = 3600;
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
   return blogPosts.map((post) => ({ slug: post.slug }));
 }
 
 export async function generateMetadata({ params }: BlogPostPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const post = blogPostBySlug[slug];
+  const post = await getPublishedBlogPostBySlug(slug);
 
   if (!post) {
     return { title: 'Blog | Dofurs' };
@@ -207,7 +206,7 @@ const howToSchemaBySlug: Record<string, Record<string, unknown>> = {
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
-  const post = blogPostBySlug[slug];
+  const post = await getPublishedBlogPostBySlug(slug);
 
   if (!post) {
     notFound();
@@ -216,7 +215,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const blogPostingSchema = buildBlogPostingSchema(post);
   const breadcrumbSchema = buildBreadcrumbSchema(post);
   const howToSchema = howToSchemaBySlug[post.slug];
-  const relatedPosts = getRelatedPosts(post.slug, 3);
+  const relatedPosts = await getRelatedPublishedBlogPosts(post.slug, 3);
 
   return (
     <>

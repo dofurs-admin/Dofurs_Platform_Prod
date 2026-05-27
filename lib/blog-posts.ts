@@ -1327,19 +1327,27 @@ const publicGroomingBlogSlugs = new Set([
   'golden-retriever-grooming-bengaluru',
 ]);
 
-export const blogPosts: BlogPost[] = allBlogPosts.filter((post) => publicGroomingBlogSlugs.has(post.slug));
+export const staticBlogPosts: BlogPost[] = allBlogPosts.filter((post) => publicGroomingBlogSlugs.has(post.slug));
+
+export const blogPosts: BlogPost[] = staticBlogPosts;
 
 export const blogPostBySlug = Object.fromEntries(blogPosts.map((post) => [post.slug, post]));
+
+const staticBlogPostSlugs = new Set(staticBlogPosts.map((post) => post.slug));
+
+export function isStaticBlogSlug(slug: string) {
+  return staticBlogPostSlugs.has(slug);
+}
 
 /**
  * Returns up to `limit` related posts, prioritising posts that share the category,
  * then posts that share any tag, then falling back to most-recent other posts.
  */
-export function getRelatedPosts(slug: string, limit = 3): BlogPost[] {
-  const current = blogPostBySlug[slug];
+export function getRelatedPostsFromCollection(posts: BlogPost[], slug: string, limit = 3): BlogPost[] {
+  const current = posts.find((post) => post.slug === slug);
   if (!current) return [];
 
-  const others = blogPosts.filter((post) => post.slug !== slug);
+  const others = posts.filter((post) => post.slug !== slug);
   const sameCategory = others.filter((post) => post.category === current.category);
   const sharedTags = others.filter(
     (post) =>
@@ -1359,4 +1367,8 @@ export function getRelatedPosts(slug: string, limit = 3): BlogPost[] {
     if (ordered.length >= limit) break;
   }
   return ordered;
+}
+
+export function getRelatedPosts(slug: string, limit = 3): BlogPost[] {
+  return getRelatedPostsFromCollection(blogPosts, slug, limit);
 }

@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { resolveRoleWithProviderPrecedence } from '@/lib/auth/api-auth';
 
 const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif']);
 const MAX_FILE_SIZE_MB = 10;
 
 const uploadSchema = z.object({
-  bucket: z.enum(['user-photos', 'pet-photos', 'service-images']),
+  bucket: z.enum(['user-photos', 'pet-photos', 'service-images', 'blog-images']),
   fileName: z.string().min(1),
   contentType: z.string().optional(),
   fileSizeMB: z.number().max(MAX_FILE_SIZE_MB, `File size must be under ${MAX_FILE_SIZE_MB}MB`).optional(),
@@ -45,6 +46,14 @@ export async function POST(request: Request) {
 
   if (!parsed.success) {
     return NextResponse.json({ error: 'Invalid payload' }, { status: 400 });
+  }
+
+  if (parsed.data.bucket === 'blog-images') {
+    const role = await resolveRoleWithProviderPrecedence(adminSupabase, authUser.id);
+
+    if (role !== 'admin' && role !== 'staff') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
   }
 
   // Validate file extension
