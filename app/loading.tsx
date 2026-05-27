@@ -2,34 +2,22 @@ import Image from 'next/image';
 
 export default function RootLoading() {
   return (
-    <div className="loading-screen-root" aria-label="Loading" role="status">
-      {/* Decorative background */}
-      <div
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background: `
-            radial-gradient(circle at 14% 10%, rgba(228, 153, 90, 0.12), transparent 52%),
-            radial-gradient(circle at 86% 90%, rgba(154, 122, 87, 0.08), transparent 48%)
-          `,
-        }}
-        aria-hidden="true"
+    <div
+      className="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-[linear-gradient(180deg,#fff8f0_0%,#fffdf9_42%,#fff7ee_100%)]"
+      aria-label="Loading"
+      role="status"
+    >
+      <Image
+        src="/logo/brand-logo.png"
+        alt="Dofurs logo"
+        width={192}
+        height={64}
+        quality={60}
+        className="h-14 w-44 object-contain sm:h-16 sm:w-48"
       />
 
-      {/* Logo */}
-      <div className="relative">
-        <Image
-          src="/logo/brand-logo.png"
-          alt="Dofurs logo"
-          width={192}
-          height={64}
-          quality={60}
-          className="loading-logo-breathe h-14 w-44 object-contain sm:h-16 sm:w-48"
-        />
-      </div>
-
-      {/* Progress bar */}
-      <div className="loading-progress-track mt-6">
-        <div className="loading-progress-fill" />
+      <div className="mt-5 h-1 w-44 overflow-hidden rounded-full bg-[#f1e6da]">
+        <div className="h-full w-2/3 animate-pulse rounded-full bg-[#cf8347]" />
       </div>
     </div>
   );

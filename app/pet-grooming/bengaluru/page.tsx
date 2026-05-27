@@ -22,7 +22,6 @@ import MarketingSubscriptionGroupCard from '@/components/payments/MarketingSubsc
 import GroomingDoorstepBenefitsSection from '@/components/services/GroomingDoorstepBenefitsSection';
 import GroomingBeforeAfterReviews from '@/components/services/GroomingBeforeAfterReviews';
 import {
-  bengaluruAreas,
   getPetGroomingAreaPath,
   groupBengaluruAreasByRegion,
 } from '@/lib/service-areas';
@@ -40,6 +39,9 @@ const HERO_IMAGE_URL = `${SITE_URL}${HERO_IMAGE}`;
 const PAGE_DESCRIPTION =
   'Book pincode-aware doorstep pet grooming in Bengaluru and Bangalore. Dofurs offers dog grooming, cat grooming, mobile grooming and home grooming packages across priority neighbourhoods.';
 const genericBookingHref = `${links.booking}?serviceType=pet-grooming&mode=home_visit#start-your-booking`;
+const SEO_PRIORITY_AREAS = ['Whitefield', 'Sarjapur Road', 'Bellandur', 'HSR Layout', 'Koramangala', 'Electronic City', 'Indiranagar'] as const;
+
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Pet Grooming in Bengaluru | Doorstep Dog & Cat Grooming Bangalore',
@@ -142,7 +144,7 @@ const keywordCards = [
   },
 ];
 
-const highlightedAreas = ['Whitefield', 'Sarjapur Road', 'Bellandur', 'HSR Layout', 'Koramangala', 'Electronic City', 'Indiranagar'];
+const highlightedAreas = [...SEO_PRIORITY_AREAS];
 const coverageGroups = groupBengaluruAreasByRegion();
 
 function formatPriceInr(price: string | number): string {
@@ -181,7 +183,7 @@ const groomingServiceSchema = buildServiceSchema({
   offers: GROOMING_PACKAGES.map((pkg) => ({
     name: pkg.title,
     priceFrom: getNumericPrice(pkg.price),
-    description: `${packageDetails[pkg.title]?.description ?? pkg.features.join(', ')} Includes ${pkg.features.join(', ')}.`,
+    description: packageDetails[pkg.title]?.description ?? pkg.features.join(', '),
   })),
 });
 
@@ -210,10 +212,9 @@ const localBusinessSchema = {
   },
   areaServed: [
     { '@type': 'City', name: 'Bengaluru', alternateName: 'Bangalore' },
-    ...bengaluruAreas.map((area) => ({
+    ...SEO_PRIORITY_AREAS.map((area) => ({
       '@type': 'Place' as const,
-      name: `${area.name}, Bengaluru`,
-      alternateName: area.aliases.length > 0 ? area.aliases.map((alias) => `${alias}, Bangalore`) : undefined,
+      name: `${area}, Bengaluru`,
     })),
   ],
   openingHoursSpecification: [

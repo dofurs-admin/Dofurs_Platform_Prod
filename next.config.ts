@@ -148,6 +148,9 @@ const legacyLocationRedirects = bengaluruAreas.map((area) => ({
 }));
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizeCss: true,
+  },
   async redirects() {
     return [
       ...legacyLocationRedirects,

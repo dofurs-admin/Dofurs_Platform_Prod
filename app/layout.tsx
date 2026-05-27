@@ -4,7 +4,6 @@ import './globals.css';
 import WhatsAppFloatingButton from '@/components/WhatsAppFloatingButton';
 import AppProviders from '@/components/ui/AppProviders';
 import MobileBottomNav from '@/components/MobileBottomNav';
-import LoadingScreen from '@/components/ui/LoadingScreen';
 import { GOOGLE_ADS_ID } from '@/lib/analytics/google-ads';
 import { META_PIXEL_ID } from '@/lib/analytics/meta-ads';
 
@@ -375,7 +374,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             style={{ display: 'none', visibility: 'hidden' }}
           />
         </noscript>
-        <LoadingScreen />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[9999] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-orange-700 focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-orange-500"
