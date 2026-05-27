@@ -1,5 +1,6 @@
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import DashboardRouteFrame from './DashboardRouteFrame';
+import '../internal-utilities.css';
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],

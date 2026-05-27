@@ -185,105 +185,6 @@ nextjs-portal,
   @apply block h-[14px] w-[14px] rounded-full border-2 border-white bg-green-500;
 }
 
-/* Premium Global Utilities */
-@layer components {
-  /* Typography Styles */
-  .text-page-title {
-    @apply text-2xl font-semibold text-neutral-950;
-  }
-  
-  .text-section-title {
-    @apply text-xl font-medium text-neutral-950;
-  }
-  
-  .text-card-title {
-    @apply text-lg font-medium text-neutral-950;
-  }
-  
-  .text-body {
-    @apply text-sm text-neutral-700;
-  }
-  
-  .text-muted {
-    @apply text-xs text-neutral-500;
-  }
-
-  /* Card Styles */
-  .card {
-    @apply rounded-2xl border border-neutral-200/60 bg-white shadow-sm;
-  }
-  
-  .card-interactive {
-    @apply card transition-all duration-150 ease-out hover:shadow-md hover:-translate-y-0.5;
-  }
-  
-  .card-padding {
-    @apply p-6;
-  }
-
-  /* Button Styles */
-  .btn-primary {
-    @apply inline-flex items-center justify-center rounded-full bg-coral px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 ease-out hover:bg-[#cf8448] hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-  
-  .btn-secondary {
-    @apply inline-flex items-center justify-center rounded-full border border-neutral-200 bg-white px-5 py-2.5 text-sm font-semibold text-neutral-900 transition-all duration-150 ease-out hover:bg-neutral-50 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-  
-  .btn-ghost {
-    @apply inline-flex items-center justify-center rounded-full px-4 py-2 text-sm font-medium text-neutral-700 transition-all duration-150 ease-out hover:bg-neutral-100 disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-  
-  .btn-danger {
-    @apply inline-flex items-center justify-center rounded-full border border-red-200 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 transition-all duration-150 ease-out hover:bg-red-100 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
-  }
-
-  /* Input Styles */
-  .input-field {
-    @apply w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 placeholder:text-neutral-400 transition-all duration-150 ease-out focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10;
-  }
-  
-  .input-field-error {
-    @apply input-field border-red-300 focus:border-red-500 focus:ring-red-500/10;
-  }
-
-  /* Container */
-  .container-premium {
-    @apply mx-auto max-w-7xl px-4 sm:px-6 lg:px-8;
-  }
-
-  /* Section Spacing */
-  .section-spacing {
-    @apply space-y-8;
-  }
-  
-  .major-section-spacing {
-    @apply space-y-12;
-  }
-
-  /* Skeleton Loader */
-  .skeleton {
-    @apply animate-pulse rounded-lg bg-neutral-200/50;
-  }
-  
-  .skeleton-shimmer {
-    @apply animate-shimmer bg-gradient-to-r from-neutral-200/50 via-neutral-100 to-neutral-200/50 bg-[length:1000px_100%];
-  }
-
-  /* Fade-in on mount */
-  .fade-in {
-    @apply animate-fade-in;
-  }
-  
-  .slide-in {
-    @apply animate-slide-in;
-  }
-  
-  .scale-in {
-    @apply animate-scale-in;
-  }
-}
-
 @media (max-width: 1023px) {
   :root {
     --dofurs-mobile-safe-top: max(env(safe-area-inset-top), 0px);
@@ -344,13 +245,6 @@ nextjs-portal,
     border-color: rgba(214, 177, 146, 0.78);
     background: linear-gradient(170deg, rgba(255, 255, 255, 0.98), rgba(255, 248, 239, 0.94));
     box-shadow: 0 6px 14px rgba(151, 102, 63, 0.1);
-  }
-
-  .dofurs-mobile-main :is(button, a).btn-primary,
-  .dofurs-mobile-main :is(button, a).btn-secondary,
-  .dofurs-mobile-main :is(button, a).btn-ghost,
-  .dofurs-mobile-main :is(button, a).btn-danger {
-    min-height: 2.75rem;
   }
 
   .dofurs-whatsapp-floating-button {

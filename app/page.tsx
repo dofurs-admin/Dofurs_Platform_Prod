@@ -18,7 +18,6 @@ import PremiumCard from '@/components/PremiumCard';
 import FadeInSection from '@/components/FadeInSection';
 import Footer from '@/components/Footer';
 import Navbar from '@/components/Navbar';
-import WelcomeOfferModal from '@/components/WelcomeOfferModal';
 import SubscriptionPlanCard from '@/components/payments/SubscriptionPlanCard';
 import { links } from '@/lib/site-data';
 import { premiumPrimaryCtaClass, premiumSecondaryCtaClass } from '@/lib/styles/premium-cta';
@@ -43,6 +42,7 @@ export const metadata: Metadata = {
 const FloatingPawBackground = dynamic(() => import('@/components/FloatingPawBackground'));
 const ServiceCatalogRail = dynamic(() => import('@/components/ServiceCatalogRail'));
 const AutoScrollRail = dynamic(() => import('@/components/AutoScrollRail'));
+const WelcomeOfferModal = dynamic(() => import('@/components/WelcomeOfferModal'));
 
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ['latin'],

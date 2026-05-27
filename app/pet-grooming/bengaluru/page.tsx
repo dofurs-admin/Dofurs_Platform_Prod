@@ -16,8 +16,6 @@ import {
 } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import PremiumCard from '@/components/PremiumCard';
-import WelcomeOfferModal from '@/components/WelcomeOfferModal';
 import MarketingSubscriptionGroupCard from '@/components/payments/MarketingSubscriptionGroupCard';
 import GroomingDoorstepBenefitsSection from '@/components/services/GroomingDoorstepBenefitsSection';
 import GroomingBeforeAfterReviews from '@/components/services/GroomingBeforeAfterReviews';
@@ -245,7 +243,6 @@ export default function PetGroomingBengaluruPage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(localBusinessSchema)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(breadcrumbSchema)} />
       <Navbar />
-      <WelcomeOfferModal />
       <main className="dofurs-mobile-main relative overflow-hidden bg-white text-ink">
         <section className="relative isolate overflow-hidden bg-[linear-gradient(102deg,#fff3ec_0%,#fffaf6_52%,#f7faf5_100%)] px-4 pb-6 pt-24 sm:px-6 sm:pt-28 lg:min-h-[560px] lg:px-12 lg:pb-0 lg:pt-28 xl:px-[92px]">
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,#fffaf6_100%)]" aria-hidden="true" />
@@ -328,7 +325,7 @@ export default function PetGroomingBengaluruPage() {
 
                 return (
                   <div key={pkg.title} id={pkg.title === 'Fur Makeover' ? 'fur-makeover' : undefined} className={`min-w-0 self-stretch lg:col-span-2 xl:col-span-1 ${centeredBottomCardClass}`}>
-                    <PremiumCard className={`flex h-full flex-col rounded-2xl border p-4 shadow-[0_4px_16px_rgba(79,47,25,0.06)] sm:p-3.5 xl:min-h-[420px] ${
+                    <div className={`flex h-full flex-col rounded-2xl border p-4 shadow-[0_4px_16px_rgba(79,47,25,0.06)] sm:p-3.5 xl:min-h-[420px] ${
                       pkg.highlighted
                         ? 'border-[#dc8f47] bg-[linear-gradient(165deg,#fffdfb_0%,#fff3e8_100%)]'
                         : 'border-[#e9d7c7] bg-[linear-gradient(165deg,#fffdfb_0%,#fff8f4_100%)]'
@@ -379,7 +376,7 @@ export default function PetGroomingBengaluruPage() {
                       <Link href={packageBookingHref(pkg)} className="mt-2.5 inline-flex h-11 w-full items-center justify-center rounded-full border border-[#e0c4a8] bg-white px-3 text-center text-[12px] font-semibold text-[#7c5335] transition hover:-translate-y-0.5 hover:border-[#c7773b] hover:bg-[#fffaf5] hover:text-[#c7773b] xl:h-9">
                         Book {pkg.title}
                       </Link>
-                    </PremiumCard>
+                    </div>
                   </div>
                 );
               })}

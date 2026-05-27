@@ -1,11 +1,13 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
+import dynamic from 'next/dynamic';
 import './globals.css';
-import WhatsAppFloatingButton from '@/components/WhatsAppFloatingButton';
 import AppProviders from '@/components/ui/AppProviders';
-import MobileBottomNav from '@/components/MobileBottomNav';
 import { GOOGLE_ADS_ID } from '@/lib/analytics/google-ads';
 import { META_PIXEL_ID } from '@/lib/analytics/meta-ads';
+
+const MobileBottomNav = dynamic(() => import('@/components/MobileBottomNav'));
+const WhatsAppFloatingButton = dynamic(() => import('@/components/WhatsAppFloatingButton'));
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dofurs.in'),
@@ -251,15 +253,16 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             })(window,document,'script','dataLayer','${googleTagManagerId}');
           `}
         </Script>
-        <Script src={`https://www.googletagmanager.com/gtag/js?id=${googleAdsId}`} strategy="lazyOnload" />
-        <Script id="google-tag" strategy="lazyOnload">
-          {`
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){dataLayer.push(arguments);}
-            gtag('js', new Date());
-            ${googleTagIds.map((id) => `gtag('config', ${JSON.stringify(id)});`).join('\n            ')}
-          `}
-        </Script>
+        {googleTagIds.length > 0 ? (
+          <Script id="google-tag" strategy="lazyOnload">
+            {`
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              ${googleTagIds.map((id) => `gtag('config', ${JSON.stringify(id)});`).join('\n              ')}
+            `}
+          </Script>
+        ) : null}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
