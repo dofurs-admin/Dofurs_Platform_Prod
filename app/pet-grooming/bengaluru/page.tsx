@@ -295,7 +295,9 @@ export default function PetGroomingBengaluruPage() {
                 alt="Professional pet grooming at home in Bengaluru"
                 fill
                 priority
-                sizes="(max-width: 1024px) 94vw, 54vw"
+                fetchPriority="high"
+                quality={70}
+                sizes="(max-width: 640px) 88vw, (max-width: 1024px) 78vw, (max-width: 1536px) 44vw, 560px"
                 className="object-contain object-bottom drop-shadow-[0_24px_34px_rgba(111,78,47,0.16)] lg:object-right"
               />
             </div>

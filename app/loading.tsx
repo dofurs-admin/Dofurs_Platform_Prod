@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 export default function RootLoading() {
   return (
     <div className="loading-screen-root" aria-label="Loading" role="status">
@@ -15,10 +17,12 @@ export default function RootLoading() {
 
       {/* Logo */}
       <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <Image
           src="/logo/brand-logo.png"
           alt="Dofurs logo"
+          width={192}
+          height={64}
+          quality={60}
           className="loading-logo-breathe h-14 w-44 object-contain sm:h-16 sm:w-48"
         />
       </div>

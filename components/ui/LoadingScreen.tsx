@@ -57,7 +57,7 @@ export default function LoadingScreen() {
               alt="Dofurs logo"
               width={192}
               height={64}
-              priority
+              quality={60}
               className="h-14 w-44 object-contain sm:h-16 sm:w-48"
             />
           </div>
