@@ -12,8 +12,90 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
 const enableStaticWebpRewrite = process.env.NEXT_PUBLIC_ENABLE_STATIC_WEBP_REWRITE === 'true';
 const staticWebpRewriteBases = ['/Birthday', '/v1.2.2', '/services'];
 const scriptSrcDirective = isDevelopment
-  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://scripts.clarity.ms https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net"
-  : "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://scripts.clarity.ms https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net";
+  ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://www.clarity.ms https://scripts.clarity.ms https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net"
+  : "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.clarity.ms https://scripts.clarity.ms https://cdn.jsdelivr.net https://www.googletagmanager.com https://www.googleadservices.com https://googleads.g.doubleclick.net https://connect.facebook.net";
+
+const publicPageCacheHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400',
+  },
+  {
+    key: 'CDN-Cache-Control',
+    value: 'public, max-age=3600, stale-while-revalidate=86400',
+  },
+  {
+    key: 'Cloudflare-CDN-Cache-Control',
+    value: 'public, max-age=3600, stale-while-revalidate=86400',
+  },
+];
+
+const publicAssetCacheHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000',
+  },
+  {
+    key: 'CDN-Cache-Control',
+    value: 'public, max-age=604800, stale-while-revalidate=2592000',
+  },
+  {
+    key: 'Cloudflare-CDN-Cache-Control',
+    value: 'public, max-age=604800, stale-while-revalidate=2592000',
+  },
+];
+
+const immutableNextAssetCacheHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'public, max-age=31536000, immutable',
+  },
+  {
+    key: 'CDN-Cache-Control',
+    value: 'public, max-age=31536000, immutable',
+  },
+  {
+    key: 'Cloudflare-CDN-Cache-Control',
+    value: 'public, max-age=31536000, immutable',
+  },
+];
+
+const optimizedImageCacheHeaders = [
+  {
+    key: 'Cache-Control',
+    value: 'public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000',
+  },
+  {
+    key: 'CDN-Cache-Control',
+    value: 'public, max-age=604800, stale-while-revalidate=2592000',
+  },
+  {
+    key: 'Cloudflare-CDN-Cache-Control',
+    value: 'public, max-age=604800, stale-while-revalidate=2592000',
+  },
+];
+
+const publicPageCacheSources = [
+  '/',
+  '/pet-grooming/:path*',
+  '/locations/:path*',
+  '/about',
+  '/blog/:path*',
+  '/contact-us',
+  '/faqs',
+  '/privacy-policy',
+  '/refer-and-earn',
+  '/refund-cancellation-policy',
+  '/cancellation-adjustment-policy',
+  '/terms-conditions',
+];
+
+const publicAssetCacheSources = [
+  '/Birthday/:path*',
+  '/logo/:path*',
+  '/services/:path*',
+  '/v1.2.2/:path*',
+];
 
 const securityHeaders = [
   {
@@ -260,6 +342,22 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
+      ...publicPageCacheSources.map((source) => ({
+        source,
+        headers: publicPageCacheHeaders,
+      })),
+      ...publicAssetCacheSources.map((source) => ({
+        source,
+        headers: publicAssetCacheHeaders,
+      })),
+      {
+        source: '/_next/static/:path*',
+        headers: immutableNextAssetCacheHeaders,
+      },
+      {
+        source: '/_next/image/:path*',
+        headers: optimizedImageCacheHeaders,
+      },
       {
         source: '/(.*)',
         headers: securityHeaders,
