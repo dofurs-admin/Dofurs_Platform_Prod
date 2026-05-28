@@ -19,6 +19,30 @@ Primary incidents covered:
 - `sev2`: Slack `#ops-alerts`
 - `sev3`: Slack `#ops-observability`
 
+## Discord Booking Activity Alerts
+Booking operations alerts can be sent to a private Discord channel through a Discord webhook. This is intended for active phone notifications for new bookings and booking activity; Discord is not the source of truth.
+
+Environment variables:
+- `DISCORD_BOOKING_WEBHOOK_URL`: Discord channel webhook URL. Required to enable alerts.
+- `DISCORD_BOOKING_ALERTS_ENABLED`: optional. Defaults to enabled when the webhook URL is present. Set `false` to disable.
+- `DISCORD_BOOKING_MENTION`: optional role/user mention such as `<@&ROLE_ID>` or `<@USER_ID>`.
+- `DISCORD_BOOKING_INCLUDE_ADDRESS`: optional. Defaults to `false`; sends only locality/pincode summary.
+- `DISCORD_BOOKING_INCLUDE_CUSTOMER_PHONE`: optional. Defaults to `false`; sends masked customer phone.
+- `DISCORD_BOOKING_ADMIN_BASE_URL`: optional. Defaults to `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_APP_URL`, then `https://dofurs.in`.
+- `DISCORD_BOOKING_ADMIN_URL_TEMPLATE`: optional full link template. Use `{bookingId}` if a direct booking route is added later.
+
+Alert events covered:
+- New booking created, including Razorpay webhook recovery.
+- Booking status changed: confirmed, in progress, completed, cancelled, no-show.
+- Online payment captured for prepaid and pending-amount flows.
+- Offline payment collected by admin/staff or provider.
+- Provider reassigned by admin/staff.
+
+Operational notes:
+- Do not paste customer secrets or full payment data into Discord.
+- Keep the Discord channel private and restrict webhook management to admins.
+- Prefer role mentions over individual mentions so team membership can change inside Discord without code changes.
+
 ## Route Groups
 - `bookings`: `/api/bookings/**`
 - `payments`: `/api/payments/**`

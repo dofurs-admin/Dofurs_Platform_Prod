@@ -966,10 +966,10 @@ async function runPostTransitionHooks(
   }
 
   // Send notifications for key state transitions
-  if (input.nextStatus === 'confirmed') {
+  if (input.nextStatus === 'confirmed' || input.nextStatus === 'in_progress' || input.nextStatus === 'no_show') {
     try {
       const { notifyBookingStatusChanged } = await import('@/lib/notifications/service');
-      await notifyBookingStatusChanged(supabase, bookingData, currentStatus, 'confirmed', (input.actorRole ?? 'admin') as 'user' | 'provider' | 'admin' | 'staff');
+      await notifyBookingStatusChanged(supabase, bookingData, currentStatus, input.nextStatus, (input.actorRole ?? 'admin') as 'user' | 'provider' | 'admin' | 'staff');
     } catch { /* notification failure is non-fatal */ }
   }
 

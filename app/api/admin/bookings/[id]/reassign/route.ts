@@ -7,6 +7,7 @@ import {
 } from '@/lib/bookings/included-services';
 import { isSlotConflictMessage, logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { sendDiscordBookingOpsAlert } from '@/lib/notifications/discord';
 
 const reassignSchema = z.object({
   providerId: z.number().int().positive(),
@@ -14,6 +15,7 @@ const reassignSchema = z.object({
 
 type ReassignBooking = {
   id: number;
+  provider_id: number;
   service_type: string | null;
   provider_service_id: string | null;
   provider_notes: string | null;
@@ -101,7 +103,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
   const { data: booking, error: bookingLookupError } = await writeSupabase
     .from('bookings')
-    .select('id, service_type, provider_service_id, provider_notes, internal_notes, admin_price_reference, price_at_booking')
+    .select('id, provider_id, service_type, provider_service_id, provider_notes, internal_notes, admin_price_reference, price_at_booking')
     .eq('id', bookingId)
     .maybeSingle<ReassignBooking>();
 
@@ -284,6 +286,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       providerId: parsed.data.providerId,
     },
   });
+
+  sendDiscordBookingOpsAlert(writeSupabase, {
+    event: 'booking_provider_reassigned',
+    bookingId,
+    previousProviderId: booking.provider_id,
+    providerId: parsed.data.providerId,
+    changedBy: role,
+  }).catch((error) => console.error('[admin/bookings/reassign] Discord reassignment alert failed:', error));
 
   return NextResponse.json({ success: true, booking: data });
 }

@@ -5,6 +5,8 @@ import { createSubscriptionInvoice, createServiceInvoice } from '@/lib/payments/
 import { createBooking } from '@/lib/bookings/service';
 import { createDiscountRedemption } from '@/lib/bookings/discounts';
 import { getISTTimestamp } from '@/lib/utils/date';
+import { notifyBookingCreated } from '@/lib/notifications/service';
+import { sendDiscordBookingOpsAlert } from '@/lib/notifications/discord';
 
 const REPLAY_WINDOW_MS = 30 * 60 * 1000; // 30 minutes — covers legitimate network delays
 
@@ -619,6 +621,27 @@ async function processBookingPaymentCapture(
         console.error('[webhook] CRITICAL: Discount redemption creation failed — usage limit may be bypassed. BookingId:', booking.id, 'DiscountId:', priceBreakdown.discountId, redemptionError);
       }
     }
+
+    notifyBookingCreated(supabase, {
+      id: booking.id,
+      user_id: bookingTx.user_id,
+      provider_id: parsed.data.providerId,
+      service_type: null,
+      booking_date: parsed.data.bookingDate,
+    }).catch((notificationError) => {
+      console.error('[webhook] booking recovery notification failed (non-fatal):', notificationError);
+    });
+
+    sendDiscordBookingOpsAlert(supabase, {
+      event: 'booking_payment_captured',
+      bookingId: booking.id,
+      amountInr: Number(bookingTx.amount_inr ?? 0),
+      paymentMode: 'platform',
+      changedBy: 'system',
+      transactionId: bookingTx.id,
+    }).catch((alertError) => {
+      console.error('[webhook] booking recovery Discord payment alert failed:', alertError);
+    });
   }
 
   await supabase

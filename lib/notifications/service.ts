@@ -6,6 +6,7 @@ import type {
   MessageRow,
   NotificationRow,
 } from './types';
+import { sendDiscordBookingOpsAlert } from './discord';
 
 // ---------------------------------------------------------------------------
 // Notifications
@@ -214,29 +215,36 @@ export async function notifyBookingCreated(
     ? booking.service_type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
     : 'Service';
 
-  // Notify the user
-  await createNotification(supabase, {
-    userId: booking.user_id,
-    type: 'booking_created',
-    title: 'Booking Request Submitted',
-    body: `Your ${serviceLabel} booking for ${booking.booking_date} has been submitted and is pending confirmation.`,
-    data: { booking_id: booking.id, service_type: booking.service_type },
-  });
-
-  // Notify the provider (look up user_id from provider)
-  const { data: provider } = await supabase
-    .from('providers')
-    .select('user_id')
-    .eq('id', booking.provider_id)
-    .single<{ user_id: string }>();
-
-  if (provider) {
+  try {
+    // Notify the user
     await createNotification(supabase, {
-      userId: provider.user_id,
+      userId: booking.user_id,
       type: 'booking_created',
-      title: 'New Booking Request',
-      body: `You have a new ${serviceLabel} booking request for ${booking.booking_date}. Please review and confirm.`,
+      title: 'Booking Request Submitted',
+      body: `Your ${serviceLabel} booking for ${booking.booking_date} has been submitted and is pending confirmation.`,
       data: { booking_id: booking.id, service_type: booking.service_type },
+    });
+
+    // Notify the provider (look up user_id from provider)
+    const { data: provider } = await supabase
+      .from('providers')
+      .select('user_id')
+      .eq('id', booking.provider_id)
+      .single<{ user_id: string }>();
+
+    if (provider) {
+      await createNotification(supabase, {
+        userId: provider.user_id,
+        type: 'booking_created',
+        title: 'New Booking Request',
+        body: `You have a new ${serviceLabel} booking request for ${booking.booking_date}. Please review and confirm.`,
+        data: { booking_id: booking.id, service_type: booking.service_type },
+      });
+    }
+  } finally {
+    await sendDiscordBookingOpsAlert(supabase, {
+      event: 'booking_created',
+      bookingId: booking.id,
     });
   }
 }
@@ -287,45 +295,55 @@ export async function notifyBookingStatusChanged(
     },
   };
 
-  const msg = statusMessages[newStatus];
-  if (!msg) return;
+  try {
+    const msg = statusMessages[newStatus];
+    if (!msg) return;
 
-  // Notify the user
-  await createNotification(supabase, {
-    userId: booking.user_id,
-    type: 'booking_status_changed',
-    title: msg.userTitle,
-    body: msg.userBody,
-    data: {
-      booking_id: booking.id,
-      previous_status: previousStatus,
-      new_status: newStatus,
-      changed_by: changedBy,
-    },
-  });
+    // Notify the user
+    await createNotification(supabase, {
+      userId: booking.user_id,
+      type: 'booking_status_changed',
+      title: msg.userTitle,
+      body: msg.userBody,
+      data: {
+        booking_id: booking.id,
+        previous_status: previousStatus,
+        new_status: newStatus,
+        changed_by: changedBy,
+      },
+    });
 
-  // Notify the provider (unless they made the change themselves)
-  if (msg.providerTitle && changedBy !== 'provider') {
-    const { data: provider } = await supabase
-      .from('providers')
-      .select('user_id')
-      .eq('id', booking.provider_id)
-      .single<{ user_id: string }>();
+    // Notify the provider (unless they made the change themselves)
+    if (msg.providerTitle && changedBy !== 'provider') {
+      const { data: provider } = await supabase
+        .from('providers')
+        .select('user_id')
+        .eq('id', booking.provider_id)
+        .single<{ user_id: string }>();
 
-    if (provider) {
-      await createNotification(supabase, {
-        userId: provider.user_id,
-        type: 'booking_status_changed',
-        title: msg.providerTitle,
-        body: msg.providerBody!,
-        data: {
-          booking_id: booking.id,
-          previous_status: previousStatus,
-          new_status: newStatus,
-          changed_by: changedBy,
-        },
-      });
+      if (provider) {
+        await createNotification(supabase, {
+          userId: provider.user_id,
+          type: 'booking_status_changed',
+          title: msg.providerTitle,
+          body: msg.providerBody!,
+          data: {
+            booking_id: booking.id,
+            previous_status: previousStatus,
+            new_status: newStatus,
+            changed_by: changedBy,
+          },
+        });
+      }
     }
+  } finally {
+    await sendDiscordBookingOpsAlert(supabase, {
+      event: 'booking_status_changed',
+      bookingId: booking.id,
+      previousStatus,
+      newStatus,
+      changedBy,
+    });
   }
 }
 

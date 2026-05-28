@@ -40,6 +40,7 @@ npm run graphify:query -- "your question"
 	- `NEXT_PUBLIC_SUPABASE_URL`
 	- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 	- `SUPABASE_SERVICE_ROLE_KEY`
+	- Optional booking ops alerts: `DISCORD_BOOKING_WEBHOOK_URL`, `DISCORD_BOOKING_ALERTS_ENABLED`, `DISCORD_BOOKING_MENTION`
 2. Run SQL migrations in order inside Supabase SQL Editor:
 	- `infra/supabase/001_initial_schema.sql`
 	- `infra/supabase/002_rls_policies.sql`

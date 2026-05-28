@@ -38,10 +38,20 @@ vi.mock('@/lib/supabase/admin-client', () => ({
   getSupabaseAdminClient: vi.fn(),
 }));
 
+vi.mock('@/lib/notifications/service', () => ({
+  notifyBookingCreated: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('@/lib/notifications/discord', () => ({
+  sendDiscordBookingOpsAlert: vi.fn().mockResolvedValue({ sent: true }),
+}));
+
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { fetchRazorpayPayment } from '@/lib/payments/razorpay';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { createBooking } from '@/lib/bookings/service';
+import { notifyBookingCreated } from '@/lib/notifications/service';
+import { sendDiscordBookingOpsAlert } from '@/lib/notifications/discord';
 import { POST } from '@/app/api/payments/bookings/verify/route';
 
 const FUTURE_BOOKING_DATE = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -148,6 +158,14 @@ describe('POST /api/payments/bookings/verify', () => {
     const createBookingInput = vi.mocked(createBooking).mock.calls[0][2];
     expect(createBookingInput.paymentMode).toBe('platform');
     expect(fetchRazorpayPayment).toHaveBeenCalledWith('pay_123');
+    expect(notifyBookingCreated).toHaveBeenCalledWith(
+      adminSupabase,
+      expect.objectContaining({ id: 777, user_id: 'user-1', provider_id: 44 }),
+    );
+    expect(sendDiscordBookingOpsAlert).toHaveBeenCalledWith(
+      adminSupabase,
+      expect.objectContaining({ event: 'booking_payment_captured', bookingId: 777, amountInr: 899 }),
+    );
   });
 
   it('rejects verification when local transaction is already failed', async () => {

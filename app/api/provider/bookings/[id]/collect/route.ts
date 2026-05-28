@@ -7,6 +7,7 @@ import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 import { getProviderIdByUserId } from '@/lib/provider-management/api';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { toFriendlyApiError } from '@/lib/api/errors';
+import { sendDiscordBookingOpsAlert } from '@/lib/notifications/discord';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireApiRole(['provider']);
@@ -124,6 +125,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       serviceLineItems,
       status: 'paid',
     });
+
+    sendDiscordBookingOpsAlert(admin, {
+      event: 'booking_payment_collected',
+      bookingId,
+      amountInr,
+      collectionMode,
+      changedBy: 'provider',
+      transactionId: transaction.id,
+    }).catch((error) => console.error('[provider/bookings/collect] Discord collection alert failed:', error));
 
     return NextResponse.json({ success: true, collection, transaction });
   } catch (error) {

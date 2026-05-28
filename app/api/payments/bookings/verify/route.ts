@@ -10,6 +10,8 @@ import { createDiscountRedemption } from '@/lib/bookings/discounts';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { deductCredits } from '@/lib/credits/wallet';
 import { getISTTimestamp } from '@/lib/utils/date';
+import { notifyBookingCreated } from '@/lib/notifications/service';
+import { sendDiscordBookingOpsAlert } from '@/lib/notifications/discord';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -617,6 +619,23 @@ export async function POST(request: Request) {
       );
     }
   }
+
+  notifyBookingCreated(admin, {
+    id: primaryBookingId,
+    user_id: transaction.user_id,
+    provider_id: primaryPayload.providerId,
+    service_type: invoiceBookingSnapshot?.service_type ?? null,
+    booking_date: primaryPayload.bookingDate,
+  }).catch((error) => console.error('[booking-verify] notification hook failed (booking_created):', error));
+
+  sendDiscordBookingOpsAlert(admin, {
+    event: 'booking_payment_captured',
+    bookingId: primaryBookingId,
+    amountInr: Number(transaction.amount_inr ?? 0),
+    paymentMode: 'platform',
+    changedBy: role ?? 'system',
+    transactionId: updatedTx.id,
+  }).catch((error) => console.error('[booking-verify] Discord payment alert failed:', error));
 
   console.info('[booking-verify] Payment verified and booking created:', {
     userId: transaction.user_id,

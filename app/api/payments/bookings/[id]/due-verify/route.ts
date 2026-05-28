@@ -5,6 +5,7 @@ import { createServiceInvoice } from '@/lib/payments/invoiceService';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { getISTTimestamp } from '@/lib/utils/date';
 import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
+import { sendDiscordBookingOpsAlert } from '@/lib/notifications/discord';
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await requireApiRole(['user', 'provider', 'admin', 'staff']);
@@ -218,6 +219,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       checkoutContext: 'booking_due',
     },
   });
+
+  sendDiscordBookingOpsAlert(admin, {
+    event: 'booking_payment_captured',
+    bookingId,
+    amountInr: Number(tx.amount_inr ?? 0),
+    paymentMode: 'platform',
+    changedBy: role ?? 'system',
+    transactionId: tx.id,
+  }).catch((error) => console.error('[bookings/due-verify] Discord payment alert failed:', error));
 
   return NextResponse.json({
     success: true,
