@@ -79,6 +79,19 @@ Migration files are read from `infra/supabase/migrations` and tracked in `public
 
 Output file: `lib/supabase/database.types.ts`
 
+### Google Ads Conversion Tracking
+
+The Google Ads global tag is centralized in `app/layout.tsx` and booking conversions fire from the stable thank-you URL `/forms/customer-booking/thank-you` before the customer is redirected to their booking confirmation.
+
+Production booking conversion tracking stays behind an explicit feature flag. Set this in the deployment environment when Google Ads should count confirmed bookings:
+
+- `BOOKING_CONVERSION_TRACKING_ENABLED=true`
+
+The default Google Ads account and booking conversion label are `AW-17976541101` and `6bf3CKWwibQcEK3_8PtC`. Override them only if Google Ads issues a new account ID or conversion label:
+
+- `GOOGLE_ADS_ID=AW-17976541101`
+- `GOOGLE_ADS_BOOKING_CONVERSION_LABEL=6bf3CKWwibQcEK3_8PtC`
+
 ### Production Rollout Checklist
 
 1. Run `006` + `007` in staging and verify signup + sign-in.
