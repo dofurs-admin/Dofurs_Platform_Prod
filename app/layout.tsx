@@ -48,6 +48,7 @@ export const metadata: Metadata = {
     apple: '/logo/fav0d.png',
   },
   other: {
+    'facebook-domain-verification': 'dc3sj9szai8a9iq6b4fqhg629h4ev1',
     'geo.region': 'IN-KA',
     'geo.placename': 'Bengaluru',
     'geo.position': '12.9716;77.5946',
