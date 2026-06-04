@@ -19,6 +19,7 @@ import type {
 import type { ServiceCategory, Service } from '@/lib/service-catalog/types';
 import type { AdminDashboardBusinessStats } from '@/lib/admin/dashboard-stats';
 import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
+import type { BookingStatus } from '@/lib/bookings/types';
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -58,8 +59,8 @@ type AdminBooking = {
   booking_date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  status: BookingStatus;
+  booking_status?: BookingStatus | null;
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
   included_services?: string[] | null;
@@ -102,7 +103,7 @@ function buildFallbackBusinessStats(
     if (status === 'pending') {
       bookingRiskSummary.pending += 1;
       bookingRiskSummary.inProgress += 1;
-    } else if (status === 'confirmed') {
+    } else if (status === 'confirmed' || status === 'in_progress') {
       bookingRiskSummary.inProgress += 1;
     } else if (status === 'completed') {
       bookingRiskSummary.completed += 1;

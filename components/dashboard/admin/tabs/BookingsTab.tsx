@@ -5,6 +5,7 @@ import AdminBookingsView from '@/components/dashboard/admin/views/AdminBookingsV
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAdminBookingRealtime } from '@/lib/hooks/useRealtime';
 import type { ConfirmConfig } from '@/components/dashboard/admin/AdminDashboardShell';
+import type { BookingStatus } from '@/lib/bookings/types';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,8 +17,8 @@ type AdminBooking = {
   booking_date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  status: BookingStatus;
+  booking_status?: BookingStatus | null;
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
   included_services?: string[] | null;
@@ -42,13 +43,39 @@ type Provider = {
   name: string;
 };
 
-const ALLOWED_TRANSITIONS: Record<AdminBooking['status'], ReadonlyArray<AdminBooking['status']>> = {
+type BookingFilter = 'all' | 'sla' | 'high-risk' | BookingStatus;
+type BulkBookingStatus = Exclude<BookingStatus, 'pending'>;
+
+const ALLOWED_TRANSITIONS: Record<BookingStatus, ReadonlyArray<BookingStatus>> = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled', 'no_show'],
+  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
   no_show: [],
 };
+
+function getEffectiveBookingStatus(booking: AdminBooking): BookingStatus {
+  return booking.booking_status ?? booking.status;
+}
+
+function matchesBookingFilter(booking: AdminBooking, filter: BookingFilter) {
+  const status = getEffectiveBookingStatus(booking);
+
+  if (filter === 'all') {
+    return true;
+  }
+
+  if (filter === 'sla') {
+    return status === 'pending';
+  }
+
+  if (filter === 'high-risk') {
+    return status === 'no_show' || status === 'cancelled';
+  }
+
+  return status === filter;
+}
 
 type BookingsTabProps = {
   initialBookings: AdminBooking[];
@@ -76,11 +103,11 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
   const [isPending, startTransition] = useTransition();
 
   const [bookings, setBookings] = useState(initialBookings);
-  const [bookingFilter, setBookingFilter] = useState<'all' | 'sla' | 'high-risk'>('all');
+  const [bookingFilter, setBookingFilter] = useState<BookingFilter>('all');
   const [bookingSearchQuery, setBookingSearchQuery] = useState('');
   const [bookingSearchDebounced, setBookingSearchDebounced] = useState('');
   const [selectedBookingIds, setSelectedBookingIds] = useState<number[]>([]);
-  const [bulkStatus, setBulkStatus] = useState<'confirmed' | 'completed' | 'cancelled' | 'no_show'>('confirmed');
+  const [bulkStatus, setBulkStatus] = useState<BulkBookingStatus>('confirmed');
   const [bookingModerationActivity, setBookingModerationActivity] = useState<string | null>(null);
 
   const bookingActivityTimeoutRef = useRef<number | null>(null);
@@ -131,7 +158,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
 
     if (normalizedSearch) {
       filtered = filtered.filter((booking) => {
-        const status = (booking.booking_status ?? booking.status ?? '').replace('_', ' ');
+        const status = getEffectiveBookingStatus(booking).replace('_', ' ');
         return [
           booking.id.toString(),
           booking.user_id ?? '',
@@ -150,27 +177,18 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
       });
     }
 
-    if (bookingFilter === 'sla') {
-      return filtered.filter((b) => (b.booking_status ?? b.status) === 'pending');
-    }
-    if (bookingFilter === 'high-risk') {
-      return filtered.filter((b) => {
-        const s = b.booking_status ?? b.status;
-        return s === 'no_show' || s === 'cancelled';
-      });
-    }
-    return filtered;
+    return filtered.filter((booking) => matchesBookingFilter(booking, bookingFilter));
   }, [bookings, bookingFilter, bookingSearchDebounced]);
 
   const bookingRiskSummary = useMemo(() => ({
     inProgress: bookings.filter((b) => {
-      const s = b.booking_status ?? b.status;
-      return s === 'pending' || s === 'confirmed';
+      const s = getEffectiveBookingStatus(b);
+      return s === 'pending' || s === 'confirmed' || s === 'in_progress';
     }).length,
-    completed: bookings.filter((b) => (b.booking_status ?? b.status) === 'completed').length,
-    pending: bookings.filter((b) => (b.booking_status ?? b.status) === 'pending').length,
-    noShow: bookings.filter((b) => (b.booking_status ?? b.status) === 'no_show').length,
-    cancelled: bookings.filter((b) => (b.booking_status ?? b.status) === 'cancelled').length,
+    completed: bookings.filter((b) => getEffectiveBookingStatus(b) === 'completed').length,
+    pending: bookings.filter((b) => getEffectiveBookingStatus(b) === 'pending').length,
+    noShow: bookings.filter((b) => getEffectiveBookingStatus(b) === 'no_show').length,
+    cancelled: bookings.filter((b) => getEffectiveBookingStatus(b) === 'cancelled').length,
   }), [bookings]);
 
   const logModerationActivity = useCallback((message: string) => {
@@ -186,7 +204,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
 
   function applyBookingStatusForIds(
     bookingIds: number[],
-    status: Exclude<AdminBooking['status'], 'pending'>,
+    status: BulkBookingStatus,
     successMessage: string,
   ) {
     if (bookingIds.length === 0) {
@@ -199,10 +217,10 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
       .filter((b): b is AdminBooking => Boolean(b));
 
     const eligibleIds: number[] = [];
-    const ineligible: Array<{ id: number; currentStatus: AdminBooking['status']; reason: 'noop' | 'transition' }> = [];
+    const ineligible: Array<{ id: number; currentStatus: BookingStatus; reason: 'noop' | 'transition' }> = [];
 
     for (const booking of selectedBookings) {
-      const currentStatus = booking.booking_status ?? booking.status;
+      const currentStatus = getEffectiveBookingStatus(booking);
       if (currentStatus === status) {
         ineligible.push({ id: booking.id, currentStatus, reason: 'noop' });
         continue;
@@ -275,7 +293,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
     });
   }
 
-  function overrideStatus(bookingId: number, status: Exclude<AdminBooking['status'], 'pending'>) {
+  function overrideStatus(bookingId: number, status: BulkBookingStatus) {
     if (status === 'cancelled' || status === 'no_show') {
       openConfirm({
         title: status === 'cancelled' ? 'Cancel Booking' : 'Mark as No-Show',
@@ -328,7 +346,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
 
   function clearSelectedSla() {
     const pendingSelectedIds = bookings
-      .filter((b) => selectedBookingIds.includes(b.id) && (b.booking_status ?? b.status) === 'pending')
+      .filter((b) => selectedBookingIds.includes(b.id) && getEffectiveBookingStatus(b) === 'pending')
       .map((b) => b.id);
 
     if (pendingSelectedIds.length === 0) {

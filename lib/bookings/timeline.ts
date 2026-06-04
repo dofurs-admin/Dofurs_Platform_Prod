@@ -9,6 +9,10 @@ export function bookingTimelineLabel(status: BookingStatus) {
     return 'Created → Confirmed';
   }
 
+  if (status === 'in_progress') {
+    return 'Created → Confirmed → In progress';
+  }
+
   if (status === 'completed') {
     return 'Created → Confirmed → Completed';
   }

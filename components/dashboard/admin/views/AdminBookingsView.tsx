@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Input, Button, Alert, Badge } from '@/components/ui';
+import { Button, Alert, Badge } from '@/components/ui';
 import AdminBookingFlow from '@/components/forms/AdminBookingFlow';
 import AdminBulkActionToolbar from '@/components/dashboard/admin/AdminBulkActionToolbar';
 import AdminDataTable from '@/components/dashboard/admin/AdminDataTable';
@@ -10,8 +10,11 @@ import BookingDetailModal from '@/components/dashboard/admin/BookingDetailModal'
 import SendMessageModal from '@/components/dashboard/SendMessageModal';
 import { exportToCsv } from '@/lib/utils/export';
 import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
+import type { BookingStatus } from '@/lib/bookings/types';
 
-type AdminBookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+type AdminBookingStatus = BookingStatus;
+type BookingFilter = 'all' | 'sla' | 'high-risk' | AdminBookingStatus;
+type BulkBookingStatus = Exclude<AdminBookingStatus, 'pending'>;
 
 type AdminBooking = {
   id: number;
@@ -22,7 +25,7 @@ type AdminBooking = {
   start_time?: string | null;
   end_time?: string | null;
   status: AdminBookingStatus;
-  booking_status?: AdminBookingStatus;
+  booking_status?: AdminBookingStatus | null;
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
   customer_name?: string | null;
@@ -52,11 +55,24 @@ type BookingRiskSummary = {
 
 const ALLOWED_TRANSITIONS: Record<AdminBookingStatus, ReadonlyArray<AdminBookingStatus>> = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled', 'no_show'],
+  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
   no_show: [],
 };
+
+const BOOKING_FILTER_OPTIONS: ReadonlyArray<{ value: BookingFilter; label: string }> = [
+  { value: 'all', label: 'All Bookings' },
+  { value: 'sla', label: 'SLA Queue' },
+  { value: 'pending', label: 'Pending Bookings' },
+  { value: 'confirmed', label: 'Confirmed Bookings' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed Bookings' },
+  { value: 'cancelled', label: 'Cancelled Bookings' },
+  { value: 'no_show', label: 'No-Show Bookings' },
+  { value: 'high-risk', label: 'High Risk' },
+];
 
 const DATE_FORMATTER = new Intl.DateTimeFormat('en-IN', {
   weekday: 'short',
@@ -126,10 +142,10 @@ type AdminBookingsViewProps = {
   bookingRiskSummary: BookingRiskSummary;
   bookingSearchQuery: string;
   onSearchChange: (query: string) => void;
-  bookingFilter: 'all' | 'sla' | 'high-risk';
-  onFilterChange: (filter: 'all' | 'sla' | 'high-risk') => void;
-  bulkStatus: 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  onBulkStatusChange: (status: 'confirmed' | 'completed' | 'cancelled' | 'no_show') => void;
+  bookingFilter: BookingFilter;
+  onFilterChange: (filter: BookingFilter) => void;
+  bulkStatus: BulkBookingStatus;
+  onBulkStatusChange: (status: BulkBookingStatus) => void;
   onApplyBulkStatus: () => void;
   selectedBookingIds: number[];
   onToggleBookingSelection: (id: number) => void;
@@ -139,7 +155,7 @@ type AdminBookingsViewProps = {
   providers: Provider[];
   isPending: boolean;
   onReassignProvider: (bookingId: number, providerId: number) => void;
-  onOverrideStatus: (bookingId: number, status: 'confirmed' | 'completed' | 'cancelled' | 'no_show') => void;
+  onOverrideStatus: (bookingId: number, status: BulkBookingStatus) => void;
   onApplyBookingAdjustment: (bookingId: number) => void;
   onMarkCashPaymentReceived: (bookingId: number) => void;
 };
@@ -177,6 +193,7 @@ export default function AdminBookingsView({
     const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
     const cashReceived = isCashBooking && booking.cash_collected === true;
     const cashPending = isCashBooking && !cashReceived;
+    const canCollectCash = status === 'pending' || status === 'confirmed' || status === 'in_progress';
 
     return (
       <div className="flex flex-wrap gap-1.5">
@@ -184,7 +201,7 @@ export default function AdminBookingsView({
         {status === 'pending' ? <Badge variant="warning">SLA</Badge> : null}
         {status === 'no_show' ? <Badge variant="error">High risk</Badge> : null}
         {status === 'confirmed' && booking.completion_task_status === 'pending' ? <Badge variant="warning">Follow-up</Badge> : null}
-        {cashPending && (status === 'pending' || status === 'confirmed') ? <Badge variant="warning">Awaiting cash</Badge> : null}
+        {cashPending && canCollectCash ? <Badge variant="warning">Awaiting cash</Badge> : null}
         {cashReceived ? <Badge variant="success">Cash received</Badge> : null}
         {booking.completion_task_status === 'completed' ? <Badge variant="success">Feedback logged</Badge> : null}
       </div>
@@ -195,6 +212,7 @@ export default function AdminBookingsView({
     const status = booking.booking_status ?? booking.status;
     const allowedTransitions = ALLOWED_TRANSITIONS[status];
     const canConfirm = allowedTransitions.includes('confirmed');
+    const canStart = allowedTransitions.includes('in_progress');
     const canComplete = allowedTransitions.includes('completed');
     const canNoShow = allowedTransitions.includes('no_show');
     const canCancel = allowedTransitions.includes('cancelled');
@@ -209,6 +227,11 @@ export default function AdminBookingsView({
             {status === 'pending' ? 'Clear SLA' : 'Confirm'}
           </Button>
         ) : null}
+        {canStart ? (
+          <Button size="sm" variant="secondary" onClick={() => onOverrideStatus(booking.id, 'in_progress')} disabled={isPending}>
+            Start
+          </Button>
+        ) : null}
         {canComplete ? (
           <Button
             size="sm"
@@ -220,7 +243,7 @@ export default function AdminBookingsView({
             Complete
           </Button>
         ) : null}
-        {isCashBooking && (status === 'pending' || status === 'confirmed') && cashPending ? (
+        {isCashBooking && (status === 'pending' || status === 'confirmed' || status === 'in_progress') && cashPending ? (
           <Button size="sm" variant="secondary" onClick={() => onMarkCashPaymentReceived(booking.id)} disabled={isPending}>
             Cash received
           </Button>
@@ -375,24 +398,29 @@ export default function AdminBookingsView({
       <div className="sticky top-[4rem] z-10 rounded-xl border border-neutral-200 bg-white/95 p-3 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div className="grid flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            <Input
-              type="search"
-              label="Search"
-              placeholder="Booking ID, customer/provider name or ID"
-              value={bookingSearchQuery}
-              onChange={(event) => onSearchChange(event.target.value)}
-              className="!rounded-lg !px-3 !py-2 !text-xs"
-            />
+            <div>
+              <label htmlFor="admin-booking-search" className="mb-1.5 block text-xs font-medium text-neutral-700">
+                Search
+              </label>
+              <input
+                id="admin-booking-search"
+                type="search"
+                placeholder="Booking ID, customer/provider name or ID"
+                value={bookingSearchQuery}
+                onChange={(event) => onSearchChange(event.target.value)}
+                className="input-field !min-h-9 w-full !rounded-lg !px-3 !py-2 !text-xs"
+              />
+            </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-neutral-700">Filter</label>
               <select
                 value={bookingFilter}
-                onChange={(event) => onFilterChange(event.target.value as 'all' | 'sla' | 'high-risk')}
+                onChange={(event) => onFilterChange(event.target.value as BookingFilter)}
                 className="input-field !min-h-9 w-full !rounded-lg !px-2.5 !py-1.5 text-xs"
               >
-                <option value="all">All Bookings</option>
-                <option value="sla">SLA Queue</option>
-                <option value="high-risk">High Risk</option>
+                {BOOKING_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -410,10 +438,11 @@ export default function AdminBookingsView({
         <AdminBulkActionToolbar selectedCount={selectedBookingIds.length}>
           <select
             value={bulkStatus}
-            onChange={(event) => onBulkStatusChange(event.target.value as 'confirmed' | 'completed' | 'cancelled' | 'no_show')}
+            onChange={(event) => onBulkStatusChange(event.target.value as BulkBookingStatus)}
             className="input-field !min-h-9 !w-auto !rounded-lg !px-2.5 !py-1.5 text-xs"
           >
             <option value="confirmed">Mark confirmed</option>
+            <option value="in_progress">Mark in progress</option>
             <option value="completed">Mark completed</option>
             <option value="cancelled">Mark cancelled</option>
             <option value="no_show">Mark no-show</option>

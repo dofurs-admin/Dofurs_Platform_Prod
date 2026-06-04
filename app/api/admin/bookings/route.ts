@@ -8,10 +8,14 @@ import {
   extractProviderServiceIdsFromNotes,
   resolveIncludedServicesForBooking,
 } from '@/lib/bookings/included-services';
+import { BOOKING_MODES, BOOKING_STATUSES, type BookingMode, type BookingStatus } from '@/lib/bookings/types';
+
+const BOOKING_QUEUE_FILTERS = ['all', 'sla', 'high-risk', ...BOOKING_STATUSES] as const;
+type BookingFilter = (typeof BOOKING_QUEUE_FILTERS)[number];
 
 const querySchema = z.object({
   q: z.string().trim().max(120).optional(),
-  filter: z.enum(['all', 'sla', 'high-risk']).optional(),
+  filter: z.enum(BOOKING_QUEUE_FILTERS).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
@@ -23,9 +27,9 @@ type BookingSearchRow = {
   booking_date: string | null;
   start_time: string | null;
   end_time: string | null;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  booking_status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show' | null;
-  booking_mode: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
+  status: BookingStatus;
+  booking_status: BookingStatus | null;
+  booking_mode: BookingMode | null;
   service_type: string | null;
   customer_name: string | null;
   customer_email: string | null;
@@ -129,12 +133,6 @@ async function hydrateIncludedServicesByBookingId(
   return includedServicesByBookingId;
 }
 
-const BOOKING_STATUSES = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'] as const;
-const BOOKING_MODES = ['home_visit', 'clinic_visit', 'teleconsult'] as const;
-
-type BookingStatus = (typeof BOOKING_STATUSES)[number];
-type BookingMode = (typeof BOOKING_MODES)[number];
-
 function normalizeBookingStatus(value: unknown): BookingStatus {
   return BOOKING_STATUSES.includes(value as BookingStatus) ? (value as BookingStatus) : 'pending';
 }
@@ -147,6 +145,28 @@ function normalizeNullableBookingStatus(value: unknown): BookingStatus | null {
 function normalizeNullableBookingMode(value: unknown): BookingMode | null {
   if (value == null) return null;
   return BOOKING_MODES.includes(value as BookingMode) ? (value as BookingMode) : null;
+}
+
+function getEffectiveBookingStatus(booking: Pick<BookingSearchRow, 'booking_status' | 'status'>): BookingStatus {
+  return booking.booking_status ?? booking.status;
+}
+
+function matchesBookingFilter(booking: Pick<BookingSearchRow, 'booking_status' | 'status'>, filter: BookingFilter) {
+  const effectiveStatus = getEffectiveBookingStatus(booking);
+
+  if (filter === 'all') {
+    return true;
+  }
+
+  if (filter === 'sla') {
+    return effectiveStatus === 'pending';
+  }
+
+  if (filter === 'high-risk') {
+    return effectiveStatus === 'cancelled' || effectiveStatus === 'no_show';
+  }
+
+  return effectiveStatus === filter;
 }
 
 export async function GET(request: Request) {
@@ -183,11 +203,15 @@ export async function GET(request: Request) {
     if (!error) {
       const bookings = ((data ?? []) as Array<Partial<BookingSearchRow>>).map((row) => ({
         ...row,
+        status: normalizeBookingStatus(row.status),
+        booking_status: normalizeNullableBookingStatus(row.booking_status),
+        booking_mode: normalizeNullableBookingMode(row.booking_mode),
         payment_mode: row.payment_mode ?? null,
         cash_collected: Boolean(row.cash_collected ?? false),
       })) as BookingSearchRow[];
+      const filteredBookings = bookings.filter((booking) => matchesBookingFilter(booking, filter));
 
-      const bookingIds = bookings.map((booking) => booking.id).filter((id): id is number => Number.isFinite(id));
+      const bookingIds = filteredBookings.map((booking) => booking.id).filter((id): id is number => Number.isFinite(id));
 
       if (bookingIds.length > 0) {
         const [{ data: paymentModes }, { data: paidCollections }] = await Promise.all([
@@ -209,7 +233,7 @@ export async function GET(request: Request) {
 
         const paidBookingIds = new Set<number>((paidCollections ?? []).map((row) => Number(row.booking_id)));
 
-        for (const booking of bookings) {
+        for (const booking of filteredBookings) {
           booking.payment_mode = paymentModeByBookingId.get(booking.id) ?? booking.payment_mode ?? null;
           booking.cash_collected = paidBookingIds.has(booking.id);
         }
@@ -219,12 +243,12 @@ export async function GET(request: Request) {
           bookingIds,
         );
 
-        for (const booking of bookings) {
+        for (const booking of filteredBookings) {
           booking.included_services = includedServicesByBookingId.get(booking.id) ?? [];
         }
       }
 
-      return NextResponse.json({ bookings });
+      return NextResponse.json({ bookings: filteredBookings });
     }
 
     if (error.code !== '42883') {
@@ -281,11 +305,7 @@ export async function GET(request: Request) {
       .filter((booking) => {
         const effectiveStatus = booking.booking_status ?? booking.status;
 
-        if (filter === 'sla' && effectiveStatus !== 'pending') {
-          return false;
-        }
-
-        if (filter === 'high-risk' && effectiveStatus !== 'cancelled' && effectiveStatus !== 'no_show') {
+        if (!matchesBookingFilter(booking, filter)) {
           return false;
         }
 

@@ -1,10 +1,9 @@
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
+import type { BookingStatus } from '@/lib/bookings/types';
 
 const CUSTOMER_COUNT_PAGE_SIZE = 1000;
 const SERVICE_UNIT_COUNT_PAGE_SIZE = 1000;
-
-type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
 
 export type AdminDashboardBookingRiskSummary = {
   pending: number;
@@ -186,6 +185,7 @@ async function loadAdminDashboardBusinessStatsFallback(supabase: SupabaseClient)
     bookingCountResult,
     pending,
     confirmed,
+    inProgress,
     completed,
     cancelled,
     noShow,
@@ -198,6 +198,7 @@ async function loadAdminDashboardBusinessStatsFallback(supabase: SupabaseClient)
     supabase.from('bookings').select('id', { count: 'exact', head: true }),
     countEffectiveBookingStatus(supabase, 'pending'),
     countEffectiveBookingStatus(supabase, 'confirmed'),
+    countEffectiveBookingStatus(supabase, 'in_progress'),
     countEffectiveBookingStatus(supabase, 'completed'),
     countEffectiveBookingStatus(supabase, 'cancelled'),
     countEffectiveBookingStatus(supabase, 'no_show'),
@@ -219,7 +220,7 @@ async function loadAdminDashboardBusinessStatsFallback(supabase: SupabaseClient)
     bookingServiceUnitCount,
     bookingRiskSummary: {
       pending,
-      inProgress: pending + confirmed,
+      inProgress: pending + confirmed + inProgress,
       completed,
       noShow,
       cancelled,

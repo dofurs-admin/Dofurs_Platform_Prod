@@ -24,11 +24,12 @@ export const DEFAULT_FLOW_TRANSITIONS: Record<FlowState, FlowState[]> = {
   error: ['collecting', 'validating', 'idle'],
 };
 
-export type BookingStatus = 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+export type BookingStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
 
 export const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled', 'no_show'],
+  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
   no_show: [],
@@ -36,7 +37,7 @@ export const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> 
 
 export const ROLE_BOOKING_TARGET_STATUSES: Record<'user' | 'provider' | 'admin' | 'staff', BookingStatus[]> = {
   user: ['cancelled'],
-  provider: ['confirmed', 'completed', 'cancelled', 'no_show'],
-  admin: ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'],
-  staff: ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'],
+  provider: ['confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'],
+  admin: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'],
+  staff: ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'],
 };

@@ -10,6 +10,7 @@ import { notifyBookingStatusChanged } from '@/lib/notifications/service';
 import { restoreCredits } from '@/lib/credits/wallet';
 import { processReferrerRewardOnFirstBooking } from '@/lib/referrals/service';
 import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
+import type { BookingStatus } from '@/lib/bookings/types';
 
 const payloadSchema = z.object({
   bookingIds: z.array(z.number().int().positive()).min(1).max(100),
@@ -50,8 +51,8 @@ export async function PATCH(request: Request) {
           id: number;
           user_id: string;
           provider_id: number;
-          booking_status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show' | null;
-          status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+          booking_status: BookingStatus | null;
+          status: BookingStatus;
           payment_mode: string | null;
           wallet_credits_applied_inr: number | null;
         }>();

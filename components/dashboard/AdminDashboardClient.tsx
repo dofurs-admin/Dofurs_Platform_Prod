@@ -31,6 +31,7 @@ import AdminProvidersView from '@/components/dashboard/admin/views/AdminProvider
 import AdminAuditView from '@/components/dashboard/admin/views/AdminAuditView';
 import AdminSubscriptionPlansClient from '@/components/dashboard/admin/AdminSubscriptionPlansClient';
 import { countServiceUnitsForBooking } from '@/lib/bookings/included-services';
+import type { BookingStatus } from '@/lib/bookings/types';
 import { BENGALURU_CITY_COVERAGE_PINCODE_CSV } from '@/lib/service-coverage';
 
 // Premium Components
@@ -49,8 +50,8 @@ type AdminBooking = {
   booking_date?: string | null;
   start_time?: string | null;
   end_time?: string | null;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
-  booking_status?: 'pending' | 'confirmed' | 'completed' | 'cancelled' | 'no_show';
+  status: BookingStatus;
+  booking_status?: BookingStatus | null;
   booking_mode?: 'home_visit' | 'clinic_visit' | 'teleconsult' | null;
   service_type?: string | null;
   included_services?: string[] | null;
@@ -88,13 +89,39 @@ async function readApiErrorMessage(response: Response, fallback: string) {
   return fallback;
 }
 
-const ADMIN_BOOKING_ALLOWED_TRANSITIONS: Record<AdminBooking['status'], ReadonlyArray<AdminBooking['status']>> = {
+type BookingFilter = 'all' | 'sla' | 'high-risk' | BookingStatus;
+type BulkBookingStatus = Exclude<BookingStatus, 'pending'>;
+
+const ADMIN_BOOKING_ALLOWED_TRANSITIONS: Record<BookingStatus, ReadonlyArray<BookingStatus>> = {
   pending: ['confirmed', 'cancelled'],
-  confirmed: ['completed', 'cancelled', 'no_show'],
+  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
   no_show: [],
 };
+
+function getEffectiveBookingStatus(booking: AdminBooking): BookingStatus {
+  return booking.booking_status ?? booking.status;
+}
+
+function matchesBookingFilter(booking: AdminBooking, filter: BookingFilter) {
+  const status = getEffectiveBookingStatus(booking);
+
+  if (filter === 'all') {
+    return true;
+  }
+
+  if (filter === 'sla') {
+    return status === 'pending';
+  }
+
+  if (filter === 'high-risk') {
+    return status === 'no_show' || status === 'cancelled';
+  }
+
+  return status === filter;
+}
 
 type AdminProviderCalendarResponse = {
   provider: {
@@ -925,7 +952,7 @@ export default function AdminDashboardClient({
       return accumulator;
     }, {});
   });
-  const [bookingFilter, setBookingFilter] = useState<'all' | 'sla' | 'high-risk'>('all');
+  const [bookingFilter, setBookingFilter] = useState<BookingFilter>('all');
   const [bookingSearchQuery, setBookingSearchQuery] = useState('');
   const [bookingSearchDebounced, setBookingSearchDebounced] = useState('');
   const [providerApplications, setProviderApplications] = useState<ServiceProviderApplication[]>(initialProviderApplications);
@@ -951,7 +978,7 @@ export default function AdminDashboardClient({
   const [providerCalendar, setProviderCalendar] = useState<AdminProviderCalendarResponse | null>(null);
   const [isCalendarLoading, setIsCalendarLoading] = useState(false);
   const [selectedBookingIds, setSelectedBookingIds] = useState<number[]>([]);
-  const [bulkStatus, setBulkStatus] = useState<'confirmed' | 'completed' | 'cancelled' | 'no_show'>('confirmed');
+  const [bulkStatus, setBulkStatus] = useState<BulkBookingStatus>('confirmed');
   const [promoteEmail, setPromoteEmail] = useState('');
   const [serviceDraft, setServiceDraft] = useState<Record<number, ServiceRolloutDraft>>({});
   const [selectedServiceTypesByProvider, setSelectedServiceTypesByProvider] = useState<Record<number, string[]>>({});
@@ -1259,7 +1286,7 @@ export default function AdminDashboardClient({
 
     if (normalizedSearch) {
       filtered = filtered.filter((booking) => {
-        const status = (booking.booking_status ?? booking.status ?? '').replace('_', ' ');
+        const status = getEffectiveBookingStatus(booking).replace('_', ' ');
         return [
           booking.id.toString(),
           booking.user_id ?? '',
@@ -1278,30 +1305,19 @@ export default function AdminDashboardClient({
       });
     }
 
-    if (bookingFilter === 'all') {
-      return filtered;
-    }
-
-    if (bookingFilter === 'sla') {
-      return filtered.filter((booking) => (booking.booking_status ?? booking.status) === 'pending');
-    }
-
-    return filtered.filter((booking) => {
-      const status = booking.booking_status ?? booking.status;
-      return status === 'no_show' || status === 'cancelled';
-    });
+    return filtered.filter((booking) => matchesBookingFilter(booking, bookingFilter));
   }, [bookings, bookingFilter, bookingSearchDebounced]);
 
   const bookingRiskSummary = useMemo(() => {
     return {
       inProgress: bookings.filter((booking) => {
-        const status = booking.booking_status ?? booking.status;
-        return status === 'pending' || status === 'confirmed';
+        const status = getEffectiveBookingStatus(booking);
+        return status === 'pending' || status === 'confirmed' || status === 'in_progress';
       }).length,
-      completed: bookings.filter((booking) => (booking.booking_status ?? booking.status) === 'completed').length,
-      pending: bookings.filter((booking) => (booking.booking_status ?? booking.status) === 'pending').length,
-      noShow: bookings.filter((booking) => (booking.booking_status ?? booking.status) === 'no_show').length,
-      cancelled: bookings.filter((booking) => (booking.booking_status ?? booking.status) === 'cancelled').length,
+      completed: bookings.filter((booking) => getEffectiveBookingStatus(booking) === 'completed').length,
+      pending: bookings.filter((booking) => getEffectiveBookingStatus(booking) === 'pending').length,
+      noShow: bookings.filter((booking) => getEffectiveBookingStatus(booking) === 'no_show').length,
+      cancelled: bookings.filter((booking) => getEffectiveBookingStatus(booking) === 'cancelled').length,
     };
   }, [bookings]);
 
@@ -2711,7 +2727,7 @@ export default function AdminDashboardClient({
 
   function applyBookingStatusForIds(
     bookingIds: number[],
-    status: Exclude<typeof bulkStatus, 'pending'>,
+    status: BulkBookingStatus,
     successMessage: string,
   ) {
     if (bookingIds.length === 0) {
@@ -2724,10 +2740,10 @@ export default function AdminDashboardClient({
       .filter((booking): booking is AdminBooking => Boolean(booking));
 
     const eligibleBookingIds: number[] = [];
-    const ineligibleBookings: Array<{ id: number; currentStatus: AdminBooking['status']; reason: 'noop' | 'transition' }> = [];
+    const ineligibleBookings: Array<{ id: number; currentStatus: BookingStatus; reason: 'noop' | 'transition' }> = [];
 
     for (const booking of selectedBookings) {
-      const currentStatus = booking.booking_status ?? booking.status;
+      const currentStatus = getEffectiveBookingStatus(booking);
 
       if (currentStatus === status) {
         ineligibleBookings.push({ id: booking.id, currentStatus, reason: 'noop' });
@@ -2834,7 +2850,7 @@ export default function AdminDashboardClient({
 
   function clearSelectedSla() {
     const pendingSelectedIds = bookings
-      .filter((booking) => selectedBookingIds.includes(booking.id) && (booking.booking_status ?? booking.status) === 'pending')
+      .filter((booking) => selectedBookingIds.includes(booking.id) && getEffectiveBookingStatus(booking) === 'pending')
       .map((booking) => booking.id);
 
     if (pendingSelectedIds.length === 0) {
