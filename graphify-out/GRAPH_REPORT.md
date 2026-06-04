@@ -5,7 +5,7 @@
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1886 nodes · 2992 edges · 69 communities detected
+- 1886 nodes · 2996 edges · 69 communities detected
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
@@ -37,7 +37,7 @@
 
 ### Community 0 - "Community 0"
 Cohesion: 0.02
-Nodes (44): hasValidPetAgePrecision(), isValidPetAgeValue(), formatDateLabel(), formatDateTime(), formatTimeLabel(), buildBookingPricingSummary(), buildServiceLineBreakdown(), reconcileServiceLineTotals() (+36 more)
+Nodes (33): hasValidPetAgePrecision(), isValidPetAgeValue(), formatDateLabel(), formatDateTime(), formatTimeLabel(), getEffectiveBookingStatus(), matchesBookingFilter(), calculateLightweightPetCompletion() (+25 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.02
@@ -45,11 +45,11 @@ Nodes (92): addAddress(), addEmergencyContact(), addMedicalRecord(), addMinutesT
 
 ### Community 2 - "Community 2"
 Cohesion: 0.02
-Nodes (26): BookingConfirmationPage(), buildCalendarHref(), buildDateFromParts(), formatBookingTime(), formatTimeValue(), getReadableAuthError(), getRetryAfterSeconds(), isRateLimitError() (+18 more)
+Nodes (30): getGroomingPackageByServiceType(), getGroomingPackagePriceByServiceType(), normalizeSearchText(), normalizeServiceType(), BookingConfirmationPage(), buildCalendarHref(), buildDateFromParts(), formatBookingTime() (+22 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.02
-Nodes (26): formatMode(), formatTransactionType(), isInferredFallbackTransaction(), modeLabel(), cancelEdit(), fetchPlans(), handleCreate(), handleDelete() (+18 more)
+Nodes (33): collectUniqueAddressSegments(), formatAddressParts(), formatSavedAddress(), normalizeSegment(), sanitizeAddressText(), canMoveToStep(), formatCreditAmount(), goToStep() (+25 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.03
@@ -57,47 +57,47 @@ Nodes (96): haversineDistanceKm(), toRadians(), normalizeOptionalString(), valid
 
 ### Community 5 - "Community 5"
 Cohesion: 0.02
-Nodes (31): collectUniqueAddressSegments(), formatAddressParts(), formatSavedAddress(), normalizeSegment(), sanitizeAddressText(), canMoveToStep(), formatCreditAmount(), goToStep() (+23 more)
+Nodes (41): adminRequest(), appendAvailabilitySlot(), applyBengaluruCityCoveragePreset(), applyBillingBulkStatus(), applyBillingEscalationAction(), applyBookingAdjustment(), applyBookingStatusForIds(), applyBulkStatus() (+33 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.02
-Nodes (41): adminRequest(), appendAvailabilitySlot(), applyBengaluruCityCoveragePreset(), applyBillingBulkStatus(), applyBillingEscalationAction(), applyBookingAdjustment(), applyBookingStatusForIds(), applyBulkStatus() (+33 more)
+Nodes (17): formatMode(), formatTransactionType(), isInferredFallbackTransaction(), modeLabel(), cancelEdit(), fetchPlans(), handleCreate(), handleDelete() (+9 more)
 
 ### Community 7 - "Community 7"
 Cohesion: 0.03
-Nodes (42): bucketTemplate(), getDaysSince(), isRecord(), runBillingReminderAutomation(), toBucket(), calculateAgeFromDOB(), formatDateInputValue(), formatISTDateTimeParts() (+34 more)
+Nodes (26): getErrorCode(), isMissingColumnError(), loadBookingAddonRowsByBookingIds(), formatBookingDateTime(), formatDate(), formatDateTime(), formatTime(), addAddon() (+18 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.04
-Nodes (21): getErrorCode(), isMissingColumnError(), loadBookingAddonRowsByBookingIds(), formatBookingDateTime(), formatDate(), formatDateTime(), formatTime(), addAddon() (+13 more)
+Nodes (6): isNavHidden(), MobileBottomNav(), isInvalidRefreshTokenError(), loadCurrentUser(), getNotificationHref(), getNumberFromUnknown()
 
 ### Community 9 - "Community 9"
 Cohesion: 0.04
-Nodes (4): isInvalidRefreshTokenError(), loadCurrentUser(), getNotificationHref(), getNumberFromUnknown()
+Nodes (34): calculateAgeFromDOB(), formatDateInputValue(), formatISTDateTimeParts(), getISTTimestamp(), getPetDateOfBirthBounds(), isPetDateOfBirthWithinBounds(), createServiceInvoice(), createSubscriptionInvoice() (+26 more)
 
 ### Community 10 - "Community 10"
+Cohesion: 0.04
+Nodes (15): buildBusinessReferralSignupLink(), getActiveBusinessReferralCampaignByCode(), getBusinessReferralCampaign(), getBusinessReferralCampaignSnapshot(), getBusinessReferralCampaignStats(), normalizeReferralCode(), upsertBusinessReferralCampaign(), formatServiceCoveragePincode() (+7 more)
+
+### Community 11 - "Community 11"
+Cohesion: 0.04
+Nodes (17): extractIndianPhoneDigits(), toIndianE164(), isValidIndianPincode(), lookupPincode(), handleAutofillCoordinatesFromAddress(), handleClose(), handleCoordinateSelection(), handleNext() (+9 more)
+
+### Community 12 - "Community 12"
 Cohesion: 0.05
 Nodes (20): openCreateServiceModal(), parseOptionalInteger(), parseOptionalNumber(), resetServiceDraft(), saveService(), openCreateCategoryModal(), resetCategoryDraft(), absolutizeStorageUrl() (+12 more)
 
-### Community 11 - "Community 11"
-Cohesion: 0.05
-Nodes (20): createCustomerProfileForBooking(), CustomerIntakeError, ensureOwnerProfileForBookingCustomer(), firstTrimmedString(), isPrivilegedRole(), normalizeExistingUser(), normalizeOwnerProfileGender(), normalizeRoleName() (+12 more)
-
-### Community 12 - "Community 12"
-Cohesion: 0.06
-Nodes (28): getRelatedPosts(), getRelatedPostsFromCollection(), formatDisplayDate(), getPublicSupabaseClient(), getPublishedBlogPostBySlug(), getPublishedBlogPosts(), getRelatedPublishedBlogPosts(), loadPublishedDatabaseBlogPosts() (+20 more)
-
 ### Community 13 - "Community 13"
-Cohesion: 0.05
-Nodes (11): handleAutofillCoordinatesFromAddress(), handleClose(), handleCoordinateSelection(), handleNext(), handleSubmit(), resetLocationUiState(), validateStep(), formatServiceCoveragePincode() (+3 more)
+Cohesion: 0.06
+Nodes (18): bucketTemplate(), getDaysSince(), isRecord(), runBillingReminderAutomation(), toBucket(), createCustomerProfileForBooking(), CustomerIntakeError, ensureOwnerProfileForBookingCustomer() (+10 more)
 
 ### Community 14 - "Community 14"
-Cohesion: 0.05
-Nodes (11): buildBusinessReferralSignupLink(), getActiveBusinessReferralCampaignByCode(), getBusinessReferralCampaign(), getBusinessReferralCampaignSnapshot(), getBusinessReferralCampaignStats(), normalizeReferralCode(), upsertBusinessReferralCampaign(), executeBusinessReferralCampaignSave() (+3 more)
+Cohesion: 0.07
+Nodes (14): countBookingServiceUnits(), countDistinctBookingCustomers(), countEffectiveBookingStatus(), isMissingFunctionError(), isMissingTableError(), isRecord(), loadAdminDashboardBusinessStats(), loadAdminDashboardBusinessStatsFallback() (+6 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.07
-Nodes (13): getGroomingPackageByServiceType(), getGroomingPackagePriceByServiceType(), normalizeSearchText(), normalizeServiceType(), deriveIncludedHint(), deriveIncludedSummary(), derivePlanFamilyLabel(), derivePlanSessionCount() (+5 more)
+Cohesion: 0.05
+Nodes (6): applyBillingEscalationAction(), createManualInvoice(), doApplyBillingEscalationAction(), doResolveReconciliationMismatch(), resetManualInvoiceComposer(), resolveReconciliationMismatch()
 
 ### Community 16 - "Community 16"
 Cohesion: 0.09
@@ -112,92 +112,92 @@ Cohesion: 0.12
 Nodes (27): buildAddOnLines(), extractPetIdsFromPayloadNode(), extractPetIdsFromPaymentMetadata(), extractProviderServiceIdsFromPayloadNode(), extractProviderServiceIdsFromPaymentMetadata(), getBookingConfirmationStatusLabel(), loadBookingConfirmationData(), normalizeStatus() (+19 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.14
-Nodes (24): buildDedupeKey(), buildDiscordBookingWebhookPayload(), compactText(), firstRelation(), formatCurrency(), formatSchedule(), formatTimeLabel(), getAdminBookingUrl() (+16 more)
+Cohesion: 0.08
+Nodes (9): deriveIncludedHint(), deriveIncludedSummary(), derivePlanFamilyLabel(), derivePlanSessionCount(), derivePrimaryServiceType(), formatPriceInr(), formatServiceType(), onCreditsUpdated() (+1 more)
 
 ### Community 20 - "Community 20"
 Cohesion: 0.14
-Nodes (21): buildPaymentSummary(), loadInvoiceDetailForAdmin(), loadInvoiceDetailForUser(), parseRazorpayMethod(), sentenceCase(), toText(), buildInvoicePdfBuffer(), buildInvoicePrintHtml() (+13 more)
+Nodes (24): buildDedupeKey(), buildDiscordBookingWebhookPayload(), compactText(), firstRelation(), formatCurrency(), formatSchedule(), formatTimeLabel(), getAdminBookingUrl() (+16 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.11
-Nodes (11): countBookingServiceUnits(), countDistinctBookingCustomers(), countEffectiveBookingStatus(), isMissingFunctionError(), isMissingTableError(), isRecord(), loadAdminDashboardBusinessStats(), loadAdminDashboardBusinessStatsFallback() (+3 more)
+Cohesion: 0.1
+Nodes (14): getRelatedPosts(), getRelatedPostsFromCollection(), formatDisplayDate(), getPublicSupabaseClient(), getPublishedBlogPostBySlug(), getPublishedBlogPosts(), getRelatedPublishedBlogPosts(), loadPublishedDatabaseBlogPosts() (+6 more)
 
 ### Community 22 - "Community 22"
+Cohesion: 0.14
+Nodes (21): buildPaymentSummary(), loadInvoiceDetailForAdmin(), loadInvoiceDetailForUser(), parseRazorpayMethod(), sentenceCase(), toText(), buildInvoicePdfBuffer(), buildInvoicePrintHtml() (+13 more)
+
+### Community 23 - "Community 23"
 Cohesion: 0.12
 Nodes (12): assertPublicBookableService(), assertPublicBookableServiceType(), hasAnyToken(), isGenericGroomingServiceQuery(), isGroomingCategory(), isGroomingServiceType(), isPublicBookableService(), normalizeServiceFamily() (+4 more)
 
-### Community 23 - "Community 23"
-Cohesion: 0.23
-Nodes (9): canTransition(), transitionFlow(), getReadableAuthError(), getRetryAfterSeconds(), handleSendOtp(), handleVerifyOtp(), isRateLimitError(), normalizeErrorMessage() (+1 more)
-
 ### Community 24 - "Community 24"
-Cohesion: 0.15
-Nodes (0): 
+Cohesion: 0.12
+Nodes (14): archivePost(), buildPayload(), buildSections(), createEmptyDraft(), createSectionDraft(), draftFromPost(), formatDisplayDate(), handleHeroUpload() (+6 more)
 
 ### Community 25 - "Community 25"
-Cohesion: 0.22
-Nodes (7): addDays(), getDayName(), getDayOfWeek(), getIstNowParts(), resolveAvailableSlots(), resolveAvailableSlotsMultiDay(), resolveDayAvailability()
+Cohesion: 0.12
+Nodes (6): extractBookedPetIds(), extractBookedServices(), formatBookingTime(), formatBookingTimeRange(), resolveBookingPetLabels(), resolveBookingServiceLabel()
 
 ### Community 26 - "Community 26"
 Cohesion: 0.23
-Nodes (5): buildMrzLines(), buildPassportNumber(), formatDate(), toPassportCode(), toTitleCase()
+Nodes (9): canTransition(), transitionFlow(), getReadableAuthError(), getRetryAfterSeconds(), handleSendOtp(), handleVerifyOtp(), isRateLimitError(), normalizeErrorMessage() (+1 more)
 
 ### Community 27 - "Community 27"
+Cohesion: 0.22
+Nodes (7): addDays(), getDayName(), getDayOfWeek(), getIstNowParts(), resolveAvailableSlots(), resolveAvailableSlotsMultiDay(), resolveDayAvailability()
+
+### Community 28 - "Community 28"
+Cohesion: 0.23
+Nodes (5): buildMrzLines(), buildPassportNumber(), formatDate(), toPassportCode(), toTitleCase()
+
+### Community 29 - "Community 29"
 Cohesion: 0.27
 Nodes (5): claimPendingPetShares(), hasText(), listAccessiblePetsForUser(), normalizeEmail(), upsertPetShareForOwner()
 
-### Community 28 - "Community 28"
+### Community 30 - "Community 30"
 Cohesion: 0.22
 Nodes (0): 
 
-### Community 29 - "Community 29"
+### Community 31 - "Community 31"
 Cohesion: 0.25
 Nodes (0): 
 
-### Community 30 - "Community 30"
+### Community 32 - "Community 32"
 Cohesion: 0.33
 Nodes (1): ErrorBoundary
 
-### Community 31 - "Community 31"
+### Community 33 - "Community 33"
 Cohesion: 0.53
 Nodes (3): checkDistributedRateLimit(), checkLocalRateLimit(), isRateLimited()
 
-### Community 32 - "Community 32"
+### Community 34 - "Community 34"
 Cohesion: 0.5
 Nodes (2): loadSubscriptions(), onCreditsUpdated()
 
-### Community 33 - "Community 33"
+### Community 35 - "Community 35"
 Cohesion: 0.7
 Nodes (4): mapKnownMessageToStatus(), mapSupabaseErrorCode(), sanitizeDatabaseError(), toFriendlyApiError()
 
-### Community 34 - "Community 34"
+### Community 36 - "Community 36"
 Cohesion: 0.5
 Nodes (2): defaultAsyncState(), useAsyncState()
 
-### Community 35 - "Community 35"
-Cohesion: 0.5
-Nodes (0): 
-
-### Community 36 - "Community 36"
-Cohesion: 0.5
-Nodes (0): 
-
 ### Community 37 - "Community 37"
-Cohesion: 0.67
-Nodes (2): shouldTrackRequest(), toRequestUrl()
+Cohesion: 0.5
+Nodes (0): 
 
 ### Community 38 - "Community 38"
 Cohesion: 0.5
 Nodes (0): 
 
 ### Community 39 - "Community 39"
-Cohesion: 0.67
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 40 - "Community 40"
-Cohesion: 1
-Nodes (2): isNavHidden(), MobileBottomNav()
+Cohesion: 0.67
+Nodes (0): 
 
 ### Community 41 - "Community 41"
 Cohesion: 1

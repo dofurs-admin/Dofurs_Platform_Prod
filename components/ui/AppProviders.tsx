@@ -1,11 +1,11 @@
 'use client';
 
-import dynamic from 'next/dynamic';
+import GlobalNetworkCursorLoader from './GlobalNetworkCursorLoader';
 import { ToastProvider } from './ToastProvider';
 
 const DevNetworkCursorLoader =
   process.env.NODE_ENV === 'development'
-    ? dynamic(() => import('./GlobalNetworkCursorLoader'), { ssr: false })
+    ? GlobalNetworkCursorLoader
     : () => null;
 
 export default function AppProviders({ children }: { children: React.ReactNode }) {

@@ -1,13 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import Script from 'next/script';
-import dynamic from 'next/dynamic';
 import './globals.css';
 import AppProviders from '@/components/ui/AppProviders';
+import MobileBottomNav from '@/components/MobileBottomNav';
+import WhatsAppFloatingButton from '@/components/WhatsAppFloatingButton';
 import { GOOGLE_ADS_ID } from '@/lib/analytics/google-ads';
 import { META_PIXEL_ID } from '@/lib/analytics/meta-ads';
-
-const MobileBottomNav = dynamic(() => import('@/components/MobileBottomNav'));
-const WhatsAppFloatingButton = dynamic(() => import('@/components/WhatsAppFloatingButton'));
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://dofurs.in'),
