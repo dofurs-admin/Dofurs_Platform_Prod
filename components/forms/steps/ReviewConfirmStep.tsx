@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useToast } from '@/components/ui/ToastProvider';
+import Modal from '@/components/ui/Modal';
 
 type Service = {
   id: string;
@@ -141,6 +143,7 @@ export default function ReviewConfirmStep({
   const [availableWalletCredits, setAvailableWalletCredits] = useState(0);
   const [applyCredits, setApplyCredits] = useState(false);
   const [showDiscountEditor, setShowDiscountEditor] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   useEffect(() => {
     fetch('/api/user/credit-wallet')
@@ -612,6 +615,20 @@ export default function ReviewConfirmStep({
         </p>
       </div>
 
+      <div className="rounded-lg sm:rounded-xl border border-[#e7d3c1] bg-white p-2.5 max-[380px]:p-2 sm:p-4">
+        <p className="text-[11px] leading-relaxed text-neutral-700 sm:text-xs">
+          By clicking {paymentChoice === 'online' ? 'Proceed to Payment' : 'Confirm Booking'}, you accept the{' '}
+          <button
+            type="button"
+            onClick={() => setShowTermsModal(true)}
+            className="font-semibold text-[#8f4a1d] underline underline-offset-2 hover:text-[#7a3f1a]"
+          >
+            Dofurs Terms &amp; Conditions
+          </button>{' '}
+          including the pet safety and aggressive behaviour liability clauses.
+        </p>
+      </div>
+
       {/* Navigation and submit */}
       <div className="flex flex-col-reverse gap-2 sm:gap-3 pt-2 sm:pt-4 sm:flex-row sm:justify-between">
         <button
@@ -628,6 +645,39 @@ export default function ReviewConfirmStep({
           {isPending ? 'Processing...' : paymentChoice === 'online' ? 'Proceed to Payment' : 'Confirm Booking'}
         </button>
       </div>
+
+      <Modal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        title="Terms & Conditions"
+        description="Key booking conditions for Dofurs services"
+        size="lg"
+      >
+        <div className="space-y-3 text-sm text-neutral-700">
+          <p className="font-semibold text-neutral-900">Important safety and liability points</p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>Dofurs does not service pets that are known to be aggressive or unsafe to handle.</li>
+            <li>If aggression is undisclosed or discovered during the visit, service may be refused or stopped.</li>
+            <li>Applicable visit, slot-blocking, or cancellation charges may still apply in such situations.</li>
+            <li>
+              The booking customer is responsible for losses caused by aggressive pet behaviour, including bites,
+              injuries, and property or equipment damage.
+            </li>
+          </ul>
+          <p className="text-xs text-neutral-500">
+            This popup is a booking summary. The full legal terms apply to every booking.
+          </p>
+          <Link
+            href="/terms-conditions"
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setShowTermsModal(false)}
+            className="inline-flex rounded-full border border-[#e7c4a7] bg-[#fff7ef] px-4 py-2 text-xs font-semibold text-[#8f4a1d] transition hover:bg-[#ffefdf]"
+          >
+            Open full Terms &amp; Conditions
+          </Link>
+        </div>
+      </Modal>
     </div>
   );
 }
