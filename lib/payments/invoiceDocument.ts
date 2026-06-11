@@ -85,13 +85,13 @@ export function getInvoiceCompanyProfile(): InvoiceCompanyProfile {
 
   return {
     brandName: process.env.COMPANY_BRAND_NAME ?? 'Dofurs',
-    legalEntityName: process.env.COMPANY_LEGAL_NAME ?? 'Dofurs Platform',
-    registrationNumber: process.env.COMPANY_REGISTRATION_NUMBER ?? 'Registration number available on request',
-    gstin: process.env.COMPANY_GSTIN ?? 'GSTIN available on request',
+    legalEntityName: process.env.COMPANY_LEGAL_NAME ?? 'DOFURS LLP',
+    registrationNumber: process.env.COMPANY_TAN ?? process.env.COMPANY_REGISTRATION_NUMBER ?? 'BLRD25481B',
+    gstin: process.env.COMPANY_GSTIN ?? '',
     supportEmail: process.env.COMPANY_SUPPORT_EMAIL ?? 'petcare@dofurs.in',
     supportPhone: process.env.COMPANY_SUPPORT_PHONE ?? '+91 70083 65175',
     websiteUrl: websiteBase,
-    addressLine: process.env.COMPANY_ADDRESS_LINE ?? 'Bengaluru, Karnataka 560100, India',
+    addressLine: process.env.COMPANY_ADDRESS_LINE ?? 'Dofurs LLP, Electronic City Phase 1, Bengaluru, Karnataka, 560100',
     termsUrl: `${websiteBase}/terms-conditions`,
     logoUrl: `${websiteBase}/logo/brand-logo.png`,
   };
@@ -280,19 +280,10 @@ function buildPriceRows(invoice: InvoiceDocumentModel) {
   const rows = [
     { label: 'Subtotal', value: formatInr(invoice.subtotal_inr) },
     { label: 'Discount', value: formatInr(invoice.discount_inr) },
-    { label: 'Tax', value: formatInr(invoice.tax_inr) },
   ];
 
-  if ((invoice.cgst_inr ?? 0) > 0) {
-    rows.push({ label: 'CGST', value: formatInr(invoice.cgst_inr) });
-  }
-
-  if ((invoice.sgst_inr ?? 0) > 0) {
-    rows.push({ label: 'SGST', value: formatInr(invoice.sgst_inr) });
-  }
-
-  if ((invoice.igst_inr ?? 0) > 0) {
-    rows.push({ label: 'IGST', value: formatInr(invoice.igst_inr) });
+  if ((invoice.tax_inr ?? 0) > 0) {
+    rows.push({ label: 'Tax', value: formatInr(invoice.tax_inr) });
   }
 
   if ((invoice.wallet_credits_applied_inr ?? 0) > 0) {
@@ -483,9 +474,11 @@ export function buildInvoicePrintHtml(input: BuildInvoiceDocumentInput) {
 
       <section class="summary">
         <article class="card">
-          <div class="muted">Bill To (User ID)</div>
-          <div><strong>${escapeHtml(invoice.user_id || 'N/A')}</strong></div>
+          <div class="muted">Recipient</div>
+          <div><strong>${escapeHtml(issuer.legalEntityName)}</strong></div>
+          <div>${escapeHtml(issuer.addressLine)}</div>
           <div class="muted" style="margin-top:8px;">Reference</div>
+          <div>Account: ${escapeHtml(invoice.user_id || 'N/A')}</div>
           <div>Booking: ${escapeHtml(String(invoice.booking_id ?? 'N/A'))}</div>
           <div>Subscription: ${escapeHtml(invoice.user_subscription_id ?? 'N/A')}</div>
         </article>
@@ -502,10 +495,8 @@ export function buildInvoicePrintHtml(input: BuildInvoiceDocumentInput) {
         <article class="card">
           <div class="muted">Compliance</div>
           <div><strong>Entity:</strong> ${escapeHtml(issuer.legalEntityName)}</div>
-          <div><strong>Registration:</strong> ${escapeHtml(issuer.registrationNumber)}</div>
-          <div><strong>GSTIN:</strong> ${escapeHtml(invoice.gstin || issuer.gstin)}</div>
-          ${invoice.hsn_sac_code ? `<div><strong>HSN/SAC:</strong> ${escapeHtml(invoice.hsn_sac_code)}</div>` : ''}
-          ${invoice.gst_invoice_number ? `<div><strong>GST Invoice #:</strong> ${escapeHtml(invoice.gst_invoice_number)}</div>` : ''}
+          <div><strong>TAN:</strong> ${escapeHtml(issuer.registrationNumber)}</div>
+          <div><strong>Registered address:</strong> ${escapeHtml(issuer.addressLine)}</div>
         </article>
       </section>
 
@@ -528,7 +519,7 @@ export function buildInvoicePrintHtml(input: BuildInvoiceDocumentInput) {
 
       <footer class="footer">
         <p><strong>${escapeHtml(issuer.legalEntityName)}</strong> | ${escapeHtml(issuer.addressLine)}</p>
-        <p>Registration: ${escapeHtml(issuer.registrationNumber)} | GSTIN: ${escapeHtml(invoice.gstin || issuer.gstin)}</p>
+        <p>TAN: ${escapeHtml(issuer.registrationNumber)}</p>
         <p>Support: ${escapeHtml(issuer.supportEmail)} | ${escapeHtml(issuer.supportPhone)} | ${escapeHtml(issuer.websiteUrl)}</p>
         <p>Terms and conditions: <a href="${escapeHtml(issuer.termsUrl)}">${escapeHtml(issuer.termsUrl)}</a></p>
       </footer>
@@ -547,15 +538,15 @@ export function buildInvoicePdfBuffer(input: BuildInvoiceDocumentInput) {
     `${issuer.brandName.toUpperCase()} - PREMIUM PET CARE`,
     issuer.legalEntityName,
     `Address: ${issuer.addressLine}`,
-    `Registration: ${issuer.registrationNumber}`,
-    `GSTIN: ${invoice.gstin || issuer.gstin}`,
+    `TAN: ${issuer.registrationNumber}`,
     `Support: ${issuer.supportEmail} | ${issuer.supportPhone}`,
     `Website: ${issuer.websiteUrl}`,
     `Terms: ${issuer.termsUrl}`,
     '====================================================',
     `INVOICE NO: ${invoice.invoice_number || 'N/A'}`,
     `STATUS: ${(invoice.status || 'N/A').toUpperCase()}    TYPE: ${(invoice.invoice_type || 'service').toUpperCase()}`,
-    `CUSTOMER (USER ID): ${invoice.user_id || 'N/A'}`,
+    `RECIPIENT: ${issuer.legalEntityName}`,
+    `ACCOUNT REF (USER ID): ${invoice.user_id || 'N/A'}`,
     `BOOKING: ${invoice.booking_id ?? 'N/A'}    SUBSCRIPTION: ${invoice.user_subscription_id ?? 'N/A'}`,
     `CREATED: ${formatDateTime(invoice.created_at)}`,
     `ISSUED: ${formatDateTime(invoice.issued_at)}`,
@@ -598,15 +589,8 @@ export function buildInvoicePdfBuffer(input: BuildInvoiceDocumentInput) {
   lines.push('----------------------------------------------------');
   lines.push(`Subtotal: ${formatInr(invoice.subtotal_inr)}`);
   lines.push(`Discount: ${formatInr(invoice.discount_inr)}`);
-  lines.push(`Tax: ${formatInr(invoice.tax_inr)}`);
-  if ((invoice.cgst_inr ?? 0) > 0) {
-    lines.push(`CGST: ${formatInr(invoice.cgst_inr)}`);
-  }
-  if ((invoice.sgst_inr ?? 0) > 0) {
-    lines.push(`SGST: ${formatInr(invoice.sgst_inr)}`);
-  }
-  if ((invoice.igst_inr ?? 0) > 0) {
-    lines.push(`IGST: ${formatInr(invoice.igst_inr)}`);
+  if ((invoice.tax_inr ?? 0) > 0) {
+    lines.push(`Tax: ${formatInr(invoice.tax_inr)}`);
   }
   lines.push(`TOTAL: ${formatInr(invoice.total_inr)}`);
   lines.push('====================================================');

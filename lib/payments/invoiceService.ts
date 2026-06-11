@@ -1,16 +1,6 @@
-import crypto from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getISTTimestamp } from '@/lib/utils/date';
-
-function invoiceNumber(prefix: 'INV-SVC' | 'INV-SUB') {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(now.getUTCDate()).padStart(2, '0');
-  const t = String(now.getUTCHours()).padStart(2, '0') + String(now.getUTCMinutes()).padStart(2, '0') + String(now.getUTCSeconds()).padStart(2, '0');
-  const rand = crypto.randomInt(100000, 999999);
-  return `${prefix}-${y}${m}${d}-${t}-${rand}`;
-}
+import { getNextInvoiceNumber } from '@/lib/payments/invoiceNumber';
 
 export type ServiceInvoiceLineItemInput = {
   description: string;
@@ -91,11 +81,13 @@ export async function createSubscriptionInvoice(
     return existingInvoice;
   }
 
+  const nextInvoiceNumber = await getNextInvoiceNumber(supabase, 'SUB');
+
   const { data: invoice, error: invoiceError } = await supabase
     .from('billing_invoices')
     .insert({
       user_id: input.userId,
-      invoice_number: invoiceNumber('INV-SUB'),
+      invoice_number: nextInvoiceNumber,
       invoice_type: 'subscription',
       status: 'paid',
       user_subscription_id: input.userSubscriptionId,
@@ -173,6 +165,8 @@ export async function createServiceInvoice(
     }
   }
 
+  const nextInvoiceNumber = await getNextInvoiceNumber(supabase, 'SVC');
+
   const subtotalInr = Math.max(0, input.amountInr);
   const discountInr = Math.max(0, input.discountInr ?? 0);
   const creditsApplied = Math.max(0, input.walletCreditsAppliedInr ?? 0);
@@ -184,7 +178,7 @@ export async function createServiceInvoice(
     .from('billing_invoices')
     .insert({
       user_id: input.userId,
-      invoice_number: invoiceNumber('INV-SVC'),
+      invoice_number: nextInvoiceNumber,
       invoice_type: 'service',
       status: input.status,
       booking_id: input.bookingId,

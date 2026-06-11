@@ -53,11 +53,6 @@ type AdminManualInvoiceDraft = {
   subtotalInr: string;
   discountInr: string;
   taxInr: string;
-  cgstInr: string;
-  sgstInr: string;
-  igstInr: string;
-  gstin: string;
-  hsnSacCode: string;
   description: string;
   bookingId: string;
   userSubscriptionId: string;
@@ -217,7 +212,7 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
   const [selectedBillingUserLabel, setSelectedBillingUserLabel] = useState('');
   const [manualInvoiceDraft, setManualInvoiceDraft] = useState<AdminManualInvoiceDraft>({
     userId: '', invoiceType: 'service', status: 'issued', subtotalInr: '', discountInr: '0', taxInr: '0',
-    cgstInr: '0', sgstInr: '0', igstInr: '0', gstin: '', hsnSacCode: '', description: '', bookingId: '', userSubscriptionId: '',
+    description: '', bookingId: '', userSubscriptionId: '',
   });
 
   // Debounce billing search
@@ -231,33 +226,6 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
     const timeout = window.setTimeout(() => setBillingUserLookupDebounced(billingUserLookupQuery.trim()), 250);
     return () => window.clearTimeout(timeout);
   }, [billingUserLookupQuery]);
-
-  // Auto-calculate standard GST split from subtotal for manual invoice draft.
-  useEffect(() => {
-    const subtotal = Number(manualInvoiceDraft.subtotalInr || '0');
-    if (!Number.isFinite(subtotal) || subtotal <= 0) {
-      setManualInvoiceDraft((current) => ({
-        ...current,
-        taxInr: '0',
-        cgstInr: '0',
-        sgstInr: '0',
-        igstInr: '0',
-      }));
-      return;
-    }
-
-    const tax = (subtotal * 0.18).toFixed(2);
-    const cgst = (subtotal * 0.09).toFixed(2);
-    const sgst = (subtotal * 0.09).toFixed(2);
-
-    setManualInvoiceDraft((current) => ({
-      ...current,
-      taxInr: tax,
-      cgstInr: cgst,
-      sgstInr: sgst,
-      igstInr: '0',
-    }));
-  }, [manualInvoiceDraft.subtotalInr]);
 
   // User lookup effect
   useEffect(() => {
@@ -723,7 +691,7 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
   function resetManualInvoiceComposer() {
     setManualInvoiceDraft({
       userId: '', invoiceType: 'service', status: 'issued', subtotalInr: '', discountInr: '0', taxInr: '0',
-      cgstInr: '0', sgstInr: '0', igstInr: '0', gstin: '', hsnSacCode: '', description: '', bookingId: '', userSubscriptionId: '',
+      description: '', bookingId: '', userSubscriptionId: '',
     });
     setSelectedInvoicePresetId(null);
     setSelectedBillingUserLabel('');
@@ -757,12 +725,11 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
   async function createManualInvoice() {
     const subtotal = Number(manualInvoiceDraft.subtotalInr || '0');
     const discount = Number(manualInvoiceDraft.discountInr || '0');
-    const tax = Number(manualInvoiceDraft.taxInr || '0');
 
     if (!manualInvoiceDraft.userId.trim()) { showToast('Select a customer from User Lookup.', 'error'); return; }
     if (!manualInvoiceDraft.description.trim()) { showToast('Description is required.', 'error'); return; }
-    if (!Number.isFinite(subtotal) || subtotal < 0 || !Number.isFinite(discount) || discount < 0 || !Number.isFinite(tax) || tax < 0) {
-      showToast('Subtotal, discount and tax must be valid non-negative numbers.', 'error'); return;
+    if (!Number.isFinite(subtotal) || subtotal < 0 || !Number.isFinite(discount) || discount < 0) {
+      showToast('Subtotal and discount must be valid non-negative numbers.', 'error'); return;
     }
 
     setIsCreatingInvoice(true);
@@ -776,12 +743,7 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
           status: manualInvoiceDraft.status,
           subtotalInr: subtotal,
           discountInr: discount,
-          taxInr: tax,
-          cgstInr: Number(manualInvoiceDraft.cgstInr || '0'),
-          sgstInr: Number(manualInvoiceDraft.sgstInr || '0'),
-          igstInr: Number(manualInvoiceDraft.igstInr || '0'),
-          gstin: manualInvoiceDraft.gstin.trim() || undefined,
-          hsnSacCode: manualInvoiceDraft.hsnSacCode.trim() || undefined,
+          taxInr: 0,
           description: manualInvoiceDraft.description.trim(),
           bookingId: manualInvoiceDraft.bookingId.trim() ? Number(manualInvoiceDraft.bookingId) : undefined,
           userSubscriptionId: manualInvoiceDraft.userSubscriptionId.trim() || undefined,
@@ -1030,53 +992,11 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
               />
             </label>
             <label className="space-y-1 text-xs text-neutral-700">
-              <span className="font-medium">GST Total (18%)</span>
+              <span className="font-medium">Tax (currently disabled)</span>
               <input
                 value={manualInvoiceDraft.taxInr}
                 readOnly
                 className={cn('w-full bg-neutral-50 text-neutral-600', adminRawFieldClass)}
-              />
-            </label>
-            <label className="space-y-1 text-xs text-neutral-700">
-              <span className="font-medium">CGST (9%)</span>
-              <input
-                value={manualInvoiceDraft.cgstInr}
-                readOnly
-                className={cn('w-full bg-neutral-50 text-neutral-600', adminRawFieldClass)}
-              />
-            </label>
-            <label className="space-y-1 text-xs text-neutral-700">
-              <span className="font-medium">SGST (9%)</span>
-              <input
-                value={manualInvoiceDraft.sgstInr}
-                readOnly
-                className={cn('w-full bg-neutral-50 text-neutral-600', adminRawFieldClass)}
-              />
-            </label>
-            <label className="space-y-1 text-xs text-neutral-700">
-              <span className="font-medium">IGST (Inter-state)</span>
-              <input
-                value={manualInvoiceDraft.igstInr}
-                readOnly
-                className={cn('w-full bg-neutral-50 text-neutral-600', adminRawFieldClass)}
-              />
-            </label>
-            <label className="space-y-1 text-xs text-neutral-700">
-              <span className="font-medium">GSTIN (optional)</span>
-              <input
-                value={manualInvoiceDraft.gstin}
-                onChange={(e) => setManualInvoiceDraft((c) => ({ ...c, gstin: e.target.value }))}
-                placeholder="Enter GSTIN"
-                className={cn('w-full', adminRawFieldClass)}
-              />
-            </label>
-            <label className="space-y-1 text-xs text-neutral-700">
-              <span className="font-medium">HSN/SAC Code (optional)</span>
-              <input
-                value={manualInvoiceDraft.hsnSacCode}
-                onChange={(e) => setManualInvoiceDraft((c) => ({ ...c, hsnSacCode: e.target.value }))}
-                placeholder="Enter HSN/SAC code"
-                className={cn('w-full', adminRawFieldClass)}
               />
             </label>
             <label className="space-y-1 text-xs text-neutral-700">
@@ -1104,8 +1024,7 @@ export default function BillingTab({ openConfirm }: BillingTabProps) {
           <div className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-700">
             Invoice total preview:{' '}
             {formatAdminCurrency(Math.max(0,
-              Number(manualInvoiceDraft.subtotalInr || '0') - Number(manualInvoiceDraft.discountInr || '0') +
-              Number(manualInvoiceDraft.taxInr || '0'),
+              Number(manualInvoiceDraft.subtotalInr || '0') - Number(manualInvoiceDraft.discountInr || '0'),
             ))}
           </div>
 

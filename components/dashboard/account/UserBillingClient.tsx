@@ -307,8 +307,7 @@ export default function UserBillingClient() {
               <p className="text-sm font-semibold text-ink">Issuer details</p>
               <p className="mt-2 font-medium text-ink">{selectedInvoice.company.brandName}</p>
               <p>{selectedInvoice.company.legalEntityName}</p>
-              <p>Registration: {selectedInvoice.company.registrationNumber}</p>
-              <p>GSTIN: {selectedInvoice.invoice.gstin ?? selectedInvoice.company.gstin}</p>
+              <p>TAN: {selectedInvoice.company.registrationNumber}</p>
               <p>
                 Contact: {selectedInvoice.company.supportEmail} | {selectedInvoice.company.supportPhone}
               </p>

@@ -3,19 +3,10 @@ import { requireApiRole } from '@/lib/auth/api-auth';
 import { logAdminAction } from '@/lib/admin/audit';
 import type { Json } from '@/lib/supabase/database.types';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getNextInvoiceNumber } from '@/lib/payments/invoiceNumber';
 import { getISTTimestamp } from '@/lib/utils/date';
 
 type InvoiceStatus = 'draft' | 'issued' | 'paid';
-
-function buildInvoiceNumber(prefix: 'INV-MAN' | 'INV-SVC' | 'INV-SUB' = 'INV-MAN') {
-  const now = new Date();
-  const y = now.getUTCFullYear();
-  const m = String(now.getUTCMonth() + 1).padStart(2, '0');
-  const d = String(now.getUTCDate()).padStart(2, '0');
-  const t = String(now.getUTCHours()).padStart(2, '0') + String(now.getUTCMinutes()).padStart(2, '0') + String(now.getUTCSeconds()).padStart(2, '0');
-  const rand = Math.floor(Math.random() * 9000 + 1000);
-  return `${prefix}-${y}${m}${d}-${t}-${rand}`;
-}
 
 export async function GET(request: Request) {
   const auth = await requireApiRole(['admin', 'staff']);
@@ -202,12 +193,6 @@ export async function POST(request: Request) {
   const status = body?.status === 'paid' ? 'paid' : body?.status === 'draft' ? 'draft' : 'issued';
   const subtotalInr = Number(body?.subtotalInr ?? 0);
   const discountInr = Number(body?.discountInr ?? 0);
-  const taxInr = Number(body?.taxInr ?? 0);
-  const cgstInr = Number(body?.cgstInr ?? 0);
-  const sgstInr = Number(body?.sgstInr ?? 0);
-  const igstInr = Number(body?.igstInr ?? 0);
-  const gstin = typeof body?.gstin === 'string' ? body.gstin.trim() : null;
-  const hsnSacCode = typeof body?.hsnSacCode === 'string' ? body.hsnSacCode.trim() : null;
   const description = typeof body?.description === 'string' ? body.description.trim() : '';
   const bookingIdRaw = body?.bookingId;
   const userSubscriptionIdRaw = body?.userSubscriptionId;
@@ -224,12 +209,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'subtotalInr must be a number >= 0.' }, { status: 400 });
   }
 
-  if (!Number.isFinite(discountInr) || discountInr < 0 || !Number.isFinite(taxInr) || taxInr < 0) {
-    return NextResponse.json({ error: 'discountInr and taxInr must be numbers >= 0.' }, { status: 400 });
+  if (!Number.isFinite(discountInr) || discountInr < 0) {
+    return NextResponse.json({ error: 'discountInr must be a number >= 0.' }, { status: 400 });
   }
 
-  const totalInr = Math.max(0, subtotalInr - discountInr + taxInr);
+  const totalInr = Math.max(0, subtotalInr - discountInr);
   const nowIso = getISTTimestamp();
+  const invoiceNumber = await getNextInvoiceNumber(supabase, 'MAN');
   const bookingId = typeof bookingIdRaw === 'number' && Number.isFinite(bookingIdRaw) ? bookingIdRaw : null;
   const userSubscriptionId = typeof userSubscriptionIdRaw === 'string' && userSubscriptionIdRaw.trim() ? userSubscriptionIdRaw.trim() : null;
 
@@ -237,19 +223,19 @@ export async function POST(request: Request) {
     .from('billing_invoices')
     .insert({
       user_id: userId,
-      invoice_number: buildInvoiceNumber('INV-MAN'),
+      invoice_number: invoiceNumber,
       invoice_type: invoiceType,
       status,
       booking_id: bookingId,
       user_subscription_id: userSubscriptionId,
       subtotal_inr: subtotalInr,
       discount_inr: discountInr,
-      tax_inr: taxInr,
-      cgst_inr: cgstInr,
-      sgst_inr: sgstInr,
-      igst_inr: igstInr,
-      gstin: gstin || null,
-      hsn_sac_code: hsnSacCode || null,
+      tax_inr: 0,
+      cgst_inr: 0,
+      sgst_inr: 0,
+      igst_inr: 0,
+      gstin: null,
+      hsn_sac_code: null,
       total_inr: totalInr,
       issued_at: status === 'draft' ? null : nowIso,
       paid_at: status === 'paid' ? nowIso : null,

@@ -142,10 +142,7 @@ export default function InvoicePDFPreview({
               <p className="text-sm font-semibold text-neutral-900">{company.brandName}</p>
               <p className="text-xs text-neutral-600">{company.legalEntityName}</p>
               <p className="mt-1 text-[11px] text-neutral-500">
-                Registration: {company.registrationNumber}
-              </p>
-              <p className="text-[11px] text-neutral-500">
-                GSTIN: {invoice.gstin ?? company.gstin}
+                TAN: {company.registrationNumber}
               </p>
               <p className="text-[11px] text-neutral-500">
                 Contact: {company.supportEmail} | {company.supportPhone}
@@ -276,41 +273,16 @@ export default function InvoicePDFPreview({
               <span>−{formatCurrency(invoice.discount_inr)}</span>
             </div>
           )}
-          {invoice.tax_inr > 0 && (invoice.cgst_inr == null || invoice.cgst_inr === 0) && (invoice.sgst_inr == null || invoice.sgst_inr === 0) && (invoice.igst_inr == null || invoice.igst_inr === 0) && (
+          {invoice.tax_inr > 0 && (
             <div className="flex justify-between text-neutral-600">
               <span>Tax</span>
               <span>{formatCurrency(invoice.tax_inr)}</span>
-            </div>
-          )}
-          {(invoice.cgst_inr ?? 0) > 0 && (
-            <div className="flex justify-between text-neutral-600">
-              <span>CGST</span>
-              <span>{formatCurrency(invoice.cgst_inr!)}</span>
-            </div>
-          )}
-          {(invoice.sgst_inr ?? 0) > 0 && (
-            <div className="flex justify-between text-neutral-600">
-              <span>SGST</span>
-              <span>{formatCurrency(invoice.sgst_inr!)}</span>
-            </div>
-          )}
-          {(invoice.igst_inr ?? 0) > 0 && (
-            <div className="flex justify-between text-neutral-600">
-              <span>IGST</span>
-              <span>{formatCurrency(invoice.igst_inr!)}</span>
             </div>
           )}
           {(invoice.wallet_credits_applied_inr ?? 0) > 0 && (
             <div className="flex justify-between text-green-700">
               <span>Dofurs Credits Applied</span>
               <span>−{formatCurrency(invoice.wallet_credits_applied_inr!)}</span>
-            </div>
-          )}
-          {(invoice.hsn_sac_code || invoice.gstin || invoice.gst_invoice_number) && (
-            <div className="border-t border-neutral-100 pt-2 space-y-0.5 text-[11px] text-neutral-400">
-              {invoice.gst_invoice_number && <p>GST Invoice #: {invoice.gst_invoice_number}</p>}
-              {invoice.gstin && <p>GSTIN: {invoice.gstin}</p>}
-              {invoice.hsn_sac_code && <p>HSN/SAC: {invoice.hsn_sac_code}</p>}
             </div>
           )}
           <div className="flex justify-between border-t border-neutral-200 pt-2 font-bold text-neutral-900">

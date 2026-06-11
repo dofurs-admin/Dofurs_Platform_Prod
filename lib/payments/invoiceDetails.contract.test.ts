@@ -169,7 +169,8 @@ describe('invoice detail contract (user/admin sync)', () => {
     });
 
     expect(html).toContain('CIN-U12345KA2026PTC000001');
-    expect(html).toContain('29ABCDE1234F1Z5');
+    expect(html).not.toContain('29ABCDE1234F1Z5');
+    expect(html).toContain('TAN');
     expect(html).toContain('UPI (alice@oksbi)');
     expect(html).toContain('/terms-conditions');
 
@@ -186,7 +187,7 @@ describe('invoice detail contract (user/admin sync)', () => {
 
     const pdfText = pdf.toString('utf8');
     expect(pdfText).toContain('PAYMENT METHOD: UPI \\(alice@oksbi\\)');
-    expect(pdfText).toContain('Registration: CIN-U12345KA2026PTC000001');
+    expect(pdfText).toContain('TAN: CIN-U12345KA2026PTC000001');
     expect(pdfText).toContain('Terms: https://dofurs.in/terms-conditions');
   });
 });
