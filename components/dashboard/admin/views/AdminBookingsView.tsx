@@ -14,7 +14,7 @@ import type { BookingStatus } from '@/lib/bookings/types';
 
 type AdminBookingStatus = BookingStatus;
 type BookingFilter = 'all' | 'sla' | 'high-risk' | AdminBookingStatus;
-type BulkBookingStatus = Exclude<AdminBookingStatus, 'pending'>;
+type BulkBookingStatus = AdminBookingStatus;
 
 type AdminBooking = {
   id: number;
@@ -51,15 +51,6 @@ type BookingRiskSummary = {
   completed: number;
   noShow: number;
   cancelled: number;
-};
-
-const ALLOWED_TRANSITIONS: Record<AdminBookingStatus, ReadonlyArray<AdminBookingStatus>> = {
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
-  in_progress: ['completed', 'cancelled'],
-  completed: [],
-  cancelled: [],
-  no_show: [],
 };
 
 const BOOKING_FILTER_OPTIONS: ReadonlyArray<{ value: BookingFilter; label: string }> = [
@@ -138,6 +129,10 @@ function getStatusBadgeVariant(status: AdminBookingStatus) {
   return 'info';
 }
 
+function isStatusLockedForAdminOps(status: AdminBookingStatus) {
+  return status === 'completed' || status === 'cancelled' || status === 'no_show';
+}
+
 type AdminBookingsViewProps = {
   bookingRiskSummary: BookingRiskSummary;
   bookingSearchQuery: string;
@@ -210,55 +205,43 @@ export default function AdminBookingsView({
 
   function renderBookingActions(booking: AdminBooking) {
     const status = booking.booking_status ?? booking.status;
-    const allowedTransitions = ALLOWED_TRANSITIONS[status];
-    const canConfirm = allowedTransitions.includes('confirmed');
-    const canStart = allowedTransitions.includes('in_progress');
-    const canComplete = allowedTransitions.includes('completed');
-    const canNoShow = allowedTransitions.includes('no_show');
-    const canCancel = allowedTransitions.includes('cancelled');
     const isCashBooking = booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
     const cashPending = isCashBooking && booking.cash_collected !== true;
-    const isTerminalStatus = allowedTransitions.length === 0;
+    const isStatusLocked = isStatusLockedForAdminOps(status);
 
     return (
       <div className="flex flex-wrap gap-1.5">
-        {canConfirm ? (
-          <Button size="sm" variant="secondary" onClick={() => onOverrideStatus(booking.id, 'confirmed')} disabled={isPending}>
-            {status === 'pending' ? 'Clear SLA' : 'Confirm'}
-          </Button>
-        ) : null}
-        {canStart ? (
-          <Button size="sm" variant="secondary" onClick={() => onOverrideStatus(booking.id, 'in_progress')} disabled={isPending}>
-            Start
-          </Button>
-        ) : null}
-        {canComplete ? (
-          <Button
-            size="sm"
-            variant="success"
-            onClick={() => onOverrideStatus(booking.id, 'completed')}
-            disabled={isPending || cashPending}
-            title={cashPending ? 'Mark cash as received first' : undefined}
-          >
-            Complete
-          </Button>
-        ) : null}
+        <select
+          className="input-field !min-h-9 !w-auto !rounded-lg !px-2.5 !py-1.5 text-xs"
+          defaultValue=""
+          onChange={(event) => {
+            const nextStatus = event.target.value as BulkBookingStatus;
+            if (!nextStatus) {
+              return;
+            }
+
+            onOverrideStatus(booking.id, nextStatus);
+            event.target.value = '';
+          }}
+          disabled={isPending}
+          aria-label={`Set booking ${booking.id} status`}
+        >
+          <option value="">Set status…</option>
+          <option value="pending">Pending</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="in_progress">In progress</option>
+          <option value="completed" disabled={cashPending}>
+            {cashPending ? 'Completed (cash pending)' : 'Completed'}
+          </option>
+          <option value="cancelled">Cancelled</option>
+          <option value="no_show">No-show</option>
+        </select>
         {isCashBooking && (status === 'pending' || status === 'confirmed' || status === 'in_progress') && cashPending ? (
           <Button size="sm" variant="secondary" onClick={() => onMarkCashPaymentReceived(booking.id)} disabled={isPending}>
             Cash received
           </Button>
         ) : null}
-        {canNoShow ? (
-          <Button size="sm" variant="ghost" onClick={() => onOverrideStatus(booking.id, 'no_show')} disabled={isPending}>
-            No-show
-          </Button>
-        ) : null}
-        {canCancel ? (
-          <Button size="sm" variant="danger" onClick={() => onOverrideStatus(booking.id, 'cancelled')} disabled={isPending}>
-            Cancel
-          </Button>
-        ) : null}
-        {!isTerminalStatus ? (
+        {!isStatusLocked ? (
           <Button size="sm" variant="ghost" onClick={() => onApplyBookingAdjustment(booking.id)} disabled={isPending}>
             Reverse
           </Button>
@@ -327,9 +310,9 @@ export default function AdminBookingsView({
       className: 'min-w-[13rem]',
       render: (booking: AdminBooking) => {
         const status = booking.booking_status ?? booking.status;
-        const isTerminalStatus = ALLOWED_TRANSITIONS[status].length === 0;
+        const isStatusLocked = isStatusLockedForAdminOps(status);
 
-        if (isTerminalStatus) {
+        if (isStatusLocked) {
           return <p className="font-medium text-neutral-950">{booking.provider_name ?? `#${booking.provider_id}`}</p>;
         }
 
@@ -441,6 +424,7 @@ export default function AdminBookingsView({
             onChange={(event) => onBulkStatusChange(event.target.value as BulkBookingStatus)}
             className="input-field !min-h-9 !w-auto !rounded-lg !px-2.5 !py-1.5 text-xs"
           >
+            <option value="pending">Mark pending</option>
             <option value="confirmed">Mark confirmed</option>
             <option value="in_progress">Mark in progress</option>
             <option value="completed">Mark completed</option>

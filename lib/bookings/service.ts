@@ -1026,7 +1026,14 @@ async function applyBookingStatusTransition(
     throw new Error('BOOKING_STATUS_MISSING');
   }
 
-  assertBookingStateTransition(currentStatus, input.nextStatus);
+  if (currentStatus === input.nextStatus) {
+    throw new Error(`BOOKING_STATUS_NOOP:${currentStatus}`);
+  }
+
+  const isAdminTransitionOverride = input.actorRole === 'admin' || input.actorRole === 'staff';
+  if (!isAdminTransitionOverride) {
+    assertBookingStateTransition(currentStatus, input.nextStatus);
+  }
 
   const updatePayload: {
     booking_status?: BookingStatus;

@@ -90,16 +90,7 @@ async function readApiErrorMessage(response: Response, fallback: string) {
 }
 
 type BookingFilter = 'all' | 'sla' | 'high-risk' | BookingStatus;
-type BulkBookingStatus = Exclude<BookingStatus, 'pending'>;
-
-const ADMIN_BOOKING_ALLOWED_TRANSITIONS: Record<BookingStatus, ReadonlyArray<BookingStatus>> = {
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
-  in_progress: ['completed', 'cancelled'],
-  completed: [],
-  cancelled: [],
-  no_show: [],
-};
+type BulkBookingStatus = BookingStatus;
 
 function getEffectiveBookingStatus(booking: AdminBooking): BookingStatus {
   return booking.booking_status ?? booking.status;
@@ -2700,7 +2691,7 @@ export default function AdminDashboardClient({
     void fetchProviderCalendar();
   }, [isProvidersView, calendarProviderId, calendarFromDate, calendarDays, fetchProviderCalendar]);
 
-  function overrideStatus(bookingId: number, status: Exclude<AdminBooking['status'], 'pending'>) {
+  function overrideStatus(bookingId: number, status: AdminBooking['status']) {
     if (status === 'cancelled' || status === 'no_show') {
       openConfirm({
         title: status === 'cancelled' ? 'Cancel Booking' : 'Mark as No-Show',
@@ -2740,19 +2731,13 @@ export default function AdminDashboardClient({
       .filter((booking): booking is AdminBooking => Boolean(booking));
 
     const eligibleBookingIds: number[] = [];
-    const ineligibleBookings: Array<{ id: number; currentStatus: BookingStatus; reason: 'noop' | 'transition' }> = [];
+    let skippedNoopCount = 0;
 
     for (const booking of selectedBookings) {
       const currentStatus = getEffectiveBookingStatus(booking);
 
       if (currentStatus === status) {
-        ineligibleBookings.push({ id: booking.id, currentStatus, reason: 'noop' });
-        continue;
-      }
-
-      const allowedTransitions = ADMIN_BOOKING_ALLOWED_TRANSITIONS[currentStatus];
-      if (!allowedTransitions.includes(status)) {
-        ineligibleBookings.push({ id: booking.id, currentStatus, reason: 'transition' });
+        skippedNoopCount += 1;
         continue;
       }
 
@@ -2760,24 +2745,12 @@ export default function AdminDashboardClient({
     }
 
     if (eligibleBookingIds.length === 0) {
-      const sample = ineligibleBookings[0];
-      if (sample?.reason === 'transition') {
-        showToast(
-          `No eligible bookings selected. ${sample.currentStatus.replace('_', ' ')} bookings cannot move directly to ${status.replace('_', ' ')}.`,
-          'error',
-        );
-        return;
-      }
-
       showToast(`No changes applied. Selected bookings are already ${status.replace('_', ' ')}.`, 'error');
       return;
     }
 
-    if (ineligibleBookings.length > 0) {
-      showToast(
-        `Skipped ${ineligibleBookings.length} booking(s) that cannot be moved to ${status.replace('_', ' ')} from their current status.`,
-        'error',
-      );
+    if (skippedNoopCount > 0) {
+      showToast(`Skipped ${skippedNoopCount} booking(s) already in ${status.replace('_', ' ')}.`, 'error');
     }
 
     setBookings((current) =>

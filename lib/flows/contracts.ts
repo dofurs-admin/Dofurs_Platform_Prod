@@ -32,7 +32,7 @@ export const BOOKING_STATUS_TRANSITIONS: Record<BookingStatus, BookingStatus[]> 
   in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
-  no_show: [],
+  no_show: ['cancelled'],
 };
 
 export const ROLE_BOOKING_TARGET_STATUSES: Record<'user' | 'provider' | 'admin' | 'staff', BookingStatus[]> = {

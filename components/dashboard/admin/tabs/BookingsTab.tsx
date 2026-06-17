@@ -44,16 +44,7 @@ type Provider = {
 };
 
 type BookingFilter = 'all' | 'sla' | 'high-risk' | BookingStatus;
-type BulkBookingStatus = Exclude<BookingStatus, 'pending'>;
-
-const ALLOWED_TRANSITIONS: Record<BookingStatus, ReadonlyArray<BookingStatus>> = {
-  pending: ['confirmed', 'cancelled'],
-  confirmed: ['in_progress', 'completed', 'cancelled', 'no_show'],
-  in_progress: ['completed', 'cancelled'],
-  completed: [],
-  cancelled: [],
-  no_show: [],
-};
+type BulkBookingStatus = BookingStatus;
 
 function getEffectiveBookingStatus(booking: AdminBooking): BookingStatus {
   return booking.booking_status ?? booking.status;
@@ -217,36 +208,25 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
       .filter((b): b is AdminBooking => Boolean(b));
 
     const eligibleIds: number[] = [];
-    const ineligible: Array<{ id: number; currentStatus: BookingStatus; reason: 'noop' | 'transition' }> = [];
+    let skippedNoopCount = 0;
 
     for (const booking of selectedBookings) {
       const currentStatus = getEffectiveBookingStatus(booking);
       if (currentStatus === status) {
-        ineligible.push({ id: booking.id, currentStatus, reason: 'noop' });
+        skippedNoopCount += 1;
         continue;
       }
-      if (!ALLOWED_TRANSITIONS[currentStatus].includes(status)) {
-        ineligible.push({ id: booking.id, currentStatus, reason: 'transition' });
-        continue;
-      }
+
       eligibleIds.push(booking.id);
     }
 
     if (eligibleIds.length === 0) {
-      const sample = ineligible[0];
-      if (sample?.reason === 'transition') {
-        showToast(
-          `No eligible bookings. ${sample.currentStatus.replace('_', ' ')} cannot move to ${status.replace('_', ' ')}.`,
-          'error',
-        );
-        return;
-      }
       showToast(`No changes applied. Already ${status.replace('_', ' ')}.`, 'error');
       return;
     }
 
-    if (ineligible.length > 0) {
-      showToast(`Skipped ${ineligible.length} booking(s) with incompatible status.`, 'error');
+    if (skippedNoopCount > 0) {
+      showToast(`Skipped ${skippedNoopCount} booking(s) already in ${status.replace('_', ' ')}.`, 'error');
     }
 
     setBookings((current) =>
