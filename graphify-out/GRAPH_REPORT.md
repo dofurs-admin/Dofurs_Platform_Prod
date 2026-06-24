@@ -36,132 +36,132 @@
 ## Communities
 
 ### Community 0 - "Community 0"
-Cohesion: 0
-Nodes (151): getErrorCode(), isMissingColumnError(), loadBookingAddonRowsByBookingIds(), formatBookingDateTime(), formatDate(), formatDateTime(), formatTime(), formatMode() (+143 more)
+Cohesion: 0.01
+Nodes (129): getErrorCode(), isMissingColumnError(), loadBookingAddonRowsByBookingIds(), formatBookingDateTime(), formatDate(), formatDateTime(), formatTime(), formatMode() (+121 more)
 
 ### Community 1 - "Community 1"
 Cohesion: 0.01
-Nodes (76): getRelatedPosts(), getRelatedPostsFromCollection(), formatDisplayDate(), getPublicSupabaseClient(), getPublishedBlogPostBySlug(), getPublishedBlogPosts(), getRelatedPublishedBlogPosts(), loadPublishedDatabaseBlogPosts() (+68 more)
+Nodes (162): Ad(), ajax(), alpha(), Ao(), appendParams(), batchSend(), blur(), blurTextInput() (+154 more)
 
 ### Community 2 - "Community 2"
 Cohesion: 0.01
-Nodes (143): Ad(), addListener(), ajax(), alpha(), Ao(), appendParams(), ar(), batchSend() (+135 more)
+Nodes (170): bucketTemplate(), getDaysSince(), isRecord(), runBillingReminderAutomation(), toBucket(), computeBookingOutstandingInr(), getBookingOutstandingSummary(), getCapturedOnlineAmountForBooking() (+162 more)
 
 ### Community 3 - "Community 3"
 Cohesion: 0.01
-Nodes (142): Ad(), ajax(), alpha(), Ao(), appendParams(), batchSend(), binaryDecode(), blur() (+134 more)
+Nodes (62): canTransition(), transitionFlow(), shouldTrackRequest(), toRequestUrl(), getGroomingPackageByServiceType(), getGroomingPackagePriceByServiceType(), normalizeSearchText(), normalizeServiceType() (+54 more)
 
 ### Community 4 - "Community 4"
 Cohesion: 0.01
-Nodes (136): forbidden(), getApiAuthContext(), getCurrentApiRole(), isRoleAllowed(), normalizeRoleName(), requireApiRole(), resolveRoleWithProviderPrecedence(), createRoleResolutionSupabase() (+128 more)
+Nodes (149): ajax(), alpha(), Ao(), appendParams(), ar(), batchSend(), blur(), blurTextInput() (+141 more)
 
 ### Community 5 - "Community 5"
 Cohesion: 0.02
-Nodes (19): canRun(), ct(), current(), find(), _getAccessToken(), __getChildren(), __getNativeConfig(), __getNativeTag() (+11 more)
+Nodes (106): a(), add(), addObserver(), ae(), applyTransformOptsToQuery(), assertIsReady(), at(), b() (+98 more)
 
 ### Community 6 - "Community 6"
 Cohesion: 0.02
-Nodes (98): a(), addEventListener(), addListener(), addObserver(), ae(), assertIsReady(), at(), b() (+90 more)
+Nodes (95): addEventListener(), addObserver(), ae(), applyTransformOptsToQuery(), at(), b(), bd(), binaryEncode() (+87 more)
 
 ### Community 7 - "Community 7"
-Cohesion: 0.02
-Nodes (145): bucketTemplate(), getDaysSince(), isRecord(), runBillingReminderAutomation(), toBucket(), createCustomerProfileForBooking(), CustomerIntakeError, ensureOwnerProfileForBookingCustomer() (+137 more)
+Cohesion: 0.03
+Nodes (179): aa(), Ac(), af(), ai(), Al(), ba(), bc(), bf() (+171 more)
 
 ### Community 8 - "Community 8"
 Cohesion: 0.02
-Nodes (81): a(), applyTransformOptsToQuery(), assertIsReady(), at(), b(), binaryEncode(), bindMethods(), cancelTasks() (+73 more)
+Nodes (99): addAddress(), addEmergencyContact(), addMedicalRecord(), addMinutesToTimeString(), addVaccination(), applyBookingStatusTransition(), cancelBooking(), cancelBookingAsProvider() (+91 more)
 
 ### Community 9 - "Community 9"
-Cohesion: 0.03
-Nodes (166): aa(), Ac(), af(), ai(), ba(), bc(), bi(), bo() (+158 more)
+Cohesion: 0.02
+Nodes (74): a(), add(), bindMethods(), cancelTimeout(), canPush(), clearHeartbeats(), clearInteractionHandle(), computeViewableItems() (+66 more)
 
 ### Community 10 - "Community 10"
-Cohesion: 0.03
-Nodes (149): aa(), af(), ai(), bc(), bo(), bp(), br(), c() (+141 more)
+Cohesion: 0.02
+Nodes (58): cancelTimeout(), canPush(), channel(), clearHeartbeats(), computeViewableItems(), connect(), connectWithFallback(), f() (+50 more)
 
 ### Community 11 - "Community 11"
 Cohesion: 0.03
 Nodes (14): binaryDecode(), current(), decodeBroadcast(), decodePush(), decodeReply(), _getAccessToken(), _initRealtimeClient(), _initSupabaseAuthClient() (+6 more)
 
 ### Community 12 - "Community 12"
+Cohesion: 0.03
+Nodes (14): binaryDecode(), current(), decodeBroadcast(), decodePush(), decodeReply(), _getAccessToken(), _initRealtimeClient(), _initSupabaseAuthClient() (+6 more)
+
+### Community 13 - "Community 13"
 Cohesion: 0.02
 Nodes (54): collectUniqueAddressSegments(), formatAddressParts(), formatSavedAddress(), normalizeSegment(), sanitizeAddressText(), canMoveToStep(), formatCreditAmount(), goToStep() (+46 more)
 
-### Community 13 - "Community 13"
-Cohesion: 0.03
-Nodes (127): Ac(), addEventListener(), Al(), an(), as(), bd(), bf(), bn() (+119 more)
-
 ### Community 14 - "Community 14"
-Cohesion: 0.02
-Nodes (53): cancelTimeout(), canPush(), channel(), clearHeartbeats(), connect(), connectWithFallback(), f(), flushSendBuffer() (+45 more)
-
-### Community 15 - "Community 15"
 Cohesion: 0.02
 Nodes (49): adminRequest(), appendAvailabilitySlot(), applyBengaluruCityCoveragePreset(), applyBillingBulkStatus(), applyBillingEscalationAction(), applyBookingAdjustment(), applyBookingStatusForIds(), applyBulkStatus() (+41 more)
 
+### Community 15 - "Community 15"
+Cohesion: 0.02
+Nodes (19): __addChild(), canRun(), ct(), find(), __getAnimatedValue(), __getChildren(), getCurrentResult(), __getNativeConfig() (+11 more)
+
 ### Community 16 - "Community 16"
 Cohesion: 0.02
-Nodes (43): add(), addChangeListener(), applyTransformOptsToQuery(), binaryEncode(), clear(), clearInteractionHandle(), computeViewableItems(), configureNextLayoutAnimation() (+35 more)
+Nodes (26): __addChild(), addListener(), bn(), canRun(), ct(), execute(), find(), __getChildren() (+18 more)
 
 ### Community 17 - "Community 17"
-Cohesion: 0.02
-Nodes (18): __addChild(), canRun(), ct(), execute(), find(), __getAnimatedValue(), __getChildren(), __getNativeConfig() (+10 more)
+Cohesion: 0.03
+Nodes (121): Ac(), Al(), an(), as(), bf(), bp(), Bt(), bu() (+113 more)
 
 ### Community 18 - "Community 18"
-Cohesion: 0.03
-Nodes (48): cancelTimeout(), canPush(), channel(), clearHeartbeats(), f(), flushSendBuffer(), getChannels(), _handleTokenChanged() (+40 more)
+Cohesion: 0.05
+Nodes (124): aa(), af(), ai(), ba(), bc(), bi(), bo(), br() (+116 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.03
-Nodes (43): Be(), bf(), build(), cancel(), cancelQueries(), catch(), componentWillUnmount(), defaultQueryOptions() (+35 more)
+Cohesion: 0.02
+Nodes (60): Ad(), build(), cancel(), cancelQueries(), cancelRefEvent(), clearGcTimeout(), clearTimeout(), close() (+52 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.04
-Nodes (30): ae(), Be(), cancel(), cancelQueries(), catch(), decode(), ep(), fetchRequest() (+22 more)
+Cohesion: 0.03
+Nodes (58): forbidden(), getApiAuthContext(), getCurrentApiRole(), isRoleAllowed(), normalizeRoleName(), requireApiRole(), resolveRoleWithProviderPrecedence(), createRoleResolutionSupabase() (+50 more)
 
 ### Community 21 - "Community 21"
 Cohesion: 0.04
-Nodes (85): Al(), an(), ar(), as(), bd(), bn(), bp(), Bt() (+77 more)
+Nodes (16): assertIsReady(), Be(), ep(), fetchThenEvalAsync(), g(), ge, If(), j() (+8 more)
 
 ### Community 22 - "Community 22"
 Cohesion: 0.03
-Nodes (33): cancelRefEvent(), clearGcTimeout(), clearTimeout(), close(), closeAndRetry(), connect(), connectWithFallback(), continue() (+25 more)
+Nodes (20): addChangeListener(), clear(), configureNextLayoutAnimation(), decode(), delete(), disconnect(), emit(), encode() (+12 more)
 
 ### Community 23 - "Community 23"
 Cohesion: 0.04
-Nodes (16): add(), ba(), bi(), clearInteractionHandle(), createInteractionHandle(), getStateForRouteFocus(), h(), ha() (+8 more)
+Nodes (54): addEventListener(), addListener(), build(), cancel(), cancelQueries(), cancelRefEvent(), clearGcTimeout(), componentWillUnmount() (+46 more)
 
 ### Community 24 - "Community 24"
-Cohesion: 0.04
-Nodes (47): addObserver(), build(), cancelRefEvent(), clearGcTimeout(), componentWillUnmount(), defaultMutationOptions(), defaultQueryOptions(), destroy() (+39 more)
+Cohesion: 0.03
+Nodes (8): channel(), f(), __getAnimatedValue(), getChannels(), _handleTokenChanged(), __onAnimatedValueUpdateReceived(), removeAllChannels(), toJSON()
 
 ### Community 25 - "Community 25"
-Cohesion: 0.04
-Nodes (17): addChangeListener(), clear(), configureNextLayoutAnimation(), disconnect(), emit(), encode(), onJoin(), onLeave() (+9 more)
+Cohesion: 0.03
+Nodes (20): addChangeListener(), clear(), configureNextLayoutAnimation(), decode(), delete(), emit(), encode(), init() (+12 more)
 
 ### Community 26 - "Community 26"
 Cohesion: 0.04
-Nodes (19): clearInterval(), clearTimeout(), close(), __debouncedOnEnd(), Eo(), __getNativeAnimationConfig(), getSize(), He() (+11 more)
+Nodes (7): computeBlankness(), deactivateAndFlush(), deviceName(), measureLayout(), o(), _resetData(), schedule()
 
 ### Community 27 - "Community 27"
+Cohesion: 0.05
+Nodes (63): an(), ar(), as(), bn(), bp(), Bt(), Cd(), cn() (+55 more)
+
+### Community 28 - "Community 28"
+Cohesion: 0.04
+Nodes (19): clearInterval(), clearTimeout(), close(), __debouncedOnEnd(), Eo(), __getNativeAnimationConfig(), getSize(), He() (+11 more)
+
+### Community 29 - "Community 29"
+Cohesion: 0.06
+Nodes (13): Be(), ep(), fetchThenEvalAsync(), g(), ge, le, Me(), oe() (+5 more)
+
+### Community 30 - "Community 30"
 Cohesion: 0.07
 Nodes (56): apiDelete(), apiGet(), apiPatch(), apiPost(), apiPut(), bootstrapProfile(), buildPath(), calculateServicePrice() (+48 more)
 
-### Community 28 - "Community 28"
-Cohesion: 0.05
-Nodes (13): clearInterval(), Eo(), __getNativeAnimationConfig(), getSize(), hex(), hexa(), load(), measure() (+5 more)
-
-### Community 29 - "Community 29"
-Cohesion: 0.05
-Nodes (17): __addChild(), defaultMutationOptions(), enqueueTasks(), __getAnimatedValue(), getMutationDefaults(), __getPlatformConfig(), init(), ls() (+9 more)
-
-### Community 30 - "Community 30"
+### Community 31 - "Community 31"
 Cohesion: 0.12
 Nodes (27): buildAddOnLines(), extractPetIdsFromPayloadNode(), extractPetIdsFromPaymentMetadata(), extractProviderServiceIdsFromPayloadNode(), extractProviderServiceIdsFromPaymentMetadata(), getBookingConfirmationStatusLabel(), loadBookingConfirmationData(), normalizeStatus() (+19 more)
-
-### Community 31 - "Community 31"
-Cohesion: 0.09
-Nodes (14): countBookingServiceUnits(), countDistinctBookingCustomers(), countEffectiveBookingStatus(), isMissingFunctionError(), isMissingTableError(), isRecord(), loadAdminDashboardBusinessStats(), loadAdminDashboardBusinessStatsFallback() (+6 more)
 
 ### Community 32 - "Community 32"
 Cohesion: 0.14
@@ -172,20 +172,20 @@ Cohesion: 0.14
 Nodes (21): buildPaymentSummary(), loadInvoiceDetailForAdmin(), loadInvoiceDetailForUser(), parseRazorpayMethod(), sentenceCase(), toText(), buildInvoicePdfBuffer(), buildInvoicePrintHtml() (+13 more)
 
 ### Community 34 - "Community 34"
-Cohesion: 0.22
-Nodes (7): addDays(), getDayName(), getDayOfWeek(), getIstNowParts(), resolveAvailableSlots(), resolveAvailableSlotsMultiDay(), resolveDayAvailability()
+Cohesion: 0.25
+Nodes (11): countBookingServiceUnits(), countDistinctBookingCustomers(), countEffectiveBookingStatus(), isMissingFunctionError(), isMissingTableError(), isRecord(), loadAdminDashboardBusinessStats(), loadAdminDashboardBusinessStatsFallback() (+3 more)
 
 ### Community 35 - "Community 35"
 Cohesion: 0.22
 Nodes (0): 
 
 ### Community 36 - "Community 36"
-Cohesion: 0.25
-Nodes (0): 
+Cohesion: 0.42
+Nodes (7): gs(), hs(), ms(), ps(), vs(), Yl(), ys()
 
 ### Community 37 - "Community 37"
-Cohesion: 0.62
-Nodes (7): gs(), hs(), ms(), ps(), vs(), Yl(), ys()
+Cohesion: 0.25
+Nodes (0): 
 
 ### Community 38 - "Community 38"
 Cohesion: 0.33
@@ -576,14 +576,14 @@ Nodes (0):
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `u()` connect `Community 17` to `Community 2`, `Community 24`, `Community 14`, `Community 23`, `Community 8`, `Community 20`, `Community 13`, `Community 11`, `Community 26`, `Community 10`, `Community 25`?**
+- **Why does `u()` connect `Community 15` to `Community 1`, `Community 23`, `Community 10`, `Community 5`, `Community 29`, `Community 11`, `Community 26`, `Community 27`, `Community 28`, `Community 7`, `Community 22`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
-- **Why does `u()` connect `Community 5` to `Community 3`, `Community 29`, `Community 16`, `Community 19`, `Community 6`, `Community 21`, `Community 28`, `Community 9`, `Community 37`, `Community 18`, `Community 22`?**
+- **Why does `u()` connect `Community 16` to `Community 4`, `Community 19`, `Community 24`, `Community 9`, `Community 6`, `Community 21`, `Community 12`, `Community 17`, `Community 18`, `Community 25`, `Community 36`?**
   _High betweenness centrality (0.012) - this node is a cross-community bridge._
-- **Why does `r()` connect `Community 5` to `Community 3`, `Community 19`, `Community 6`, `Community 28`, `Community 16`, `Community 9`, `Community 21`, `Community 18`, `Community 29`, `Community 22`?**
+- **Why does `r()` connect `Community 12` to `Community 4`, `Community 21`, `Community 16`, `Community 6`, `Community 19`, `Community 25`, `Community 9`, `Community 18`, `Community 17`?**
   _High betweenness centrality (0.009) - this node is a cross-community bridge._
 - **Should `Community 0` be split into smaller, more focused modules?**
-  _Cohesion score 0 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.01 - nodes in this community are weakly interconnected._
 - **Should `Community 1` be split into smaller, more focused modules?**
   _Cohesion score 0.01 - nodes in this community are weakly interconnected._
 - **Should `Community 2` be split into smaller, more focused modules?**
