@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Dofurs Provider",
+    "slug": "dofurs-provider",
+    "scheme": "dofursprovider",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#fdf8f4"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
