@@ -54,21 +54,23 @@ export default function GlobalNetworkCursorLoader() {
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
 
-    window.fetch = async (...args: Parameters<typeof window.fetch>) => {
-      const shouldTrack = shouldTrackRequest(args[0]);
+    const trackedFetch: typeof window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const shouldTrack = shouldTrackRequest(input);
 
       if (shouldTrack) {
         setPendingRequests((current) => current + 1);
       }
 
       try {
-        return await originalFetch(...args);
+        return await originalFetch(input, init);
       } finally {
         if (shouldTrack) {
           setPendingRequests((current) => Math.max(0, current - 1));
         }
       }
     };
+
+    window.fetch = trackedFetch;
 
     return () => {
       window.fetch = originalFetch;
