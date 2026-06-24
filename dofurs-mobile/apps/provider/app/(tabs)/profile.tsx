@@ -27,8 +27,11 @@ export default function ProviderProfileScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Profile & account</Text>
-      <Text style={styles.subtitle}>Update your provider details and compliance documents.</Text>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>Dofurs</Text>
+        <Text style={styles.title}>Doorstep Pet Grooming, From Verified Groomers Across Bengaluru</Text>
+        <Text style={styles.subtitle}>Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit.</Text>
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardTitle}>{typeof provider?.business_name === 'string' && provider.business_name.trim().length > 0 ? provider.business_name : 'Dofurs provider'}</Text>
@@ -81,13 +84,27 @@ export default function ProviderProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#e7c4a7',
+    backgroundColor: '#fffaf5',
+    padding: 16,
+    gap: 6,
+  },
+  heroEyebrow: {
+    color: '#9b5f2f',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   title: {
     color: dofursColors.ink,
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
   },
   subtitle: {
-    marginTop: 6,
     color: '#4f4b47',
     fontSize: 14,
   },
@@ -95,7 +112,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e7c4a7',
-    backgroundColor: '#fff8f0',
+    backgroundColor: '#fffaf5',
     padding: 12,
     gap: 7,
   },

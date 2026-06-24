@@ -18,8 +18,11 @@ export default function ProviderHomeScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Provider dashboard</Text>
-      <Text style={styles.subtitle}>Manage your schedule, bookings, and customer experience.</Text>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>Dofurs</Text>
+        <Text style={styles.title}>Doorstep Pet Grooming, From Verified Groomers Across Bengaluru</Text>
+        <Text style={styles.subtitle}>Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit.</Text>
+      </View>
 
       {dashboardQuery.isLoading ? <Text style={styles.meta}>Loading dashboard...</Text> : null}
 
@@ -67,13 +70,32 @@ export default function ProviderHomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#e7c4a7',
+    backgroundColor: '#fffaf5',
+    padding: 18,
+    gap: 8,
+    shadowColor: '#c28953',
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
+  },
+  heroEyebrow: {
+    color: '#9b5f2f',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   title: {
     color: dofursColors.ink,
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
   },
   subtitle: {
-    marginTop: 6,
     color: '#4f4b47',
     fontSize: 14,
   },
@@ -85,7 +107,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 1,
     borderColor: '#e7c4a7',
-    backgroundColor: '#fff8f0',
+    backgroundColor: '#fffaf5',
     padding: 14,
     gap: 6,
   },

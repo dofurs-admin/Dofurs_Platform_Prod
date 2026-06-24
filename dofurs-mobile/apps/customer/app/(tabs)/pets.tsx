@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Screen, dofursColors, getUserPets } from '@dofurs/shared';
 
@@ -46,10 +47,17 @@ export default function CustomerPetsScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>My pets</Text>
-      <Text style={styles.subtitle}>Manage pet profiles used during booking.</Text>
+      <View style={styles.heroCard}>
+        <View style={styles.heroPill}>
+          <Ionicons name="paw-outline" color={dofursColors.coral} size={13} />
+          <Text style={styles.heroPillLabel}>Companions</Text>
+        </View>
+        <Text style={styles.title}>Pet profiles with complete care context</Text>
+        <Text style={styles.subtitle}>Keep breed, age, and profile completion in one clean mobile view.</Text>
+      </View>
 
       <Pressable style={styles.addButton} onPress={() => router.push('/pets/add')}>
+        <Ionicons name="add-circle-outline" color="#ffffff" size={14} />
         <Text style={styles.addButtonLabel}>Add pet profile</Text>
       </Pressable>
 
@@ -66,14 +74,21 @@ export default function CustomerPetsScreen() {
 
       {pets.map((pet) => (
         <Pressable key={pet.id} style={styles.card} onPress={() => router.push(`/pets/${pet.id}`)}>
-          <View>
-            <Text style={styles.cardTitle}>{pet.name}</Text>
-            <Text style={styles.meta}>{pet.breed ?? 'Breed not specified'}</Text>
+          <View style={styles.cardLeft}>
+            <View style={styles.avatarCircle}>
+              <Text style={styles.avatarLabel}>{pet.name.slice(0, 1).toUpperCase()}</Text>
+            </View>
+            <View style={styles.petTextBlock}>
+              <Text style={styles.cardTitle}>{pet.name}</Text>
+              <Text style={styles.meta}>{pet.breed ?? 'Breed not specified'}</Text>
+            </View>
           </View>
 
           <View style={styles.rightAlign}>
             <Text style={styles.meta}>{pet.age != null ? `${pet.age} yrs` : 'Age not set'}</Text>
-            <Text style={styles.progress}>{Math.round(pet.completion_percent ?? 0)}% complete</Text>
+            <View style={styles.progressPill}>
+              <Text style={styles.progress}>{Math.round(pet.completion_percent ?? 0)}% complete</Text>
+            </View>
           </View>
         </Pressable>
       ))}
@@ -86,23 +101,65 @@ export default function CustomerPetsScreen() {
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fff6ed',
+    padding: 18,
+    gap: 9,
+    shadowColor: '#b47a49',
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
+  },
+  heroPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e4c5a8',
+    backgroundColor: '#fffaf4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  heroPillLabel: {
+    color: '#91562b',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
   title: {
     color: dofursColors.ink,
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 35,
   },
   subtitle: {
-    marginTop: 6,
-    color: '#4f4b47',
+    color: '#5f4c3e',
     fontSize: 14,
+    lineHeight: 21,
   },
   addButton: {
-    marginTop: 12,
     alignSelf: 'flex-start',
-    borderRadius: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ca7d44',
     backgroundColor: dofursColors.coral,
-    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 15,
     paddingVertical: 10,
+    shadowColor: '#b66828',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 4,
   },
   addButtonLabel: {
     color: '#ffffff',
@@ -115,13 +172,41 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#e7c4a7',
-    backgroundColor: '#fff8f0',
-    padding: 14,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fffbf7',
+    padding: 12,
+    shadowColor: '#b47a49',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  cardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  avatarCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e8c9ac',
+    backgroundColor: '#fff5e8',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarLabel: {
+    color: '#8f613b',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  petTextBlock: {
+    gap: 1,
   },
   rightAlign: {
     alignItems: 'flex-end',
-    gap: 2,
+    gap: 4,
   },
   cardTitle: {
     color: dofursColors.ink,
@@ -129,13 +214,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   meta: {
-    color: '#6d635c',
-    fontSize: 13,
+    color: '#7b6959',
+    fontSize: 12,
+  },
+  progressPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e6cfbb',
+    backgroundColor: '#fff8f1',
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   progress: {
-    color: '#5d5853',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#72563f',
+    fontSize: 11,
+    fontWeight: '700',
   },
   errorCard: {
     borderRadius: 16,
@@ -151,16 +244,16 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     alignSelf: 'flex-start',
-    borderRadius: 10,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d7bda8',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   retryButtonLabel: {
     color: dofursColors.ink,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

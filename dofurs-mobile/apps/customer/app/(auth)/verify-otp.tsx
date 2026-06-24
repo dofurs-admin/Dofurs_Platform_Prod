@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ApiError,
+  AuthScreenShell,
+  authFormStyles,
   bootstrapProfile,
   completeProfile,
-  dofursColors,
   getSupabaseClient,
   getUserProfile,
   useAuthStore,
 } from '@dofurs/shared';
-import { Screen } from '@dofurs/shared';
 
 export default function VerifyOtpScreen() {
   const router = useRouter();
@@ -150,87 +150,43 @@ export default function VerifyOtpScreen() {
   }
 
   return (
-    <Screen>
-      <View style={styles.card}>
-        <Text style={styles.title}>Verify OTP</Text>
-        <Text style={styles.subtitle}>Enter the OTP sent to {email || 'your email'}.</Text>
+    <AuthScreenShell
+      badge="Security Check"
+      title="Almost there"
+      subtitle={`Enter the 6-digit code sent to ${email || 'your email'} to continue.`}
+      highlights={['Quick verification', 'Secure session', 'No passwords']}
+    >
+      <Text style={authFormStyles.sectionEyebrow}>OTP verification</Text>
+      <Text style={authFormStyles.sectionTitle}>Confirm your code</Text>
+      <Text style={authFormStyles.sectionSubtitle}>Make sure the OTP is entered exactly as received.</Text>
+
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>6-digit OTP</Text>
         <TextInput
           keyboardType="number-pad"
           maxLength={6}
           placeholder="123456"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.otpInput}
           value={otp}
           onChangeText={setOtp}
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} disabled={loading} onPress={handleVerifyOtp}>
-          <Text style={styles.buttonLabel}>{loading ? 'Verifying...' : 'Verify OTP'}</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondaryButton} onPress={handleResendOtp} disabled={loading}>
-          <Text style={styles.secondaryButtonLabel}>Resend OTP</Text>
-        </Pressable>
       </View>
-    </Screen>
+
+      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+
+      <Pressable
+        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
+        disabled={loading}
+        onPress={handleVerifyOtp}
+      >
+        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Verifying...' : 'Verify OTP'}</Text>
+      </Pressable>
+
+      <Pressable style={authFormStyles.secondaryButton} onPress={handleResendOtp} disabled={loading}>
+        <Text style={authFormStyles.secondaryButtonLabel}>Resend OTP</Text>
+      </Pressable>
+    </AuthScreenShell>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 48,
-    borderRadius: 20,
-    backgroundColor: '#fff8f0',
-    borderWidth: 1,
-    borderColor: '#e7c4a7',
-    padding: 20,
-    gap: 10,
-  },
-  title: {
-    color: dofursColors.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#4f4b47',
-    fontSize: 14,
-  },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d7bda8',
-    backgroundColor: '#ffffff',
-    color: dofursColors.ink,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    letterSpacing: 2,
-  },
-  error: {
-    color: dofursColors.error,
-    fontSize: 13,
-  },
-  button: {
-    backgroundColor: dofursColors.coral,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonLabel: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  secondaryButtonLabel: {
-    color: '#5d5853',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});

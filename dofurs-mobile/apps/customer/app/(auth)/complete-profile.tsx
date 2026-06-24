@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   ApiError,
+  AuthScreenShell,
+  authFormStyles,
   bootstrapProfile,
   completeProfile,
-  dofursColors,
   getSupabaseClient,
   getUserProfile,
   useAuthStore,
 } from '@dofurs/shared';
-import { Screen } from '@dofurs/shared';
 
 function normalizeIndianPhone(value: string) {
   const compact = value.replace(/[\s()-]+/g, '');
@@ -119,104 +119,76 @@ export default function CustomerCompleteProfileScreen() {
   }
 
   return (
-    <Screen>
-      <View style={styles.card}>
-        <Text style={styles.title}>Complete your profile</Text>
-        <Text style={styles.subtitle}>Add your details to start booking pet services.</Text>
+    <AuthScreenShell
+      badge="Profile Setup"
+      title="Tell us about you"
+      subtitle="We need a few details before you can start booking and managing pet care seamlessly."
+      highlights={['One-time setup', 'Securely stored', 'Editable anytime']}
+    >
+      <Text style={authFormStyles.sectionEyebrow}>Finalize account</Text>
+      <Text style={authFormStyles.sectionTitle}>Complete your profile</Text>
+      <Text style={authFormStyles.sectionSubtitle}>Add your details to unlock bookings, credits, and faster checkout.</Text>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Full name</Text>
         <TextInput
           autoCapitalize="words"
-          placeholder="Full name"
+          placeholder="Aarav Mehta"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={name}
           onChangeText={setName}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Email address</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
           placeholder="you@example.com"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={email}
           onChangeText={setEmail}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Phone number</Text>
         <TextInput
           keyboardType="phone-pad"
           placeholder="+91XXXXXXXXXX"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={phone}
           onChangeText={setPhone}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Referral code (optional)</Text>
         <TextInput
           autoCapitalize="characters"
-          placeholder="Referral code (optional)"
+          placeholder="DOFURS50"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={referralCode}
           onChangeText={setReferralCode}
         />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} disabled={loading} onPress={handleCompleteProfile}>
-          <Text style={styles.buttonLabel}>{loading ? 'Saving...' : 'Continue to app'}</Text>
-        </Pressable>
       </View>
-    </Screen>
+
+      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+
+      <Pressable
+        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
+        disabled={loading}
+        onPress={handleCompleteProfile}
+      >
+        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Saving...' : 'Continue to app'}</Text>
+      </Pressable>
+    </AuthScreenShell>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 36,
-    borderRadius: 20,
-    backgroundColor: '#fff8f0',
-    borderWidth: 1,
-    borderColor: '#e7c4a7',
-    padding: 20,
-    gap: 10,
-  },
-  title: {
-    color: dofursColors.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#4f4b47',
-    fontSize: 14,
-  },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d7bda8',
-    backgroundColor: '#ffffff',
-    color: dofursColors.ink,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  error: {
-    color: dofursColors.error,
-    fontSize: 13,
-  },
-  button: {
-    backgroundColor: dofursColors.coral,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonLabel: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});
