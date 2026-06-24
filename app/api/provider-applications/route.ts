@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { getApiAuthContext } from '@/lib/auth/api-auth';
 import { createServiceProviderApplication } from '@/lib/provider-applications/service';
-import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import { isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
 import { isRateLimited } from '@/lib/api/rate-limit';
 
@@ -68,10 +68,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const supabase = await getSupabaseServerClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { supabase, user } = await getApiAuthContext({
+      authorizationHeader: request.headers.get('authorization'),
+    });
 
     await createServiceProviderApplication(supabase, {
       submitted_by_user_id: user?.id ?? null,

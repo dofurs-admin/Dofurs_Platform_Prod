@@ -1,4 +1,5 @@
 node_modules/
+dofurs-mobile/package-lock.json
 .next/
 out/
 dist/

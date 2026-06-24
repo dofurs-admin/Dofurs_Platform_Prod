@@ -1,20 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase/server-client';
+import { getApiAuthContext, unauthorized } from '@/lib/auth/api-auth';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { isRateLimited } from '@/lib/api/rate-limit';
 
 const RATE_LIMIT = { windowMs: 60_000, maxRequests: 10 };
 
-export async function POST() {
-  const supabase = await getSupabaseServerClient();
+export async function POST(request: Request) {
+  const { supabase, user } = await getApiAuthContext({
+    authorizationHeader: request.headers.get('authorization'),
+  });
 
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) {
+    return unauthorized();
   }
 
   const rate = isRateLimited(`auth:bootstrap-profile:${user.id}`, RATE_LIMIT);

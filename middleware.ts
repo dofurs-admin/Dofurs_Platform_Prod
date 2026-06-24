@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
 import { createServerClient } from '@supabase/ssr';
 import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/env';
+import { extractBearerAccessToken } from '@/lib/auth/bearer-auth';
 import { type AppRole, isRoleAllowed, resolveRoleWithProviderPrecedence } from '@/lib/auth/api-auth';
 
 const protectedRoutes = [
@@ -17,8 +18,18 @@ const protectedRoutes = [
   '/api/payments/subscriptions',
 ];
 
+type HeaderReader = Pick<Headers, 'get'>;
+
 function isProtectedPath(pathname: string) {
   return protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+export function hasBearerAuthorizationHeader(headers: HeaderReader) {
+  return Boolean(extractBearerAccessToken(headers.get('authorization')));
+}
+
+export function shouldBypassProtectedApiCookieGate(pathname: string, headers: HeaderReader) {
+  return pathname.startsWith('/api/') && hasBearerAuthorizationHeader(headers);
 }
 
 function isAutomationTokenRoute(pathname: string) {
@@ -96,16 +107,22 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
+  const hasBearerToken = shouldBypassProtectedApiCookieGate(pathname, request.headers);
+
   const hasAuthCookie = request.cookies
     .getAll()
     .some((cookie) => cookie.name.startsWith('sb-') && cookie.name.includes('-auth-token'));
 
-  if (!hasAuthCookie) {
+  if (!hasAuthCookie && !hasBearerToken) {
     const signInUrl = request.nextUrl.clone();
     signInUrl.pathname = '/auth/sign-in';
     const originalSearch = request.nextUrl.search;
     signInUrl.searchParams.set('next', `${pathname}${originalSearch}`);
     return NextResponse.redirect(signInUrl);
+  }
+
+  if (hasBearerToken && !hasAuthCookie) {
+    return response;
   }
 
   const requiredRoles = getRequiredRoles(pathname);

@@ -9,6 +9,22 @@ npm install
 npm run dev
 ```
 
+## Mobile Workspace (In Repo)
+
+The Expo mobile apps live inside this repository under `dofurs-mobile/` and are managed by the root npm workspace.
+
+Use these commands from the repository root:
+
+```bash
+npm run mobile:install
+npm run mobile:dev:customer
+npm run mobile:dev:provider
+npm run mobile:typecheck
+npm run mobile:doctor
+```
+
+Keep using the root `package-lock.json` as the single lockfile source.
+
 ## Graphify
 
 `graphifyy` is installed as a dev dependency and provides the `graphify` CLI.
@@ -121,11 +137,23 @@ The default Google Ads account and booking conversion label are `AW-17976541101`
 
 - Billing reminder automation: `BILLING_AUTOMATION_RUNBOOK.md`
 - Operational alerts and SLOs: `OPERATIONS_ALERTS_SLOS.md`
+- Single-environment mobile rollout: `SINGLE_ENV_RELEASE_PLAYBOOK.md`
 - Monitor specs: `infra/monitoring/datadog-monitors.json`, `infra/monitoring/prometheus-rules.yaml`
 - Alertmanager template: `infra/monitoring/alertmanager-config.example.yaml`
 - Admin operational SLI endpoint: `GET /api/admin/ops/sli`
 - Load/perf gate: `npm run test:load:core`
 - Release readiness gate: `npm run release:gate`
+
+### Mobile Bearer Smoke Shortcuts
+
+Copy a valid website user JWT access token to macOS clipboard, then run:
+
+```bash
+npm run test:mobile:bearer-smoke:clipboard:local
+npm run test:mobile:bearer-smoke:clipboard:prod
+```
+
+The clipboard helper validates token shape and claims before running smoke checks.
 
 ## Sections
 

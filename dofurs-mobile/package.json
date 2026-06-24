@@ -1,0 +1,15 @@
+{
+  "name": "dofurs-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Legacy convenience scripts. Use the repository root workspace commands.",
+  "scripts": {
+    "dev": "npm --prefix .. run mobile:dev",
+    "dev:customer": "npm --prefix .. run mobile:dev:customer",
+    "dev:provider": "npm --prefix .. run mobile:dev:provider",
+    "typecheck": "npm --prefix .. run mobile:typecheck",
+    "lint": "npm --prefix .. run mobile:lint",
+    "test": "npm --prefix .. run mobile:test",
+    "doctor": "npm --prefix .. run mobile:doctor"
+  }
+}
