@@ -21,8 +21,13 @@ function isProtectedPath(pathname: string) {
   return protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
-function isSchedulerTokenRoute(pathname: string) {
-  return pathname === '/api/admin/billing/reminders/schedule' || pathname.startsWith('/api/admin/billing/reminders/schedule/');
+function isAutomationTokenRoute(pathname: string) {
+  return (
+    pathname === '/api/admin/billing/reminders/schedule'
+    || pathname.startsWith('/api/admin/billing/reminders/schedule/')
+    || pathname === '/api/admin/payments/cleanup-stale-transactions'
+    || pathname.startsWith('/api/admin/payments/cleanup-stale-transactions/')
+  );
 }
 
 const roleGuards: Array<{ prefix: string; roles: AppRole[] }> = [
@@ -55,7 +60,7 @@ export async function middleware(request: NextRequest) {
 
   const { response, user } = await updateSession(request);
 
-  if (isSchedulerTokenRoute(pathname)) {
+  if (isAutomationTokenRoute(pathname)) {
     return response;
   }
 

@@ -1,9 +1,35 @@
+import crypto from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { getISTTimestamp } from '@/lib/utils/date';
 
 const STALE_THRESHOLD_HOURS = 24;
+
+function safeTokenEqual(expected: string, provided: string) {
+  const expectedBuffer = Buffer.from(expected);
+  const providedBuffer = Buffer.from(provided);
+
+  if (expectedBuffer.length !== providedBuffer.length) {
+    return false;
+  }
+
+  return crypto.timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function extractToken(request: Request) {
+  const authHeader = request.headers.get('authorization') ?? '';
+  if (authHeader.toLowerCase().startsWith('bearer ')) {
+    return authHeader.slice(7).trim();
+  }
+
+  const tokenHeader = request.headers.get('x-billing-automation-token');
+  if (typeof tokenHeader === 'string' && tokenHeader.trim().length > 0) {
+    return tokenHeader.trim();
+  }
+
+  return '';
+}
 
 /**
  * POST /api/admin/payments/cleanup-stale-transactions
@@ -13,15 +39,14 @@ const STALE_THRESHOLD_HOURS = 24;
  * and makes the payment dashboard accurate.
  *
  * Should be called by a scheduled job (e.g. daily cron hitting this endpoint with
- * the BILLING_AUTOMATION_SECRET header) or triggered manually from the admin panel.
+ * Authorization: Bearer <BILLING_AUTOMATION_SECRET> or x-billing-automation-token)
+ * or triggered manually from the admin panel.
  */
 export async function POST(request: Request) {
   // Allow both admin/staff roles and the billing automation secret for scheduled calls.
-  const automationSecret = process.env.BILLING_AUTOMATION_SECRET;
-  const authHeader = request.headers.get('authorization');
-  const isAutomation =
-    automationSecret &&
-    authHeader === `Bearer ${automationSecret}`;
+  const automationSecret = process.env.BILLING_AUTOMATION_SECRET?.trim() ?? '';
+  const token = extractToken(request);
+  const isAutomation = !!automationSecret && !!token && safeTokenEqual(automationSecret, token);
 
   if (!isAutomation) {
     const auth = await requireApiRole(['admin', 'staff']);

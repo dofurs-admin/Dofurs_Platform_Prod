@@ -25,6 +25,10 @@
     "cleanup:booking-addresses": "node scripts/cleanup-booking-addresses.mjs",
     "audit:subscription-credits": "node scripts/audit-subscription-credit-bookings.mjs",
     "audit:service-catalog-sync": "node scripts/audit-service-catalog-sync-risk.mjs",
+    "ops:billing:secret:generate": "node scripts/generate-billing-automation-secret.mjs",
+    "ops:billing:run:schedule": "node scripts/run-billing-reminders-schedule.mjs",
+    "ops:billing:run:cleanup-stale": "node scripts/run-cleanup-stale-transactions.mjs",
+    "ops:billing:verify": "node scripts/verify-billing-automation.mjs",
     "test:load:core": "node scripts/load-test-core-flows.mjs",
     "release:gate": "node scripts/release-readiness-gate.mjs"
   },

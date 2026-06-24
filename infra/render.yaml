@@ -12,3 +12,45 @@ services:
         value: 20.11.1
       - key: NODE_OPTIONS
         value: --max-old-space-size=1024
+
+  - type: cron
+    name: dofurs-billing-reminders-scheduler
+    runtime: node
+    plan: starter
+    schedule: "*/30 * * * *"
+    buildCommand: npm ci
+    startCommand: npm run ops:billing:run:schedule
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: BILLING_AUTOMATION_BASE_URL
+        sync: false
+      - key: BILLING_AUTOMATION_SECRET
+        sync: false
+      - key: BILLING_AUTOMATION_BUCKET
+        value: all
+      - key: BILLING_AUTOMATION_CHANNEL
+        value: whatsapp
+      - key: BILLING_AUTOMATION_ENFORCE_CADENCE
+        value: "true"
+      - key: BILLING_AUTOMATION_ENFORCE_COOLDOWN
+        value: "true"
+      - key: BILLING_AUTOMATION_DRY_RUN
+        value: "false"
+      - key: BILLING_AUTOMATION_ACCEPT_CONFLICT
+        value: "true"
+
+  - type: cron
+    name: dofurs-cleanup-stale-transactions
+    runtime: node
+    plan: starter
+    schedule: "15 2 * * *"
+    buildCommand: npm ci
+    startCommand: npm run ops:billing:run:cleanup-stale
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: BILLING_AUTOMATION_BASE_URL
+        sync: false
+      - key: BILLING_AUTOMATION_SECRET
+        sync: false
