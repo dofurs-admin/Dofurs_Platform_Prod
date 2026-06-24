@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '@/lib/supabase/server-client';
+import { getApiAuthContext, unauthorized } from '@/lib/auth/api-auth';
 import { authSignupSchema } from '@/lib/flows/validation';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { isRateLimited } from '@/lib/api/rate-limit';
@@ -23,14 +23,12 @@ function resolveE164Phone(candidates: Array<unknown>) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await getSupabaseServerClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { supabase, user } = await getApiAuthContext({
+    authorizationHeader: request.headers.get('authorization'),
+  });
 
   if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return unauthorized();
   }
 
   const rate = isRateLimited(`auth:complete-profile:${user.id}`, RATE_LIMIT);

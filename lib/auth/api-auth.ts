@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server';
+import { resolveBearerAuthUser } from '@/lib/auth/bearer-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getSupabaseBearerClient } from '@/lib/supabase/bearer-client';
 import { getSupabaseServerClient } from '@/lib/supabase/server-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -6,6 +9,10 @@ export type AppRole = 'user' | 'provider' | 'admin' | 'staff';
 
 export const ADMIN_ROLES: AppRole[] = ['admin', 'staff'];
 export const PROVIDER_ROLES: AppRole[] = ['provider', 'admin', 'staff'];
+
+type ApiAuthContextOptions = {
+  authorizationHeader?: string | null;
+};
 
 function normalizeRoleName(roleName: unknown): AppRole | null {
   return roleName === 'admin' || roleName === 'staff' || roleName === 'provider' || roleName === 'user'
@@ -44,13 +51,25 @@ export async function resolveRoleWithProviderPrecedence(
   return resolvedRole;
 }
 
-export async function getApiAuthContext() {
+export async function getApiAuthContext(options: ApiAuthContextOptions = {}) {
   const supabase = await getSupabaseServerClient();
   const {
-    data: { user },
+    data: { user: cookieUser },
   } = await supabase.auth.getUser();
 
-  if (!user) {
+  if (cookieUser) {
+    const roleName = await resolveRoleWithProviderPrecedence(supabase, cookieUser.id);
+
+    return {
+      supabase,
+      user: cookieUser,
+      role: roleName ?? null,
+    };
+  }
+
+  const { accessToken, user: bearerUser } = await resolveBearerAuthUser(options.authorizationHeader);
+
+  if (!bearerUser || !accessToken) {
     return {
       supabase,
       user: null,
@@ -58,11 +77,13 @@ export async function getApiAuthContext() {
     };
   }
 
-  const roleName = await resolveRoleWithProviderPrecedence(supabase, user.id);
+  const bearerSupabase = getSupabaseBearerClient(accessToken);
+  const adminSupabase = getSupabaseAdminClient();
+  const roleName = await resolveRoleWithProviderPrecedence(adminSupabase, bearerUser.id);
 
   return {
-    supabase,
-    user,
+    supabase: bearerSupabase,
+    user: bearerUser,
     role: roleName ?? null,
   };
 }
@@ -88,8 +109,8 @@ export async function getCurrentApiRole() {
   return role;
 }
 
-export async function requireApiRole(allowedRoles: readonly AppRole[]) {
-  const context = await getApiAuthContext();
+export async function requireApiRole(allowedRoles: readonly AppRole[], options: ApiAuthContextOptions = {}) {
+  const context = await getApiAuthContext(options);
 
   if (!context.user) {
     return {
