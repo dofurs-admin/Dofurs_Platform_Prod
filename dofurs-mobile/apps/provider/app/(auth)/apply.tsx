@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ApiError, dofursColors, submitProviderApplication } from '@dofurs/shared';
-import { Screen } from '@dofurs/shared';
+import {
+  ApiError,
+  AuthScreenShell,
+  authFormStyles,
+  submitProviderApplication,
+} from '@dofurs/shared';
 
 function normalizeIndianPhone(value: string) {
   const compact = value.replace(/[\s()-]+/g, '');
@@ -52,7 +56,7 @@ export default function ProviderApplyScreen() {
     }
 
     if (!normalizedPhone) {
-      setError('Enter a valid Indian mobile number.');
+      setError('Enter a valid Indian phone number.');
       return;
     }
 
@@ -96,136 +100,120 @@ export default function ProviderApplyScreen() {
   }
 
   return (
-    <Screen>
-      <View style={styles.card}>
-        <Text style={styles.title}>Apply as a Dofurs Provider</Text>
-        <Text style={styles.subtitle}>Submit your basic details and our team will review your profile.</Text>
+    <AuthScreenShell
+      badge="Dofurs"
+      title="Doorstep Pet Grooming, From Verified Groomers Across Bengaluru"
+      subtitle="Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit."
+      highlights={['Doorstep grooming', 'Background-verified', 'Pet-safe products']}
+    >
+      <Text style={authFormStyles.sectionEyebrow}>Application form</Text>
+      <Text style={authFormStyles.sectionTitle}>Provider details</Text>
+      <Text style={authFormStyles.sectionSubtitle}>Complete all required fields to submit your onboarding request.</Text>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Full name</Text>
         <TextInput
           autoCapitalize="words"
           placeholder="Full name"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={fullName}
           onChangeText={setFullName}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Email</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
           placeholder="you@example.com"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={email}
           onChangeText={setEmail}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Phone number</Text>
         <TextInput
           keyboardType="phone-pad"
           placeholder="+91XXXXXXXXXX"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={phone}
           onChangeText={setPhone}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Provider type</Text>
         <TextInput
-          placeholder="Provider type (for example grooming, veterinary)"
+          placeholder="grooming, veterinary, training"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={providerType}
           onChangeText={setProviderType}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Years of experience</Text>
         <TextInput
           keyboardType="number-pad"
-          placeholder="Years of experience"
+          placeholder="1"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={experience}
           onChangeText={setExperience}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>City</Text>
         <TextInput
           placeholder="City"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={city}
           onChangeText={setCity}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>State</Text>
         <TextInput
           placeholder="State"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={state}
           onChangeText={setState}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Service areas</Text>
         <TextInput
           placeholder="Primary service areas"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={serviceAreas}
           onChangeText={setServiceAreas}
         />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={handleSubmit} disabled={loading}>
-          <Text style={styles.buttonLabel}>{loading ? 'Submitting...' : 'Submit application'}</Text>
-        </Pressable>
       </View>
-    </Screen>
+
+      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+
+      <Pressable
+        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
+        onPress={handleSubmit}
+        disabled={loading}
+      >
+        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Submitting...' : 'Submit application'}</Text>
+      </Pressable>
+    </AuthScreenShell>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 24,
-    borderRadius: 20,
-    backgroundColor: '#fff8f0',
-    borderWidth: 1,
-    borderColor: '#e7c4a7',
-    padding: 20,
-    gap: 10,
-  },
-  title: {
-    color: dofursColors.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#4f4b47',
-    fontSize: 14,
-  },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d7bda8',
-    backgroundColor: '#ffffff',
-    color: dofursColors.ink,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  error: {
-    color: dofursColors.error,
-    fontSize: 13,
-  },
-  button: {
-    backgroundColor: dofursColors.coral,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonLabel: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-});

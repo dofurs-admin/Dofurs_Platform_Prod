@@ -94,8 +94,11 @@ export default function ProviderReviewsScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Reviews</Text>
-      <Text style={styles.subtitle}>Read customer feedback and post professional replies.</Text>
+      <View style={styles.heroCard}>
+        <Text style={styles.heroEyebrow}>Dofurs</Text>
+        <Text style={styles.title}>Reviews</Text>
+        <Text style={styles.subtitle}>Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit.</Text>
+      </View>
 
       <View style={styles.filterRow}>
         {[null, 5, 4, 3, 2, 1].map((rating) => {
@@ -168,13 +171,27 @@ export default function ProviderReviewsScreen() {
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: '#e7c4a7',
+    backgroundColor: '#fffaf5',
+    padding: 16,
+    gap: 6,
+  },
+  heroEyebrow: {
+    color: '#9b5f2f',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
   title: {
     color: dofursColors.ink,
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 28,
+    fontWeight: '800',
   },
   subtitle: {
-    marginTop: 6,
     color: '#4f4b47',
     fontSize: 14,
   },
@@ -207,7 +224,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: '#e7c4a7',
-    backgroundColor: '#fff8f0',
+    backgroundColor: '#fffaf5',
     padding: 12,
     gap: 6,
   },

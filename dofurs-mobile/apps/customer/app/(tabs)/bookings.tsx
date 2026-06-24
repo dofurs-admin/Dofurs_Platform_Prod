@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Screen, dofursColors, getUserBookings } from '@dofurs/shared';
 
@@ -39,6 +40,46 @@ function formatCurrency(value: number | null) {
   return `INR ${Math.round(value)}`;
 }
 
+function getStatusTone(status: string | null) {
+  if (!status) {
+    return {
+      labelColor: '#7b6959',
+      backgroundColor: '#fff8f1',
+      borderColor: '#e9cfb8',
+    };
+  }
+
+  if (status === 'completed') {
+    return {
+      labelColor: '#356c47',
+      backgroundColor: '#eef9f1',
+      borderColor: '#cce7d6',
+    };
+  }
+
+  if (status === 'cancelled') {
+    return {
+      labelColor: '#9a4538',
+      backgroundColor: '#fff2ef',
+      borderColor: '#f0c3ba',
+    };
+  }
+
+  if (status === 'confirmed' || status === 'in_progress') {
+    return {
+      labelColor: '#6a4b31',
+      backgroundColor: '#fff4e6',
+      borderColor: '#ecccae',
+    };
+  }
+
+  return {
+    labelColor: '#7b6959',
+    backgroundColor: '#fff8f1',
+    borderColor: '#e9cfb8',
+  };
+}
+
 export default function CustomerBookingsScreen() {
   const router = useRouter();
   const bookingsQuery = useQuery({
@@ -60,8 +101,22 @@ export default function CustomerBookingsScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Bookings</Text>
-      <Text style={styles.subtitle}>Track upcoming and past appointments.</Text>
+      <View style={styles.heroCard}>
+        <View style={styles.heroPill}>
+          <Ionicons name="calendar-clear-outline" color={dofursColors.coral} size={13} />
+          <Text style={styles.heroPillLabel}>Bookings</Text>
+        </View>
+        <Text style={styles.title}>Track upcoming and past grooming appointments</Text>
+        <Text style={styles.subtitle}>View date, time, status, and amount for every booking in one place.</Text>
+        <View style={styles.chipRow}>
+          <View style={styles.chip}>
+            <Text style={styles.chipLabel}>Upcoming</Text>
+          </View>
+          <View style={styles.chip}>
+            <Text style={styles.chipLabel}>History</Text>
+          </View>
+        </View>
+      </View>
 
       {bookingsQuery.isLoading ? <Text style={styles.meta}>Loading bookings...</Text> : null}
 
@@ -74,36 +129,117 @@ export default function CustomerBookingsScreen() {
         </View>
       ) : null}
 
-      {bookings.map((booking) => (
-        <Pressable key={booking.id} style={styles.card} onPress={() => router.push(`/booking/${booking.id}`)}>
-          <View style={styles.cardLeft}>
-            <Text style={styles.cardTitle}>{booking.service_type ?? `Booking #${booking.id}`}</Text>
-            <Text style={styles.meta}>{booking.booking_date ?? 'Date TBA'} {booking.start_time ?? ''}</Text>
-          </View>
-          <View style={styles.cardRight}>
-            <Text style={styles.status}>{booking.booking_status ?? 'pending'}</Text>
-            <Text style={styles.amount}>{formatCurrency(booking.amount)}</Text>
-          </View>
-        </Pressable>
-      ))}
+      {bookings.map((booking) => {
+        const statusTone = getStatusTone(booking.booking_status);
+
+        return (
+          <Pressable key={booking.id} style={styles.card} onPress={() => router.push(`/booking/${booking.id}`)}>
+            <View style={styles.cardLeft}>
+              <View style={styles.listTitleRow}>
+                <View style={styles.listIconWrap}>
+                  <Ionicons name="paw-outline" color="#8d5e37" size={14} />
+                </View>
+                <Text style={styles.cardTitle}>{booking.service_type ?? `Booking #${booking.id}`}</Text>
+              </View>
+
+              <View style={styles.metaRow}>
+                <Ionicons name="calendar-outline" color="#97775d" size={12} />
+                <Text style={styles.meta}>{booking.booking_date ?? 'Date TBA'} {booking.start_time ?? ''}</Text>
+              </View>
+            </View>
+
+            <View style={styles.cardRight}>
+              <View
+                style={[
+                  styles.statusPill,
+                  {
+                    backgroundColor: statusTone.backgroundColor,
+                    borderColor: statusTone.borderColor,
+                  },
+                ]}
+              >
+                <Text style={[styles.status, { color: statusTone.labelColor }]}>
+                  {booking.booking_status ?? 'pending'}
+                </Text>
+              </View>
+
+              <Text style={styles.amount}>{formatCurrency(booking.amount)}</Text>
+            </View>
+          </Pressable>
+        );
+      })}
 
       {!bookingsQuery.isLoading && !bookingsQuery.isError && bookings.length === 0 ? (
-        <Text style={styles.meta}>No bookings found yet.</Text>
+        <View style={styles.emptyStateCard}>
+          <Ionicons name="calendar-outline" color="#8f735d" size={18} />
+          <Text style={styles.emptyStateTitle}>No bookings yet</Text>
+          <Text style={styles.emptyStateSubtitle}>Your upcoming and past appointments will appear here.</Text>
+        </View>
       ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  heroCard: {
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fff6ed',
+    padding: 18,
+    gap: 9,
+    shadowColor: '#b47a49',
+    shadowOpacity: 0.2,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 5,
+  },
+  heroPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e4c5a8',
+    backgroundColor: '#fffaf4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  heroPillLabel: {
+    color: '#91562b',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+  },
   title: {
     color: dofursColors.ink,
-    fontSize: 26,
-    fontWeight: '700',
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 35,
   },
   subtitle: {
-    marginTop: 6,
-    color: '#4f4b47',
+    color: '#5f4c3e',
     fontSize: 14,
+    lineHeight: 21,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  chip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5cab1',
+    backgroundColor: '#fff9f3',
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+  },
+  chipLabel: {
+    color: '#6a523f',
+    fontSize: 12,
+    fontWeight: '600',
   },
   card: {
     flexDirection: 'row',
@@ -111,28 +247,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#e7c4a7',
-    backgroundColor: '#fff8f0',
-    padding: 14,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fffbf7',
+    padding: 13,
+    shadowColor: '#b47a49',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
   },
   cardLeft: {
     flex: 1,
-    gap: 2,
+    gap: 6,
   },
   cardRight: {
     alignItems: 'flex-end',
-    gap: 2,
+    gap: 7,
+  },
+  listTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  listIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e8c9ac',
+    backgroundColor: '#fff5e8',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardTitle: {
     color: dofursColors.ink,
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     textTransform: 'capitalize',
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  statusPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
   status: {
-    color: '#5d5853',
-    fontSize: 12,
+    fontSize: 11,
     textTransform: 'capitalize',
+    fontWeight: '700',
   },
   amount: {
     color: dofursColors.ink,
@@ -140,8 +307,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   meta: {
-    color: '#6d635c',
-    fontSize: 13,
+    color: '#7b6959',
+    fontSize: 12,
   },
   errorCard: {
     borderRadius: 16,
@@ -157,16 +324,35 @@ const styles = StyleSheet.create({
   },
   retryButton: {
     alignSelf: 'flex-start',
-    borderRadius: 10,
+    borderRadius: 999,
     borderWidth: 1,
     borderColor: '#d7bda8',
     backgroundColor: '#ffffff',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   retryButtonLabel: {
     color: dofursColors.ink,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+  },
+  emptyStateCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fffbf7',
+    padding: 16,
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyStateTitle: {
+    color: dofursColors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  emptyStateSubtitle: {
+    color: '#7b6959',
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

@@ -5,6 +5,7 @@ export * from './api/mobile-client';
 export * from './auth/secure-store';
 export * from './auth/supabase';
 export * from './components/Screen';
+export * from './components/AuthScreenShell';
 export * from './constants/colors';
 export * from './constants/env';
 export * from './hooks/use-app-query';

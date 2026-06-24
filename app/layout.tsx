@@ -241,7 +241,7 @@ const localBusinessSchema = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-IN" suppressHydrationWarning>
+    <html lang="en-IN" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         <Script id="google-tag-manager" strategy="lazyOnload">
           {`

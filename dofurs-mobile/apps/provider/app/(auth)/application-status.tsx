@@ -38,11 +38,17 @@ export default function ProviderApplicationStatusScreen() {
 
   return (
     <Screen>
+      <View style={styles.hero}>
+        <View style={styles.badge}>
+          <Text style={styles.badgeLabel}>Application received</Text>
+        </View>
+        <Text style={styles.heroTitle}>Thanks for applying to Dofurs</Text>
+        <Text style={styles.heroSubtitle}>Our onboarding team is reviewing your details, service fit, and coverage before approval.</Text>
+      </View>
+
       <View style={styles.card}>
-        <Text style={styles.title}>Application submitted</Text>
-        <Text style={styles.subtitle}>
-          Thanks for applying to Dofurs. Our onboarding team will review your profile and verify your details.
-        </Text>
+        <Text style={styles.title}>Current status</Text>
+        <Text style={styles.subtitle}>Review in progress. You can check again after a few minutes.</Text>
 
         <Pressable style={[styles.button, checking && styles.buttonDisabled]} onPress={handleCheckStatus} disabled={checking}>
           <Text style={styles.buttonLabel}>{checking ? 'Checking...' : 'Check approval status'}</Text>
@@ -59,29 +65,65 @@ export default function ProviderApplicationStatusScreen() {
 }
 
 const styles = StyleSheet.create({
+  hero: {
+    marginTop: 16,
+    gap: 10,
+  },
+  badge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#efcba9',
+    backgroundColor: '#fff1e1',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  badgeLabel: {
+    color: '#9b5f2f',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  heroTitle: {
+    color: dofursColors.ink,
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 36,
+  },
+  heroSubtitle: {
+    color: '#5d5853',
+    fontSize: 14,
+    lineHeight: 21,
+  },
   card: {
-    marginTop: 60,
-    borderRadius: 20,
-    backgroundColor: '#fff8f0',
+    marginTop: 14,
+    borderRadius: 28,
+    backgroundColor: '#fffaf5',
     borderWidth: 1,
     borderColor: '#e7c4a7',
     padding: 20,
     gap: 12,
+    shadowColor: '#c28953',
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 3,
   },
   title: {
     color: dofursColors.ink,
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: '800',
   },
   subtitle: {
-    color: '#4f4b47',
+    color: '#5a4c41',
     fontSize: 14,
     lineHeight: 22,
   },
   button: {
     backgroundColor: dofursColors.coral,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 13,
     alignItems: 'center',
   },
   buttonDisabled: {
@@ -89,8 +131,8 @@ const styles = StyleSheet.create({
   },
   buttonLabel: {
     color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '800',
   },
   secondaryButton: {
     alignItems: 'center',

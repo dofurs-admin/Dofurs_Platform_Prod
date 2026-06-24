@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { dofursColors } from '@dofurs/shared';
 
 export default function ProviderTabsLayout() {
@@ -7,18 +8,82 @@ export default function ProviderTabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: dofursColors.coral,
-        tabBarInactiveTintColor: '#7d736c',
+        tabBarInactiveTintColor: '#7a6a5b',
+        tabBarLabelStyle: {
+          fontSize: 10,
+          fontWeight: '700',
+          marginTop: -2,
+        },
+        tabBarHideOnKeyboard: true,
+        tabBarItemStyle: {
+          borderRadius: 14,
+          marginHorizontal: 2,
+        },
         tabBarStyle: {
-          backgroundColor: '#fff8f0',
-          borderTopColor: '#e7c4a7',
+          position: 'absolute',
+          left: 12,
+          right: 12,
+          bottom: 12,
+          height: 72,
+          paddingTop: 8,
+          paddingBottom: 10,
+          backgroundColor: '#fff7ee',
+          borderTopColor: '#e3c7ad',
+          borderTopWidth: 1,
+          borderRadius: 22,
+          shadowColor: '#956038',
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 10 },
+          elevation: 9,
         },
       }}
     >
-      <Tabs.Screen name="home" options={{ title: 'Home' }} />
-      <Tabs.Screen name="bookings" options={{ title: 'Bookings' }} />
-      <Tabs.Screen name="schedule" options={{ title: 'Schedule' }} />
-      <Tabs.Screen name="reviews" options={{ title: 'Reviews' }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen
+        name="home"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          title: 'Bookings',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'calendar' : 'calendar-clear-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="schedule"
+        options={{
+          title: 'Schedule',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'time' : 'time-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="reviews"
+        options={{
+          title: 'Reviews',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'chatbubble-ellipses' : 'chatbubble-ellipses-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

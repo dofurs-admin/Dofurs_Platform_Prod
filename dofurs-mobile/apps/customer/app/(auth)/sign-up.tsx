@@ -1,8 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ApiError, dofursColors, getSupabaseClient, preSignup, useAuthStore } from '@dofurs/shared';
-import { Screen } from '@dofurs/shared';
+import {
+  ApiError,
+  AuthScreenShell,
+  authFormStyles,
+  getSupabaseClient,
+  preSignup,
+  useAuthStore,
+} from '@dofurs/shared';
 
 function normalizeIndianPhone(value: string) {
   const compact = value.replace(/[\s()-]+/g, '');
@@ -109,117 +115,80 @@ export default function CustomerSignUpScreen() {
   }
 
   return (
-    <Screen>
-      <View style={styles.card}>
-        <Text style={styles.title}>Create your Dofurs account</Text>
-        <Text style={styles.subtitle}>We will send an OTP to your email to verify your account.</Text>
+    <AuthScreenShell
+      badge="Dofurs"
+      title="Doorstep Pet Grooming, From Verified Groomers Across Bengaluru"
+      subtitle="Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit."
+      highlights={['Doorstep grooming', 'Background-verified', 'Pet-safe products']}
+    >
+      <Text style={authFormStyles.sectionEyebrow}>Create account</Text>
+      <Text style={authFormStyles.sectionTitle}>Create your Dofurs account</Text>
+      <Text style={authFormStyles.sectionSubtitle}>Enter your details and we will send an OTP to your email.</Text>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Full name</Text>
         <TextInput
           autoCapitalize="words"
-          placeholder="Full name"
+          placeholder="Aarav Mehta"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={name}
           onChangeText={setName}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Email address</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
           placeholder="you@example.com"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={email}
           onChangeText={setEmail}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Phone number</Text>
         <TextInput
           keyboardType="phone-pad"
           placeholder="+91XXXXXXXXXX"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={phone}
           onChangeText={setPhone}
         />
+      </View>
 
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Referral code (optional)</Text>
         <TextInput
           autoCapitalize="characters"
-          placeholder="Referral code (optional)"
+          placeholder="DOFURS50"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={referralCode}
           onChangeText={setReferralCode}
         />
-
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} disabled={loading} onPress={handleSendOtp}>
-          <Text style={styles.buttonLabel}>{loading ? 'Sending OTP...' : 'Send OTP'}</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondaryButton} onPress={() => router.push('/(auth)/sign-in')}>
-          <Text style={styles.secondaryButtonLabel}>Already have an account? Sign in</Text>
-        </Pressable>
       </View>
-    </Screen>
+
+      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+
+      <Pressable
+        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
+        disabled={loading}
+        onPress={handleSendOtp}
+      >
+        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Sending OTP...' : 'Send OTP'}</Text>
+      </Pressable>
+
+      <Pressable style={authFormStyles.secondaryButton} onPress={() => router.push('/(auth)/sign-in')}>
+        <Text style={authFormStyles.secondaryButtonLabel}>Already have an account? Sign in</Text>
+      </Pressable>
+    </AuthScreenShell>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 32,
-    borderRadius: 20,
-    backgroundColor: '#fff8f0',
-    borderWidth: 1,
-    borderColor: '#e7c4a7',
-    padding: 20,
-    gap: 10,
-  },
-  title: {
-    color: dofursColors.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#4f4b47',
-    fontSize: 14,
-  },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d7bda8',
-    backgroundColor: '#ffffff',
-    color: dofursColors.ink,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  error: {
-    color: dofursColors.error,
-    fontSize: 13,
-  },
-  button: {
-    backgroundColor: dofursColors.coral,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonLabel: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  secondaryButtonLabel: {
-    color: '#5d5853',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});

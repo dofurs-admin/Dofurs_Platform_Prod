@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@dofurs/shared": "file:../../packages/shared",
+    "@expo/vector-icons": "^15.1.1",
     "@tanstack/react-query": "^5.62.7",
     "expo": "~56.0.12",
     "expo-constants": "~56.0.18",

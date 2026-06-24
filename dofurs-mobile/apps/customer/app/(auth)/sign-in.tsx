@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { dofursColors, getSupabaseClient } from '@dofurs/shared';
-import { Screen } from '@dofurs/shared';
+import { AuthScreenShell, authFormStyles, getSupabaseClient } from '@dofurs/shared';
 import { useAuthStore } from '@dofurs/shared';
 
 export default function CustomerSignInScreen() {
@@ -54,87 +53,45 @@ export default function CustomerSignInScreen() {
   }
 
   return (
-    <Screen>
-      <View style={styles.card}>
-        <Text style={styles.title}>Sign in to Dofurs Customer</Text>
-        <Text style={styles.subtitle}>Use your email OTP to continue.</Text>
+    <AuthScreenShell
+      badge="Dofurs"
+      title="Doorstep Pet Grooming, From Verified Groomers Across Bengaluru"
+      subtitle="Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit."
+    >
+      <Text style={authFormStyles.sectionEyebrow}>Welcome back</Text>
+      <Text style={authFormStyles.sectionTitle}>Sign in to Dofurs</Text>
+      <Text style={authFormStyles.sectionSubtitle}>Use the email linked to your Dofurs account.</Text>
+
+      <View style={authFormStyles.fieldGroup}>
+        <Text style={authFormStyles.fieldLabel}>Email address</Text>
         <TextInput
           autoCapitalize="none"
           autoCorrect={false}
           keyboardType="email-address"
           placeholder="you@example.com"
           placeholderTextColor="#9b8f87"
-          style={styles.input}
+          style={authFormStyles.input}
           value={email}
           onChangeText={setEmail}
         />
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        <Pressable style={[styles.button, loading && styles.buttonDisabled]} disabled={loading} onPress={handleSendOtp}>
-          <Text style={styles.buttonLabel}>{loading ? 'Sending OTP...' : 'Send OTP'}</Text>
-        </Pressable>
-
-        <Pressable style={styles.secondaryButton} onPress={() => router.push('/(auth)/sign-up')}>
-          <Text style={styles.secondaryButtonLabel}>New to Dofurs? Create account</Text>
-        </Pressable>
       </View>
-    </Screen>
+
+      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+
+      <Pressable
+        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
+        disabled={loading}
+        onPress={handleSendOtp}
+      >
+        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Sending OTP...' : 'Send OTP'}</Text>
+      </Pressable>
+
+      <Text style={authFormStyles.helperText}>We will send a 6-digit code to your email to verify your identity.</Text>
+
+      <Pressable style={authFormStyles.secondaryButton} onPress={() => router.push('/(auth)/sign-up')}>
+        <Text style={authFormStyles.secondaryButtonLabel}>New to Dofurs? Create account</Text>
+      </Pressable>
+    </AuthScreenShell>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 48,
-    borderRadius: 20,
-    backgroundColor: '#fff8f0',
-    borderWidth: 1,
-    borderColor: '#e7c4a7',
-    padding: 20,
-    gap: 10,
-  },
-  title: {
-    color: dofursColors.ink,
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  subtitle: {
-    color: '#4f4b47',
-    fontSize: 14,
-  },
-  input: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#d7bda8',
-    backgroundColor: '#ffffff',
-    color: dofursColors.ink,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  error: {
-    color: dofursColors.error,
-    fontSize: 13,
-  },
-  button: {
-    backgroundColor: dofursColors.coral,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  buttonDisabled: {
-    opacity: 0.7,
-  },
-  buttonLabel: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryButton: {
-    alignItems: 'center',
-    paddingVertical: 6,
-  },
-  secondaryButtonLabel: {
-    color: '#5d5853',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-});
