@@ -91,6 +91,80 @@ async function readApiErrorMessage(response: Response, fallback: string) {
 
 type BookingFilter = 'all' | 'sla' | 'high-risk' | BookingStatus;
 type BulkBookingStatus = BookingStatus;
+type BookingDatePreset = 'today' | 'last_7_days' | 'this_month';
+
+const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+function normalizeDateInputValue(value: string | null | undefined): string {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return DATE_INPUT_PATTERN.test(normalizedValue) ? normalizedValue : '';
+}
+
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function resolveBookingDateKey(booking: Pick<AdminBooking, 'booking_date' | 'booking_start'>): string | null {
+  const normalizedBookingDate = booking.booking_date?.trim();
+  if (normalizedBookingDate && /^\d{4}-\d{2}-\d{2}$/.test(normalizedBookingDate)) {
+    return normalizedBookingDate;
+  }
+
+  const normalizedBookingStart = booking.booking_start?.trim();
+  if (!normalizedBookingStart) {
+    return null;
+  }
+
+  const bookingStartDate = normalizedBookingStart.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(bookingStartDate)) {
+    return bookingStartDate;
+  }
+
+  const parsedDate = new Date(normalizedBookingStart);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate.toISOString().slice(0, 10);
+}
+
+function matchesBookingDateRange(
+  booking: Pick<AdminBooking, 'booking_date' | 'booking_start'>,
+  fromDate?: string,
+  toDate?: string,
+) {
+  if (!fromDate && !toDate) {
+    return true;
+  }
+
+  const bookingDateKey = resolveBookingDateKey(booking);
+  if (!bookingDateKey) {
+    return false;
+  }
+
+  if (fromDate && bookingDateKey < fromDate) {
+    return false;
+  }
+
+  if (toDate && bookingDateKey > toDate) {
+    return false;
+  }
+
+  return true;
+}
 
 function getEffectiveBookingStatus(booking: AdminBooking): BookingStatus {
   return booking.booking_status ?? booking.status;
@@ -946,6 +1020,8 @@ export default function AdminDashboardClient({
   const [bookingFilter, setBookingFilter] = useState<BookingFilter>('all');
   const [bookingSearchQuery, setBookingSearchQuery] = useState('');
   const [bookingSearchDebounced, setBookingSearchDebounced] = useState('');
+  const [bookingDateFrom, setBookingDateFrom] = useState('');
+  const [bookingDateTo, setBookingDateTo] = useState('');
   const [providerApplications, setProviderApplications] = useState<ServiceProviderApplication[]>(initialProviderApplications);
   const [providerApplicationStatusFilter, setProviderApplicationStatusFilter] = useState<
     'all' | ServiceProviderApplicationStatus
@@ -1231,6 +1307,14 @@ export default function AdminDashboardClient({
         params.set('q', normalizedSearch);
       }
 
+      if (bookingDateFrom) {
+        params.set('fromDate', bookingDateFrom);
+      }
+
+      if (bookingDateTo) {
+        params.set('toDate', bookingDateTo);
+      }
+
       params.set('limit', '300');
 
       const response = await fetch(`/api/admin/bookings?${params.toString()}`);
@@ -1241,7 +1325,7 @@ export default function AdminDashboardClient({
     } catch (error) {
       console.error('Failed to refresh bookings:', error);
     }
-  }, []);
+  }, [bookingDateFrom, bookingDateTo]);
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -1273,7 +1357,9 @@ export default function AdminDashboardClient({
   const visibleBookings = useMemo(() => {
     const normalizedSearch = bookingSearchDebounced.trim().toLowerCase();
 
-    let filtered = bookings;
+    let filtered = bookings.filter((booking) =>
+      matchesBookingDateRange(booking, bookingDateFrom || undefined, bookingDateTo || undefined),
+    );
 
     if (normalizedSearch) {
       filtered = filtered.filter((booking) => {
@@ -1297,7 +1383,7 @@ export default function AdminDashboardClient({
     }
 
     return filtered.filter((booking) => matchesBookingFilter(booking, bookingFilter));
-  }, [bookings, bookingFilter, bookingSearchDebounced]);
+  }, [bookings, bookingDateFrom, bookingDateTo, bookingFilter, bookingSearchDebounced]);
 
   const bookingRiskSummary = useMemo(() => {
     return {
@@ -3383,7 +3469,7 @@ export default function AdminDashboardClient({
     }
 
     refreshBookings(bookingSearchDebounced);
-  }, [bookingSearchDebounced, isBookingsView, refreshBookings]);
+  }, [bookingDateFrom, bookingDateTo, bookingSearchDebounced, isBookingsView, refreshBookings]);
 
   useEffect(() => {
     if (!isUsersView) {
@@ -3413,6 +3499,55 @@ export default function AdminDashboardClient({
       bookingActivityTimeoutRef.current = null;
     }, 8000);
   }, []);
+
+  function clearBookingDateRange() {
+    setBookingDateFrom('');
+    setBookingDateTo('');
+  }
+
+  function handleBookingDateFromChange(value: string) {
+    const normalizedValue = normalizeDateInputValue(value);
+    setBookingDateFrom(normalizedValue);
+    setBookingDateTo((current) => {
+      if (!current || !normalizedValue || current >= normalizedValue) {
+        return current;
+      }
+      return normalizedValue;
+    });
+  }
+
+  function handleBookingDateToChange(value: string) {
+    const normalizedValue = normalizeDateInputValue(value);
+    setBookingDateTo(normalizedValue);
+    setBookingDateFrom((current) => {
+      if (!current || !normalizedValue || current <= normalizedValue) {
+        return current;
+      }
+      return normalizedValue;
+    });
+  }
+
+  function applyBookingDatePreset(preset: BookingDatePreset) {
+    const today = new Date();
+
+    if (preset === 'today') {
+      const todayValue = formatDateForInput(today);
+      setBookingDateFrom(todayValue);
+      setBookingDateTo(todayValue);
+      return;
+    }
+
+    if (preset === 'last_7_days') {
+      setBookingDateFrom(formatDateForInput(addDays(today, -6)));
+      setBookingDateTo(formatDateForInput(today));
+      return;
+    }
+
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    setBookingDateFrom(formatDateForInput(firstDay));
+    setBookingDateTo(formatDateForInput(lastDay));
+  }
 
   function downloadSchemaHealthReport() {
     if (!schemaSyncHealth || typeof window === 'undefined') {
@@ -4928,6 +5063,12 @@ export default function AdminDashboardClient({
         onSearchChange={setBookingSearchQuery}
         bookingFilter={bookingFilter}
         onFilterChange={setBookingFilter}
+        bookingDateFrom={bookingDateFrom}
+        bookingDateTo={bookingDateTo}
+        onDateFromChange={handleBookingDateFromChange}
+        onDateToChange={handleBookingDateToChange}
+        onApplyDatePreset={applyBookingDatePreset}
+        onClearDateRange={clearBookingDateRange}
         bulkStatus={bulkStatus}
         onBulkStatusChange={setBulkStatus}
         onApplyBulkStatus={applyBulkStatus}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import AdminBookingsView from '@/components/dashboard/admin/views/AdminBookingsView';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAdminBookingRealtime } from '@/lib/hooks/useRealtime';
@@ -45,6 +46,106 @@ type Provider = {
 
 type BookingFilter = 'all' | 'sla' | 'high-risk' | BookingStatus;
 type BulkBookingStatus = BookingStatus;
+type BookingDatePreset = 'today' | 'last_7_days' | 'this_month';
+
+const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+const BOOKING_FILTER_VALUES: ReadonlyArray<BookingFilter> = [
+  'all',
+  'sla',
+  'high-risk',
+  'pending',
+  'confirmed',
+  'in_progress',
+  'completed',
+  'cancelled',
+  'no_show',
+];
+
+function normalizeSearchQueryValue(value: string | null | undefined): string {
+  return value?.trim() ?? '';
+}
+
+function normalizeBookingFilterValue(value: string | null | undefined): BookingFilter {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
+    return 'all';
+  }
+
+  return BOOKING_FILTER_VALUES.includes(normalizedValue as BookingFilter)
+    ? (normalizedValue as BookingFilter)
+    : 'all';
+}
+
+function normalizeDateInputValue(value: string | null | undefined): string {
+  const normalizedValue = value?.trim();
+  if (!normalizedValue) {
+    return '';
+  }
+
+  return DATE_INPUT_PATTERN.test(normalizedValue) ? normalizedValue : '';
+}
+
+function formatDateForInput(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number): Date {
+  const nextDate = new Date(date);
+  nextDate.setDate(nextDate.getDate() + days);
+  return nextDate;
+}
+
+function resolveBookingDateKey(booking: Pick<AdminBooking, 'booking_date' | 'booking_start'>): string | null {
+  const normalizedBookingDate = booking.booking_date?.trim();
+  if (normalizedBookingDate && /^\d{4}-\d{2}-\d{2}$/.test(normalizedBookingDate)) {
+    return normalizedBookingDate;
+  }
+
+  const normalizedBookingStart = booking.booking_start?.trim();
+  if (!normalizedBookingStart) {
+    return null;
+  }
+
+  const bookingStartDate = normalizedBookingStart.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(bookingStartDate)) {
+    return bookingStartDate;
+  }
+
+  const parsedDate = new Date(normalizedBookingStart);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate.toISOString().slice(0, 10);
+}
+
+function matchesBookingDateRange(
+  booking: Pick<AdminBooking, 'booking_date' | 'booking_start'>,
+  fromDate?: string,
+  toDate?: string,
+) {
+  if (!fromDate && !toDate) {
+    return true;
+  }
+
+  const bookingDateKey = resolveBookingDateKey(booking);
+  if (!bookingDateKey) {
+    return false;
+  }
+
+  if (fromDate && bookingDateKey < fromDate) {
+    return false;
+  }
+
+  if (toDate && bookingDateKey > toDate) {
+    return false;
+  }
+
+  return true;
+}
 
 function getEffectiveBookingStatus(booking: AdminBooking): BookingStatus {
   return booking.booking_status ?? booking.status;
@@ -91,17 +192,25 @@ async function readApiErrorMessage(response: Response, fallback: string) {
 
 export default function BookingsTab({ initialBookings, providers, openConfirm }: BookingsTabProps) {
   const { showToast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
   const [bookings, setBookings] = useState(initialBookings);
-  const [bookingFilter, setBookingFilter] = useState<BookingFilter>('all');
-  const [bookingSearchQuery, setBookingSearchQuery] = useState('');
-  const [bookingSearchDebounced, setBookingSearchDebounced] = useState('');
+  const [bookingFilter, setBookingFilter] = useState<BookingFilter>(() => normalizeBookingFilterValue(searchParams.get('filter')));
+  const [bookingSearchQuery, setBookingSearchQuery] = useState(() => normalizeSearchQueryValue(searchParams.get('q')));
+  const [bookingSearchDebounced, setBookingSearchDebounced] = useState(() => normalizeSearchQueryValue(searchParams.get('q')));
+  const [bookingDateFrom, setBookingDateFrom] = useState(() => normalizeDateInputValue(searchParams.get('fromDate')));
+  const [bookingDateTo, setBookingDateTo] = useState(() => normalizeDateInputValue(searchParams.get('toDate')));
   const [selectedBookingIds, setSelectedBookingIds] = useState<number[]>([]);
   const [bulkStatus, setBulkStatus] = useState<BulkBookingStatus>('confirmed');
   const [bookingModerationActivity, setBookingModerationActivity] = useState<string | null>(null);
 
   const bookingActivityTimeoutRef = useRef<number | null>(null);
+  const bookingSearchRef = useRef(bookingSearchDebounced);
+  const bookingDateFromRef = useRef(bookingDateFrom);
+  const bookingDateToRef = useRef(bookingDateTo);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -120,11 +229,77 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
     return () => window.clearTimeout(timeout);
   }, [bookingSearchQuery]);
 
-  const refreshBookings = useCallback(async (searchQuery?: string) => {
+  useEffect(() => {
+    bookingSearchRef.current = bookingSearchDebounced;
+  }, [bookingSearchDebounced]);
+
+  useEffect(() => {
+    bookingDateFromRef.current = bookingDateFrom;
+  }, [bookingDateFrom]);
+
+  useEffect(() => {
+    bookingDateToRef.current = bookingDateTo;
+  }, [bookingDateTo]);
+
+  useEffect(() => {
+    const searchQueryFromQuery = normalizeSearchQueryValue(searchParams.get('q'));
+    const filterFromQuery = normalizeBookingFilterValue(searchParams.get('filter'));
+    const fromDateFromQuery = normalizeDateInputValue(searchParams.get('fromDate'));
+    const toDateFromQuery = normalizeDateInputValue(searchParams.get('toDate'));
+
+    setBookingSearchQuery((current) => (current === searchQueryFromQuery ? current : searchQueryFromQuery));
+    setBookingSearchDebounced((current) => (current === searchQueryFromQuery ? current : searchQueryFromQuery));
+    setBookingFilter((current) => (current === filterFromQuery ? current : filterFromQuery));
+    setBookingDateFrom((current) => (current === fromDateFromQuery ? current : fromDateFromQuery));
+    setBookingDateTo((current) => (current === toDateFromQuery ? current : toDateFromQuery));
+  }, [searchParams]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    const normalizedSearchQuery = bookingSearchQuery.trim();
+
+    if (normalizedSearchQuery) {
+      params.set('q', normalizedSearchQuery);
+    } else {
+      params.delete('q');
+    }
+
+    if (bookingFilter !== 'all') {
+      params.set('filter', bookingFilter);
+    } else {
+      params.delete('filter');
+    }
+
+    if (bookingDateFrom) {
+      params.set('fromDate', bookingDateFrom);
+    } else {
+      params.delete('fromDate');
+    }
+
+    if (bookingDateTo) {
+      params.set('toDate', bookingDateTo);
+    } else {
+      params.delete('toDate');
+    }
+
+    const currentQuery = searchParams.toString();
+    const nextQuery = params.toString();
+
+    if (currentQuery === nextQuery) {
+      return;
+    }
+
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  }, [bookingDateFrom, bookingDateTo, bookingFilter, bookingSearchQuery, pathname, router, searchParams]);
+
+  const refreshBookings = useCallback(async () => {
     try {
       const params = new URLSearchParams();
-      const normalizedSearch = (searchQuery ?? '').trim();
+      const normalizedSearch = bookingSearchRef.current.trim();
       if (normalizedSearch) params.set('q', normalizedSearch);
+      if (bookingDateFromRef.current) params.set('fromDate', bookingDateFromRef.current);
+      if (bookingDateToRef.current) params.set('toDate', bookingDateToRef.current);
       params.set('limit', '300');
       const response = await fetch(`/api/admin/bookings?${params.toString()}`);
       if (response.ok) {
@@ -138,14 +313,22 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
 
   useAdminBookingRealtime(refreshBookings);
 
-  // Refresh when debounced search changes
+  // Refresh when search or date filters change
   useEffect(() => {
-    void refreshBookings(bookingSearchDebounced);
-  }, [bookingSearchDebounced, refreshBookings]);
+    void refreshBookings();
+  }, [bookingDateFrom, bookingDateTo, bookingSearchDebounced, refreshBookings]);
+
+  const bookingsWithinDateRange = useMemo(
+    () =>
+      bookings.filter((booking) =>
+        matchesBookingDateRange(booking, bookingDateFrom || undefined, bookingDateTo || undefined),
+      ),
+    [bookings, bookingDateFrom, bookingDateTo],
+  );
 
   const visibleBookings = useMemo(() => {
     const normalizedSearch = bookingSearchDebounced.trim().toLowerCase();
-    let filtered = bookings;
+    let filtered = bookingsWithinDateRange;
 
     if (normalizedSearch) {
       filtered = filtered.filter((booking) => {
@@ -169,18 +352,18 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
     }
 
     return filtered.filter((booking) => matchesBookingFilter(booking, bookingFilter));
-  }, [bookings, bookingFilter, bookingSearchDebounced]);
+  }, [bookingFilter, bookingSearchDebounced, bookingsWithinDateRange]);
 
   const bookingRiskSummary = useMemo(() => ({
-    inProgress: bookings.filter((b) => {
+    inProgress: bookingsWithinDateRange.filter((b) => {
       const s = getEffectiveBookingStatus(b);
       return s === 'pending' || s === 'confirmed' || s === 'in_progress';
     }).length,
-    completed: bookings.filter((b) => getEffectiveBookingStatus(b) === 'completed').length,
-    pending: bookings.filter((b) => getEffectiveBookingStatus(b) === 'pending').length,
-    noShow: bookings.filter((b) => getEffectiveBookingStatus(b) === 'no_show').length,
-    cancelled: bookings.filter((b) => getEffectiveBookingStatus(b) === 'cancelled').length,
-  }), [bookings]);
+    completed: bookingsWithinDateRange.filter((b) => getEffectiveBookingStatus(b) === 'completed').length,
+    pending: bookingsWithinDateRange.filter((b) => getEffectiveBookingStatus(b) === 'pending').length,
+    noShow: bookingsWithinDateRange.filter((b) => getEffectiveBookingStatus(b) === 'no_show').length,
+    cancelled: bookingsWithinDateRange.filter((b) => getEffectiveBookingStatus(b) === 'cancelled').length,
+  }), [bookingsWithinDateRange]);
 
   const logModerationActivity = useCallback((message: string) => {
     setBookingModerationActivity(message);
@@ -252,7 +435,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
           error?: string;
         };
 
-        await refreshBookings(bookingSearchDebounced);
+        await refreshBookings();
 
         if (!response.ok) {
           throw new Error(payload.error ?? 'Bulk update failed.');
@@ -267,7 +450,7 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
         showToast(successMessage, 'success');
         logModerationActivity(`${eligibleIds.length} booking(s) updated to ${status.replace('_', ' ')}.`);
       } catch (error) {
-        await refreshBookings(bookingSearchDebounced);
+        await refreshBookings();
         showToast(error instanceof Error ? error.message : 'Bulk update failed.', 'error');
       }
     });
@@ -481,13 +664,62 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
           throw new Error(payload.error ?? 'Unable to mark payment as received.');
         }
 
-        await refreshBookings(bookingSearchDebounced);
+        await refreshBookings();
         showToast(`Cash payment received for booking #${bookingId}.`, 'success');
       } catch (error) {
-        await refreshBookings(bookingSearchDebounced);
+        await refreshBookings();
         showToast(error instanceof Error ? error.message : 'Unable to mark payment as received.', 'error');
       }
     });
+  }
+
+  function clearDateRange() {
+    setBookingDateFrom('');
+    setBookingDateTo('');
+  }
+
+  function handleDateFromChange(value: string) {
+    const normalizedValue = normalizeDateInputValue(value);
+    setBookingDateFrom(normalizedValue);
+    setBookingDateTo((current) => {
+      if (!current || !normalizedValue || current >= normalizedValue) {
+        return current;
+      }
+      return normalizedValue;
+    });
+  }
+
+  function handleDateToChange(value: string) {
+    const normalizedValue = normalizeDateInputValue(value);
+    setBookingDateTo(normalizedValue);
+    setBookingDateFrom((current) => {
+      if (!current || !normalizedValue || current <= normalizedValue) {
+        return current;
+      }
+      return normalizedValue;
+    });
+  }
+
+  function applyDatePreset(preset: BookingDatePreset) {
+    const today = new Date();
+
+    if (preset === 'today') {
+      const todayValue = formatDateForInput(today);
+      setBookingDateFrom(todayValue);
+      setBookingDateTo(todayValue);
+      return;
+    }
+
+    if (preset === 'last_7_days') {
+      setBookingDateFrom(formatDateForInput(addDays(today, -6)));
+      setBookingDateTo(formatDateForInput(today));
+      return;
+    }
+
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    setBookingDateFrom(formatDateForInput(firstDay));
+    setBookingDateTo(formatDateForInput(lastDay));
   }
 
   function toggleBookingSelection(bookingId: number) {
@@ -504,6 +736,12 @@ export default function BookingsTab({ initialBookings, providers, openConfirm }:
         onSearchChange={setBookingSearchQuery}
         bookingFilter={bookingFilter}
         onFilterChange={setBookingFilter}
+        bookingDateFrom={bookingDateFrom}
+        bookingDateTo={bookingDateTo}
+        onDateFromChange={handleDateFromChange}
+        onDateToChange={handleDateToChange}
+        onApplyDatePreset={applyDatePreset}
+        onClearDateRange={clearDateRange}
         bulkStatus={bulkStatus}
         onBulkStatusChange={setBulkStatus}
         onApplyBulkStatus={applyBulkStatus}

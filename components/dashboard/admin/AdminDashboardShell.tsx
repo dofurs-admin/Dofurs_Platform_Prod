@@ -138,7 +138,7 @@ const OverviewTab = dynamic(
 );
 
 const BookingsTab = dynamic(
-  () => import('@/components/dashboard/admin/tabs/BookingsTab'),
+  () => import('@/components/dashboard/admin/tabs/BookingsTabChunkV2'),
   { loading: () => <TabSkeleton />, ssr: false },
 );
 

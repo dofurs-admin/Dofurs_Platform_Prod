@@ -15,6 +15,7 @@ import type { BookingStatus } from '@/lib/bookings/types';
 type AdminBookingStatus = BookingStatus;
 type BookingFilter = 'all' | 'sla' | 'high-risk' | AdminBookingStatus;
 type BulkBookingStatus = AdminBookingStatus;
+type BookingDatePreset = 'today' | 'last_7_days' | 'this_month';
 
 type AdminBooking = {
   id: number;
@@ -32,6 +33,8 @@ type AdminBooking = {
   customer_email?: string | null;
   customer_phone?: string | null;
   provider_name?: string | null;
+  admin_price_reference?: number | null;
+  price_at_booking?: number | null;
   included_services?: string[] | null;
   payment_mode?: string | null;
   cash_collected?: boolean;
@@ -122,6 +125,37 @@ function resolveBookingServiceLabel(booking: AdminBooking) {
   return buildIncludedServicesLabel(booking.included_services ?? [], booking.service_type);
 }
 
+function formatAmountForExport(value: number | null | undefined): string {
+  if (!Number.isFinite(value)) {
+    return '';
+  }
+
+  return Number(value).toFixed(2);
+}
+
+function formatPaymentModeForExport(value: string | null | undefined): string {
+  if (!value) {
+    return 'unknown';
+  }
+
+  return value.replace(/_/g, ' ');
+}
+
+function resolvePaymentStatusForExport(booking: Pick<AdminBooking, 'payment_mode' | 'cash_collected'>): string {
+  const mode = booking.payment_mode ?? null;
+  const isCashCollectionMode = mode === 'direct_to_provider' || mode === 'mixed';
+
+  if (isCashCollectionMode) {
+    return booking.cash_collected ? 'cash_collected' : 'cash_pending';
+  }
+
+  if (!mode) {
+    return 'unknown';
+  }
+
+  return 'non_cash';
+}
+
 function getStatusBadgeVariant(status: AdminBookingStatus) {
   if (status === 'completed') return 'success';
   if (status === 'pending') return 'warning';
@@ -139,6 +173,12 @@ type AdminBookingsViewProps = {
   onSearchChange: (query: string) => void;
   bookingFilter: BookingFilter;
   onFilterChange: (filter: BookingFilter) => void;
+  bookingDateFrom: string;
+  bookingDateTo: string;
+  onDateFromChange: (value: string) => void;
+  onDateToChange: (value: string) => void;
+  onApplyDatePreset: (preset: BookingDatePreset) => void;
+  onClearDateRange: () => void;
   bulkStatus: BulkBookingStatus;
   onBulkStatusChange: (status: BulkBookingStatus) => void;
   onApplyBulkStatus: () => void;
@@ -161,6 +201,12 @@ export default function AdminBookingsView({
   onSearchChange,
   bookingFilter,
   onFilterChange,
+  bookingDateFrom,
+  bookingDateTo,
+  onDateFromChange,
+  onDateToChange,
+  onApplyDatePreset,
+  onClearDateRange,
   bulkStatus,
   onBulkStatusChange,
   onApplyBulkStatus,
@@ -380,7 +426,7 @@ export default function AdminBookingsView({
 
       <div className="sticky top-[4rem] z-10 rounded-xl border border-neutral-200 bg-white/95 p-3 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-          <div className="grid flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid flex-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label htmlFor="admin-booking-search" className="mb-1.5 block text-xs font-medium text-neutral-700">
                 Search
@@ -406,14 +452,98 @@ export default function AdminBookingsView({
                 ))}
               </select>
             </div>
+            <div>
+              <label htmlFor="admin-booking-date-from" className="mb-1.5 block text-xs font-medium text-neutral-700">
+                From
+              </label>
+              <input
+                id="admin-booking-date-from"
+                type="date"
+                value={bookingDateFrom}
+                max={bookingDateTo || undefined}
+                onChange={(event) => onDateFromChange(event.target.value)}
+                className="input-field !min-h-9 w-full !rounded-lg !px-3 !py-2 !text-xs"
+              />
+            </div>
+            <div>
+              <label htmlFor="admin-booking-date-to" className="mb-1.5 block text-xs font-medium text-neutral-700">
+                To
+              </label>
+              <input
+                id="admin-booking-date-to"
+                type="date"
+                value={bookingDateTo}
+                min={bookingDateFrom || undefined}
+                onChange={(event) => onDateToChange(event.target.value)}
+                className="input-field !min-h-9 w-full !rounded-lg !px-3 !py-2 !text-xs"
+              />
+            </div>
+            <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-2 pt-0.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">Quick ranges</p>
+              <Button size="sm" variant="secondary" onClick={() => onApplyDatePreset('today')}>
+                Today
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => onApplyDatePreset('last_7_days')}>
+                Last 7 days
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => onApplyDatePreset('this_month')}>
+                This month
+              </Button>
+            </div>
           </div>
-          <button
-            type="button"
-            className="min-h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral"
-            onClick={() => exportToCsv('bookings-export', ['ID', 'Customer', 'Phone', 'Provider', 'Date', 'Status', 'Service', 'Mode'], visibleBookings.map((b) => [b.id, b.customer_name ?? b.user_id ?? '', b.customer_phone ?? '', b.provider_name ?? b.provider_id, b.booking_date ?? b.booking_start, b.booking_status ?? b.status, resolveBookingServiceLabel(b), b.booking_mode ?? '']))}
-          >
-            Export CSV
-          </button>
+          <div className="flex items-center gap-2 self-end">
+            {(bookingDateFrom || bookingDateTo) ? (
+              <Button size="sm" variant="secondary" onClick={onClearDateRange}>
+                Clear dates
+              </Button>
+            ) : null}
+            <button
+              type="button"
+              className="min-h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral"
+              onClick={() =>
+                exportToCsv(
+                  'bookings-export',
+                  [
+                    'ID',
+                    'Customer',
+                    'Phone',
+                    'Provider',
+                    'Date',
+                    'Status',
+                    'Service',
+                    'Mode',
+                    'Price at booking (INR)',
+                    'Admin price reference (INR)',
+                    'Payment mode',
+                    'Cash collected',
+                    'Payment status',
+                  ],
+                  visibleBookings.map((booking) => {
+                    const isCashCollectionMode =
+                      booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
+
+                    return [
+                      booking.id,
+                      booking.customer_name ?? booking.user_id ?? '',
+                      booking.customer_phone ?? '',
+                      booking.provider_name ?? booking.provider_id,
+                      booking.booking_date ?? booking.booking_start,
+                      booking.booking_status ?? booking.status,
+                      resolveBookingServiceLabel(booking),
+                      booking.booking_mode ?? '',
+                      formatAmountForExport(booking.price_at_booking),
+                      formatAmountForExport(booking.admin_price_reference),
+                      formatPaymentModeForExport(booking.payment_mode),
+                      isCashCollectionMode ? (booking.cash_collected ? 'yes' : 'no') : 'n/a',
+                      resolvePaymentStatusForExport(booking),
+                    ];
+                  }),
+                )
+              }
+            >
+              Export CSV
+            </button>
+          </div>
         </div>
       </div>
 

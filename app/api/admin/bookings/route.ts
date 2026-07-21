@@ -16,6 +16,8 @@ type BookingFilter = (typeof BOOKING_QUEUE_FILTERS)[number];
 const querySchema = z.object({
   q: z.string().trim().max(120).optional(),
   filter: z.enum(BOOKING_QUEUE_FILTERS).optional(),
+  fromDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  toDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().min(1).max(500).optional(),
 });
 
@@ -38,6 +40,8 @@ type BookingSearchRow = {
   completion_task_status: 'pending' | 'completed' | null;
   completion_due_at: string | null;
   completion_completed_at: string | null;
+  admin_price_reference: number | null;
+  price_at_booking: number | null;
   payment_mode: string | null;
   cash_collected: boolean;
   included_services?: string[];
@@ -53,14 +57,20 @@ type BookingServiceSourceRow = {
   price_at_booking: number | null;
 };
 
-async function hydrateIncludedServicesByBookingId(
+async function hydrateBookingEnrichmentById(
   adminSupabase: ReturnType<typeof getSupabaseAdminClient>,
   bookingIds: number[],
 ) {
   const includedServicesByBookingId = new Map<number, string[]>();
+  const adminPriceReferenceByBookingId = new Map<number, number | null>();
+  const priceAtBookingByBookingId = new Map<number, number | null>();
 
   if (bookingIds.length === 0) {
-    return includedServicesByBookingId;
+    return {
+      includedServicesByBookingId,
+      adminPriceReferenceByBookingId,
+      priceAtBookingByBookingId,
+    };
   }
 
   const { data: bookingRows, error: bookingRowsError } = await adminSupabase
@@ -73,12 +83,28 @@ async function hydrateIncludedServicesByBookingId(
 
   if (bookingRowsError) {
     console.warn('Unable to hydrate bundled service lines for admin bookings', bookingRowsError);
-    return includedServicesByBookingId;
+    return {
+      includedServicesByBookingId,
+      adminPriceReferenceByBookingId,
+      priceAtBookingByBookingId,
+    };
   }
 
   const referencedProviderServiceIds = new Set<string>();
 
   for (const booking of bookingRows ?? []) {
+    const adminPriceReference = Number(booking.admin_price_reference ?? NaN);
+    adminPriceReferenceByBookingId.set(
+      booking.id,
+      Number.isFinite(adminPriceReference) ? adminPriceReference : null,
+    );
+
+    const priceAtBooking = Number(booking.price_at_booking ?? NaN);
+    priceAtBookingByBookingId.set(
+      booking.id,
+      Number.isFinite(priceAtBooking) ? priceAtBooking : null,
+    );
+
     const providerServiceId = booking.provider_service_id?.trim();
     if (providerServiceId) {
       referencedProviderServiceIds.add(providerServiceId);
@@ -130,7 +156,11 @@ async function hydrateIncludedServicesByBookingId(
     );
   }
 
-  return includedServicesByBookingId;
+  return {
+    includedServicesByBookingId,
+    adminPriceReferenceByBookingId,
+    priceAtBookingByBookingId,
+  };
 }
 
 function normalizeBookingStatus(value: unknown): BookingStatus {
@@ -169,6 +199,55 @@ function matchesBookingFilter(booking: Pick<BookingSearchRow, 'booking_status' |
   return effectiveStatus === filter;
 }
 
+function resolveBookingDateKey(booking: Pick<BookingSearchRow, 'booking_date' | 'booking_start'>): string | null {
+  const normalizedBookingDate = booking.booking_date?.trim();
+  if (normalizedBookingDate && /^\d{4}-\d{2}-\d{2}$/.test(normalizedBookingDate)) {
+    return normalizedBookingDate;
+  }
+
+  const normalizedBookingStart = booking.booking_start?.trim();
+  if (!normalizedBookingStart) {
+    return null;
+  }
+
+  const bookingStartDate = normalizedBookingStart.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(bookingStartDate)) {
+    return bookingStartDate;
+  }
+
+  const parsedDate = new Date(normalizedBookingStart);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate.toISOString().slice(0, 10);
+}
+
+function matchesBookingDateRange(
+  booking: Pick<BookingSearchRow, 'booking_date' | 'booking_start'>,
+  fromDate?: string,
+  toDate?: string,
+) {
+  if (!fromDate && !toDate) {
+    return true;
+  }
+
+  const bookingDateKey = resolveBookingDateKey(booking);
+  if (!bookingDateKey) {
+    return false;
+  }
+
+  if (fromDate && bookingDateKey < fromDate) {
+    return false;
+  }
+
+  if (toDate && bookingDateKey > toDate) {
+    return false;
+  }
+
+  return true;
+}
+
 export async function GET(request: Request) {
   const auth = await requireApiRole(ADMIN_ROLES);
 
@@ -182,6 +261,8 @@ export async function GET(request: Request) {
   const parsed = querySchema.safeParse({
     q: url.searchParams.get('q') ?? undefined,
     filter: url.searchParams.get('filter') ?? undefined,
+    fromDate: url.searchParams.get('fromDate') ?? undefined,
+    toDate: url.searchParams.get('toDate') ?? undefined,
     limit: url.searchParams.get('limit') ?? undefined,
   });
 
@@ -191,7 +272,13 @@ export async function GET(request: Request) {
 
   const query = parsed.data.q?.trim() || undefined;
   const filter = parsed.data.filter ?? 'all';
+  const fromDate = parsed.data.fromDate;
+  const toDate = parsed.data.toDate;
   const limit = parsed.data.limit ?? 200;
+
+  if (fromDate && toDate && fromDate > toDate) {
+    return NextResponse.json({ error: 'fromDate cannot be after toDate' }, { status: 400 });
+  }
 
   try {
     const { data, error } = await adminSupabase.rpc('admin_search_bookings', {
@@ -208,8 +295,13 @@ export async function GET(request: Request) {
         booking_mode: normalizeNullableBookingMode(row.booking_mode),
         payment_mode: row.payment_mode ?? null,
         cash_collected: Boolean(row.cash_collected ?? false),
+        admin_price_reference: null,
+        price_at_booking: null,
       })) as BookingSearchRow[];
-      const filteredBookings = bookings.filter((booking) => matchesBookingFilter(booking, filter));
+      const filteredBookings = bookings.filter((booking) => (
+        matchesBookingDateRange(booking, fromDate, toDate)
+        && matchesBookingFilter(booking, filter)
+      ));
 
       const bookingIds = filteredBookings.map((booking) => booking.id).filter((id): id is number => Number.isFinite(id));
 
@@ -238,13 +330,19 @@ export async function GET(request: Request) {
           booking.cash_collected = paidBookingIds.has(booking.id);
         }
 
-        const includedServicesByBookingId = await hydrateIncludedServicesByBookingId(
+        const {
+          includedServicesByBookingId,
+          adminPriceReferenceByBookingId,
+          priceAtBookingByBookingId,
+        } = await hydrateBookingEnrichmentById(
           adminSupabase,
           bookingIds,
         );
 
         for (const booking of filteredBookings) {
           booking.included_services = includedServicesByBookingId.get(booking.id) ?? [];
+          booking.admin_price_reference = adminPriceReferenceByBookingId.get(booking.id) ?? null;
+          booking.price_at_booking = priceAtBookingByBookingId.get(booking.id) ?? null;
         }
       }
 
@@ -298,12 +396,18 @@ export async function GET(request: Request) {
           completion_task_status: taskData?.task_status ?? null,
           completion_due_at: taskData?.due_at ?? null,
           completion_completed_at: taskData?.completed_at ?? null,
+          admin_price_reference: null,
+          price_at_booking: null,
           payment_mode: row.payment_mode ?? null,
           cash_collected: false,
         };
       })
       .filter((booking) => {
         const effectiveStatus = booking.booking_status ?? booking.status;
+
+        if (!matchesBookingDateRange(booking, fromDate, toDate)) {
+          return false;
+        }
 
         if (!matchesBookingFilter(booking, filter)) {
           return false;
@@ -342,13 +446,19 @@ export async function GET(request: Request) {
         booking.cash_collected = paidBookingIds.has(booking.id);
       }
 
-      const includedServicesByBookingId = await hydrateIncludedServicesByBookingId(
+      const {
+        includedServicesByBookingId,
+        adminPriceReferenceByBookingId,
+        priceAtBookingByBookingId,
+      } = await hydrateBookingEnrichmentById(
         adminSupabase,
         bookingIds,
       );
 
       for (const booking of bookings) {
         booking.included_services = includedServicesByBookingId.get(booking.id) ?? [];
+        booking.admin_price_reference = adminPriceReferenceByBookingId.get(booking.id) ?? null;
+        booking.price_at_booking = priceAtBookingByBookingId.get(booking.id) ?? null;
       }
     }
 
@@ -365,6 +475,8 @@ export async function GET(request: Request) {
         action: 'list_admin_bookings',
         q: query,
         filter,
+        fromDate,
+        toDate,
         limit,
         responseStatus: mapped.status,
       },
