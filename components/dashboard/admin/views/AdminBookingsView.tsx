@@ -89,6 +89,13 @@ const TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', {
   hour12: true,
 });
 
+const INR_AMOUNT_FORMATTER = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 function formatDate(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : DATE_FORMATTER.format(date);
@@ -123,6 +130,43 @@ function formatBookingMode(value: AdminBooking['booking_mode']) {
 
 function resolveBookingServiceLabel(booking: AdminBooking) {
   return buildIncludedServicesLabel(booking.included_services ?? [], booking.service_type);
+}
+
+function formatAmountForDisplay(value: number | null | undefined): string {
+  if (!Number.isFinite(value)) {
+    return 'N/A';
+  }
+
+  return INR_AMOUNT_FORMATTER.format(Number(value));
+}
+
+function formatPaymentModeForDisplay(value: string | null | undefined): string {
+  if (!value) {
+    return 'Unknown';
+  }
+
+  return value
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function resolvePaymentStatusLabel(booking: Pick<AdminBooking, 'payment_mode' | 'cash_collected'>): string {
+  const mode = booking.payment_mode ?? null;
+  const isCashCollectionMode = mode === 'direct_to_provider' || mode === 'mixed' || mode === 'cash';
+
+  if (isCashCollectionMode) {
+    if (booking.cash_collected) {
+      return mode === 'mixed' ? 'Payable settled' : 'Cash collected';
+    }
+
+    return mode === 'mixed' ? 'Pending payable' : 'Awaiting cash';
+  }
+
+  if (!mode) {
+    return 'Unknown';
+  }
+
+  return mode === 'platform' ? 'Platform paid' : 'Non-cash';
 }
 
 function formatAmountForExport(value: number | null | undefined): string {
@@ -378,6 +422,20 @@ export default function AdminBookingsView({
           </select>
         );
       },
+    },
+    {
+      key: 'payment',
+      header: 'Payment',
+      className: 'min-w-[14rem]',
+      render: (booking: AdminBooking) => (
+        <div>
+          <p className="font-medium text-neutral-950">Booked: {formatAmountForDisplay(booking.price_at_booking)}</p>
+          <p className="mt-1 text-xs text-neutral-500">Admin ref: {formatAmountForDisplay(booking.admin_price_reference)}</p>
+          <p className="mt-1 text-xs text-neutral-500">
+            {formatPaymentModeForDisplay(booking.payment_mode)} • {resolvePaymentStatusLabel(booking)}
+          </p>
+        </div>
+      ),
     },
     {
       key: 'status',
