@@ -1,7 +1,7 @@
 # Mobile Execution Progress Tracker
 
-Last updated: 2026-06-24
-Branch: feature/mobile-phase-0-backend-compat
+Last updated: 2026-07-27
+Branch: feature/dev-start-2026-07-27
 Source plan: DOFURS_MOBILE_APP_BUILD_PROMPT_REFINED.md
 
 ## Execution Rules
@@ -13,12 +13,22 @@ Source plan: DOFURS_MOBILE_APP_BUILD_PROMPT_REFINED.md
 
 ## Phase Status
 
-- Phase 0 - Backend Mobile Compatibility: IMPLEMENTED (E2E VALIDATION PENDING)
-- Phase 1 - Shared Foundation (mobile repo): IMPLEMENTED (BASELINE VALIDATION COMPLETE)
-- Phase 2 - Customer MVP: IMPLEMENTED (LOCAL VALIDATION COMPLETE)
-- Phase 3 - Provider MVP: IMPLEMENTED (LOCAL VALIDATION COMPLETE)
+- Phase 0 - Backend Mobile Compatibility: IMPLEMENTED (AUTH SAFETY HARDENED; PRODUCTION TOKEN VALIDATION PENDING)
+- Phase 1 - Shared Foundation (mobile repo): IMPLEMENTED (STATIC VALIDATION COMPLETE)
+- Phase 2 - Customer MVP: IMPLEMENTED (ROLE SAFETY HARDENED; DEVICE E2E PENDING)
+- Phase 3 - Provider MVP: IMPLEMENTED (ROLE SAFETY HARDENED; DEVICE E2E PENDING)
 - Phase 4 - Polish and Release: NOT STARTED
 - Phase 5 - Later Enhancements: NOT STARTED
+
+## 2026-07-27 Continuation Summary
+
+- Synced progress tracking to `MOBILE_APP_DEVELOPMENT_READINESS_TRACKER.md` as source-of-truth.
+- Completed Gate 1 P0 auth routing hardening in customer/provider mobile flows.
+- Added centralized sign-out and query-cache reset behavior to all targeted customer/provider sign-out screens.
+- Hardened middleware provider bearer-state enforcement beyond suspended/banned.
+- Added provider account-state matrix tests (active/pending/rejected/suspended/banned/deleted/role-changed).
+- Added shared auth lifecycle tests for session restore, refresh, revocation, replacement, and reset behavior.
+- Rebuilt graph after each code-change batch per `AGENTS.md` policy.
 
 ## Phase 0 Checklist
 
@@ -36,6 +46,13 @@ Source plan: DOFURS_MOBILE_APP_BUILD_PROMPT_REFINED.md
 - Regression tests passed: `npm run test -- app/api/payments/bookings/order/__tests__/route.test.ts app/api/payments/bookings/verify/__tests__/route.test.ts app/api/bookings/create/__tests__/route.test.ts app/api/user/bookings/route.test.ts`
 - Lint passed: `npm run lint`
 - Graph rebuilt after code edits: `npx graphify hook-rebuild`
+
+### 2026-07-27 Additional Validation
+
+- Focused backend auth tests passed: `npm run test -- lib/auth/bearer-auth.test.ts lib/auth/api-auth.test.ts middleware.bearer.test.ts` (16 tests).
+- Shared auth/env tests passed: `npm run test -- dofurs-mobile/packages/shared/src/auth/session-lifecycle.test.ts dofurs-mobile/packages/shared/src/store/auth-store.test.ts dofurs-mobile/packages/shared/src/auth/session-reset.test.ts dofurs-mobile/packages/shared/src/auth/session.test.ts dofurs-mobile/packages/shared/src/constants/env.test.ts` (18 tests).
+- Mobile typecheck passed: `npm run mobile:typecheck`.
+- Graph rebuilt after latest edits: `npx graphify hook-rebuild` (latest run: 5348 nodes, 13461 edges, 109 communities).
 
 ## Phase 0 Implemented Files
 
@@ -137,6 +154,13 @@ Source plan: DOFURS_MOBILE_APP_BUILD_PROMPT_REFINED.md
 - Single-environment workflow is now codified in `SINGLE_ENV_RELEASE_PLAYBOOK.md`.
 - Use `npm run test:mobile:bearer-smoke:clipboard:local|prod` for non-interactive smoke runs.
 - `scripts/mobile-bearer-smoke.mjs` now enforces strict endpoint assertions (status + JSON content-type) and disables redirect following.
+- Runtime browser validation in shared VS Code pages is intermittently blocked by Metro disconnect and page interaction timeouts; code-level lifecycle coverage was expanded to compensate while device/runtime validation remains open.
+
+## Current Open Priorities (Gate 1)
+
+- Validate session persistence/app restart/foreground-background/token refresh/token revocation/sign-out in both apps on runtime surfaces (simulator/emulator/device).
+- Prepare deterministic customer/provider and account-state test users and seed data for repeatable smoke runs.
+- Re-run local bearer smoke with current state-data matrix after latest middleware/auth hardening.
 
 ## Decisions and Assumptions
 
@@ -145,6 +169,19 @@ Source plan: DOFURS_MOBILE_APP_BUILD_PROMPT_REFINED.md
 - Existing uncommitted graphify output changes are preserved and untouched unless required.
 
 ## Change Log
+
+### 2026-07-27
+
+- Completed provider auth-route hardening in `dofurs-mobile/apps/provider/app/index.tsx`, `dofurs-mobile/apps/provider/app/(auth)/verify-otp.tsx`, and `dofurs-mobile/apps/provider/app/(auth)/application-status.tsx`.
+- Completed customer auth-route hardening in `dofurs-mobile/apps/customer/app/index.tsx`, `dofurs-mobile/apps/customer/app/(auth)/verify-otp.tsx`, `dofurs-mobile/apps/customer/app/(auth)/complete-profile.tsx`, and `dofurs-mobile/apps/customer/app/(tabs)/_layout.tsx`.
+- Added provider tabs role guard in `dofurs-mobile/apps/provider/app/(tabs)/_layout.tsx`.
+- Standardized sign-out/reset handling using `signOutAndResetClientState` in customer/provider profile + settings screens.
+- Added shared auth role/session utilities and tests: `session.ts`, `role-policy.ts`, `session.test.ts`, `session-reset.test.ts`, `session-lifecycle.ts`, `session-lifecycle.test.ts`, `auth-store.test.ts`.
+- Refactored customer/provider root layouts to use deterministic shared lifecycle decisions for session apply/clear behavior.
+- Hardened `middleware.ts` provider bearer-state checks to deny pending/rejected/missing provider records for provider-role access.
+- Expanded `middleware.bearer.test.ts` coverage for provider account-state matrix and role-change behavior.
+- Updated `MOBILE_APP_DEVELOPMENT_READINESS_TRACKER.md` checklist and validation entries to reflect completed Gate 1 auth items and latest evidence.
+- Rebuilt graph repeatedly via `npx graphify hook-rebuild`; latest metrics: 5348 nodes, 13461 edges, 109 communities.
 
 ### 2026-06-24
 

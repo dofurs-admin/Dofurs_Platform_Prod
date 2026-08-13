@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Screen, dofursColors, getUserPets } from '@dofurs/shared';
+import { Screen, dofursColors, getStorageSignedReadUrl, getUserPets, useAuthStore } from '@dofurs/shared';
 
 type PetRow = {
   id: number;
@@ -11,7 +11,20 @@ type PetRow = {
   breed: string | null;
   age: number | null;
   completion_percent: number | null;
+  photo_url: string | null;
 };
+
+function resolveImmediatePhotoUrl(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  if (/^https?:\/\//i.test(value) || value.startsWith('/storage/v1/object/public/')) {
+    return value;
+  }
+
+  return null;
+}
 
 function toPetRow(value: Record<string, unknown>): PetRow | null {
   const id = Number(value.id ?? NaN);
@@ -28,14 +41,17 @@ function toPetRow(value: Record<string, unknown>): PetRow | null {
     age: typeof value.age === 'number' ? value.age : null,
     completion_percent:
       typeof value.completion_percent === 'number' ? value.completion_percent : null,
+    photo_url: typeof value.photo_url === 'string' ? value.photo_url : null,
   };
 }
 
 export default function CustomerPetsScreen() {
   const router = useRouter();
+  const accessToken = useAuthStore((state) => state.accessToken);
   const petsQuery = useQuery({
     queryKey: ['customer', 'pets'],
     queryFn: getUserPets,
+    enabled: Boolean(accessToken),
   });
 
   const pets = useMemo(() => {
@@ -45,21 +61,63 @@ export default function CustomerPetsScreen() {
       .filter((row): row is PetRow => Boolean(row));
   }, [petsQuery.data?.pets]);
 
-  return (
-    <Screen scroll>
-      <View style={styles.heroCard}>
-        <View style={styles.heroPill}>
-          <Ionicons name="paw-outline" color={dofursColors.coral} size={13} />
-          <Text style={styles.heroPillLabel}>Companions</Text>
-        </View>
-        <Text style={styles.title}>Pet profiles with complete care context</Text>
-        <Text style={styles.subtitle}>Keep breed, age, and profile completion in one clean mobile view.</Text>
-      </View>
+  const [petPhotoUrls, setPetPhotoUrls] = useState<Record<number, string>>({});
 
-      <Pressable style={styles.addButton} onPress={() => router.push('/pets/add')}>
-        <Ionicons name="add-circle-outline" color="#ffffff" size={14} />
-        <Text style={styles.addButtonLabel}>Add pet profile</Text>
-      </Pressable>
+  useEffect(() => {
+    let active = true;
+
+    async function hydratePetPhotos() {
+      const nextMap: Record<number, string> = {};
+
+      await Promise.all(
+        pets.map(async (pet) => {
+          const immediate = resolveImmediatePhotoUrl(pet.photo_url);
+          if (immediate) {
+            nextMap[pet.id] = immediate;
+            return;
+          }
+
+          if (!pet.photo_url) {
+            return;
+          }
+
+          try {
+            const response = await getStorageSignedReadUrl({
+              bucket: 'pet-photos',
+              path: pet.photo_url,
+              expiresIn: 3600,
+            });
+
+            if (typeof response.signedUrl === 'string' && response.signedUrl.length > 0) {
+              nextMap[pet.id] = response.signedUrl;
+            }
+          } catch {
+            // Keep avatar fallback when signed URL resolution fails.
+          }
+        }),
+      );
+
+      if (!active) {
+        return;
+      }
+
+      setPetPhotoUrls(nextMap);
+    }
+
+    void hydratePetPhotos();
+
+    return () => {
+      active = false;
+    };
+  }, [pets]);
+
+  function handleRefresh() {
+    void petsQuery.refetch();
+  }
+
+  return (
+    <Screen scroll refreshing={petsQuery.isRefetching} onRefresh={handleRefresh}>
+      <Text style={styles.pageTitle}>Pet Profiles</Text>
 
       {petsQuery.isLoading ? <Text style={styles.meta}>Loading pets...</Text> : null}
 
@@ -76,95 +134,63 @@ export default function CustomerPetsScreen() {
         <Pressable key={pet.id} style={styles.card} onPress={() => router.push(`/pets/${pet.id}`)}>
           <View style={styles.cardLeft}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarLabel}>{pet.name.slice(0, 1).toUpperCase()}</Text>
+              {petPhotoUrls[pet.id] ? (
+                <Image source={{ uri: petPhotoUrls[pet.id] }} style={styles.petPhoto} resizeMode="cover" />
+              ) : (
+                <Text style={styles.avatarLabel}>{pet.name.slice(0, 1).toUpperCase()}</Text>
+              )}
             </View>
             <View style={styles.petTextBlock}>
               <Text style={styles.cardTitle}>{pet.name}</Text>
               <Text style={styles.meta}>{pet.breed ?? 'Breed not specified'}</Text>
+              <Text style={styles.meta}>{pet.age != null ? `${pet.age} yrs` : 'Age not set'}</Text>
             </View>
           </View>
 
           <View style={styles.rightAlign}>
-            <Text style={styles.meta}>{pet.age != null ? `${pet.age} yrs` : 'Age not set'}</Text>
             <View style={styles.progressPill}>
               <Text style={styles.progress}>{Math.round(pet.completion_percent ?? 0)}% complete</Text>
             </View>
+            <Pressable style={styles.passportButton} onPress={() => router.push(`/pets/${pet.id}/passport`)}>
+              <Text style={styles.passportButtonLabel}>View Passport</Text>
+            </Pressable>
           </View>
         </Pressable>
       ))}
 
       {!petsQuery.isLoading && !petsQuery.isError && pets.length === 0 ? (
-        <Text style={styles.meta}>No pets added yet.</Text>
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyEmoji}>🐾</Text>
+          <Text style={styles.emptyTitle}>No Pets Yet</Text>
+          <Text style={styles.emptySubtitle}>
+            Create pet profiles with complete medical, behavioral, and care information.
+          </Text>
+          <Pressable style={styles.emptyButton} onPress={() => router.push('/pets/add')}>
+            <Text style={styles.emptyButtonLabel}>Add Your First Pet</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      {!petsQuery.isLoading && !petsQuery.isError && pets.length > 0 ? (
+        <View style={styles.addAnotherCard}>
+          <Text style={styles.addAnotherTitle}>Add Another Pet?</Text>
+          <Text style={styles.addAnotherSubtitle}>
+            Create a complete passport with all medical and behavioral information.
+          </Text>
+          <Pressable style={styles.addAnotherButton} onPress={() => router.push('/pets/add')}>
+            <Text style={styles.addAnotherButtonLabel}>Add New Pet</Text>
+          </Pressable>
+        </View>
       ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#e3c7ad',
-    backgroundColor: '#fff6ed',
-    padding: 18,
-    gap: 9,
-    shadowColor: '#b47a49',
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 5,
-  },
-  heroPill: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e4c5a8',
-    backgroundColor: '#fffaf4',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  heroPillLabel: {
-    color: '#91562b',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
-  title: {
+  pageTitle: {
     color: dofursColors.ink,
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '800',
-    lineHeight: 35,
-  },
-  subtitle: {
-    color: '#5f4c3e',
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  addButton: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#ca7d44',
-    backgroundColor: dofursColors.coral,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    shadowColor: '#b66828',
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 4,
-  },
-  addButtonLabel: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
   },
   card: {
     flexDirection: 'row',
@@ -195,6 +221,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff5e8',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  petPhoto: {
+    width: '100%',
+    height: '100%',
   },
   avatarLabel: {
     color: '#8f613b',
@@ -206,7 +237,7 @@ const styles = StyleSheet.create({
   },
   rightAlign: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: 8,
   },
   cardTitle: {
     color: dofursColors.ink,
@@ -228,6 +259,88 @@ const styles = StyleSheet.create({
   progress: {
     color: '#72563f',
     fontSize: 11,
+    fontWeight: '700',
+  },
+  passportButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e6cfbb',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  passportButtonLabel: {
+    color: '#6e533d',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  emptyCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fffbf7',
+    padding: 16,
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyEmoji: {
+    fontSize: 20,
+  },
+  emptyTitle: {
+    color: dofursColors.ink,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  emptySubtitle: {
+    color: '#7b6959',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  emptyButton: {
+    marginTop: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ca7d44',
+    backgroundColor: dofursColors.coral,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  emptyButtonLabel: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  addAnotherCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ead3bf',
+    backgroundColor: '#fffaf4',
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  addAnotherTitle: {
+    color: dofursColors.ink,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  addAnotherSubtitle: {
+    color: '#7b6959',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  addAnotherButton: {
+    marginTop: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ca7d44',
+    backgroundColor: dofursColors.coral,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  addAnotherButtonLabel: {
+    color: '#ffffff',
+    fontSize: 12,
     fontWeight: '700',
   },
   errorCard: {

@@ -16,8 +16,12 @@ export default function ProviderHomeScreen() {
   const services = (dashboard?.services as Array<unknown> | undefined) ?? [];
   const reviews = (dashboard?.reviews as Array<unknown> | undefined) ?? [];
 
+  function handleRefresh() {
+    void dashboardQuery.refetch();
+  }
+
   return (
-    <Screen scroll>
+    <Screen scroll refreshing={dashboardQuery.isRefetching} onRefresh={handleRefresh}>
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>Dofurs</Text>
         <Text style={styles.title}>Doorstep Pet Grooming, From Verified Groomers Across Bengaluru</Text>

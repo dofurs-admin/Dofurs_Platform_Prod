@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Screen, dofursColors, getUserBookings } from '@dofurs/shared';
+import { Screen, dofursColors, getUserBookings, useAuthStore } from '@dofurs/shared';
 
 type BookingRow = {
   id: number;
@@ -82,9 +82,13 @@ function getStatusTone(status: string | null) {
 
 export default function CustomerBookingsScreen() {
   const router = useRouter();
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const [bookingFilter, setBookingFilter] = useState<'all' | 'active' | 'history'>('all');
+
   const bookingsQuery = useQuery({
     queryKey: ['customer', 'bookings'],
     queryFn: getUserBookings,
+    enabled: Boolean(accessToken),
   });
 
   const bookings = useMemo(() => {
@@ -99,22 +103,110 @@ export default function CustomerBookingsScreen() {
       });
   }, [bookingsQuery.data?.bookings]);
 
+  const bookingCounts = useMemo(() => {
+    const active = bookings.filter((booking) => {
+      const status = booking.booking_status ?? '';
+      return status === 'pending' || status === 'confirmed' || status === 'in_progress';
+    }).length;
+
+    const completed = bookings.filter((booking) => booking.booking_status === 'completed').length;
+    const noShows = bookings.filter((booking) => booking.booking_status === 'no_show').length;
+
+    return {
+      active,
+      completed,
+      noShows,
+      total: bookings.length,
+    };
+  }, [bookings]);
+
+  const filteredBookings = useMemo(() => {
+    if (bookingFilter === 'all') {
+      return bookings;
+    }
+
+    if (bookingFilter === 'active') {
+      return bookings.filter((booking) => {
+        const status = booking.booking_status ?? '';
+        return status === 'pending' || status === 'confirmed' || status === 'in_progress';
+      });
+    }
+
+    return bookings.filter((booking) => {
+      const status = booking.booking_status ?? '';
+      return status === 'completed' || status === 'cancelled' || status === 'no_show';
+    });
+  }, [bookingFilter, bookings]);
+
+  const bookingSummaryText = useMemo(() => {
+    if (bookingFilter === 'active') {
+      return `${bookingCounts.active} active bookings`;
+    }
+
+    if (bookingFilter === 'history') {
+      return `${filteredBookings.length} bookings in history`;
+    }
+
+    return `${bookingCounts.active} active and ${bookingCounts.total} total`;
+  }, [bookingCounts.active, bookingCounts.total, bookingFilter, filteredBookings.length]);
+
+  function handleRefresh() {
+    void bookingsQuery.refetch();
+  }
+
   return (
-    <Screen scroll>
-      <View style={styles.heroCard}>
-        <View style={styles.heroPill}>
-          <Ionicons name="calendar-clear-outline" color={dofursColors.coral} size={13} />
-          <Text style={styles.heroPillLabel}>Bookings</Text>
+    <Screen scroll refreshing={bookingsQuery.isRefetching} onRefresh={handleRefresh}>
+      <View style={styles.headerRow}>
+        <Text style={styles.headerTitle}>Manage Bookings</Text>
+        <Pressable style={styles.newBookingButton} onPress={() => router.push('/booking/new/service')}>
+          <Ionicons name="add-circle-outline" color="#ffffff" size={14} />
+          <Text style={styles.newBookingButtonLabel}>Book new</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.sectionCard}>
+        <Text style={styles.sectionTitle}>Your Bookings at a Glance</Text>
+        <View style={styles.glanceGrid}>
+          <View style={styles.glanceStatCard}>
+            <Text style={styles.glanceStatLabel}>Active Bookings</Text>
+            <Text style={styles.glanceStatValue}>{bookingCounts.active}</Text>
+          </View>
+          <View style={styles.glanceStatCard}>
+            <Text style={styles.glanceStatLabel}>Completed</Text>
+            <Text style={styles.glanceStatValue}>{bookingCounts.completed}</Text>
+          </View>
+          <View style={styles.glanceStatCard}>
+            <Text style={styles.glanceStatLabel}>No Shows</Text>
+            <Text style={styles.glanceStatValue}>{bookingCounts.noShows}</Text>
+          </View>
+          <View style={styles.glanceStatCard}>
+            <Text style={styles.glanceStatLabel}>Total Bookings</Text>
+            <Text style={styles.glanceStatValue}>{bookingCounts.total}</Text>
+          </View>
         </View>
-        <Text style={styles.title}>Track upcoming and past grooming appointments</Text>
-        <Text style={styles.subtitle}>View date, time, status, and amount for every booking in one place.</Text>
-        <View style={styles.chipRow}>
-          <View style={styles.chip}>
-            <Text style={styles.chipLabel}>Upcoming</Text>
-          </View>
-          <View style={styles.chip}>
-            <Text style={styles.chipLabel}>History</Text>
-          </View>
+      </View>
+
+      <View style={styles.filterCard}>
+        <Text style={styles.filterSummaryText}>{bookingSummaryText}</Text>
+        <View style={styles.filterChipRow}>
+          <Pressable
+            style={[styles.filterChip, bookingFilter === 'all' ? styles.filterChipActive : null]}
+            onPress={() => setBookingFilter('all')}
+          >
+            <Text style={[styles.filterChipLabel, bookingFilter === 'all' ? styles.filterChipLabelActive : null]}>All</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.filterChip, bookingFilter === 'active' ? styles.filterChipActive : null]}
+            onPress={() => setBookingFilter('active')}
+          >
+            <Text style={[styles.filterChipLabel, bookingFilter === 'active' ? styles.filterChipLabelActive : null]}>Active</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.filterChip, bookingFilter === 'history' ? styles.filterChipActive : null]}
+            onPress={() => setBookingFilter('history')}
+          >
+            <Text style={[styles.filterChipLabel, bookingFilter === 'history' ? styles.filterChipLabelActive : null]}>History</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -129,7 +221,7 @@ export default function CustomerBookingsScreen() {
         </View>
       ) : null}
 
-      {bookings.map((booking) => {
+      {filteredBookings.map((booking) => {
         const statusTone = getStatusTone(booking.booking_status);
 
         return (
@@ -169,11 +261,20 @@ export default function CustomerBookingsScreen() {
         );
       })}
 
-      {!bookingsQuery.isLoading && !bookingsQuery.isError && bookings.length === 0 ? (
+      {!bookingsQuery.isLoading && !bookingsQuery.isError && filteredBookings.length === 0 ? (
         <View style={styles.emptyStateCard}>
           <Ionicons name="calendar-outline" color="#8f735d" size={18} />
-          <Text style={styles.emptyStateTitle}>No bookings yet</Text>
-          <Text style={styles.emptyStateSubtitle}>Your upcoming and past appointments will appear here.</Text>
+          <Text style={styles.emptyStateTitle}>{bookingFilter === 'active' ? 'No Active Bookings' : 'No Bookings'}</Text>
+          <Text style={styles.emptyStateSubtitle}>
+            {bookingFilter === 'active'
+              ? 'You are all caught up. Create a new booking when you are ready.'
+              : 'Start by booking grooming for your pet.'}
+          </Text>
+          {bookingFilter !== 'active' ? (
+            <Pressable style={styles.emptyStateButton} onPress={() => router.push('/booking/new/service')}>
+              <Text style={styles.emptyStateButtonLabel}>Book now</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
     </Screen>
@@ -181,65 +282,106 @@ export default function CustomerBookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  heroCard: {
-    borderRadius: 28,
+  sectionCard: {
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: '#e3c7ad',
-    backgroundColor: '#fff6ed',
-    padding: 18,
-    gap: 9,
-    shadowColor: '#b47a49',
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 5,
-  },
-  heroPill: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e4c5a8',
+    borderColor: '#ead3bf',
     backgroundColor: '#fffaf4',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    padding: 14,
+    gap: 10,
   },
-  heroPillLabel: {
-    color: '#91562b',
-    fontSize: 10,
+  sectionTitle: {
+    color: '#111827',
+    fontSize: 16,
     fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
   },
-  title: {
-    color: dofursColors.ink,
-    fontSize: 30,
-    fontWeight: '800',
-    lineHeight: 35,
+  glanceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
-  subtitle: {
-    color: '#5f4c3e',
-    fontSize: 14,
-    lineHeight: 21,
+  glanceStatCard: {
+    width: '48%',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ead3bf',
+    backgroundColor: '#fffdf9',
+    padding: 10,
+    gap: 3,
   },
-  chipRow: {
+  glanceStatLabel: {
+    color: '#6b7280',
+    fontSize: 11,
+  },
+  glanceStatValue: {
+    color: '#111827',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  filterCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#ead3bf',
+    backgroundColor: '#ffffff',
+    padding: 12,
+    gap: 10,
+  },
+  filterSummaryText: {
+    color: '#4b5563',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  filterChipRow: {
     flexDirection: 'row',
     gap: 8,
   },
-  chip: {
+  filterChip: {
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: '#e5cab1',
-    backgroundColor: '#fff9f3',
-    paddingHorizontal: 11,
-    paddingVertical: 5,
+    borderColor: '#e3c7ad',
+    backgroundColor: '#fff8f1',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
-  chipLabel: {
-    color: '#6a523f',
+  filterChipActive: {
+    borderColor: '#ca7d44',
+    backgroundColor: '#ffeedf',
+  },
+  filterChipLabel: {
+    color: '#6b4328',
     fontSize: 12,
     fontWeight: '600',
+  },
+  filterChipLabelActive: {
+    color: '#8b4a1a',
+    fontWeight: '700',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerTitle: {
+    color: dofursColors.ink,
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  newBookingButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#c97a42',
+    backgroundColor: dofursColors.coral,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  newBookingButtonLabel: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   card: {
     flexDirection: 'row',
@@ -354,5 +496,19 @@ const styles = StyleSheet.create({
     color: '#7b6959',
     fontSize: 13,
     textAlign: 'center',
+  },
+  emptyStateButton: {
+    marginTop: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ca7d44',
+    backgroundColor: dofursColors.coral,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  emptyStateButtonLabel: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

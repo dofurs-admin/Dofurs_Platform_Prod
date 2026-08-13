@@ -2,6 +2,8 @@ import type { ApiClientConfig, ApiRequestOptions, HttpMethod } from '../types/ap
 import { createIdempotencyKey } from '../utils/idempotency';
 import { ApiError } from './errors';
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
 function normalizePath(path: string) {
   if (/^https?:\/\//i.test(path)) {
     return path;
@@ -22,6 +24,65 @@ async function parsePayload(response: Response) {
   } catch {
     return text;
   }
+}
+
+function isJsonResponse(response: Response) {
+  const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+  return contentType.includes('application/json') || contentType.includes('+json');
+}
+
+function combineAbortSignals(signals: Array<AbortSignal | undefined>) {
+  const candidates = signals.filter((signal): signal is AbortSignal => Boolean(signal));
+
+  if (candidates.length === 0) {
+    return undefined;
+  }
+
+  if (candidates.length === 1) {
+    return candidates[0];
+  }
+
+  const controller = new AbortController();
+
+  const onAbort = () => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  };
+
+  for (const signal of candidates) {
+    if (signal.aborted) {
+      onAbort();
+      break;
+    }
+
+    signal.addEventListener('abort', onAbort, { once: true });
+  }
+
+  return controller.signal;
+}
+
+function toApiErrorFromFetchFailure(
+  error: unknown,
+  normalizedPath: string,
+  timeoutMs: number,
+  cancelled: boolean,
+) {
+  if ((error as { name?: string }).name === 'AbortError') {
+    return new ApiError('API request timed out or was cancelled', 0, normalizedPath, {
+      timeoutMs,
+      cancelled,
+    });
+  }
+
+  const message = error instanceof Error ? error.message.toLowerCase() : '';
+  if (message.includes('redirect')) {
+    return new ApiError('Unexpected redirect response from API request', 0, normalizedPath, {
+      redirected: true,
+    });
+  }
+
+  return null;
 }
 
 function needsIdempotencyKey(path: string, method: HttpMethod) {
@@ -66,20 +127,71 @@ export function createApiClient(config: ApiClientConfig) {
 
     await applyAuthorizationHeader(false);
 
+    const timeoutMs = options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const timeoutController = timeoutMs > 0 ? new AbortController() : null;
+    const requestSignal = combineAbortSignals([options.signal, timeoutController?.signal]);
+
     const requestInit: RequestInit = {
       method,
       headers,
+      redirect: 'error',
     };
+
+    if (requestSignal) {
+      requestInit.signal = requestSignal;
+    }
 
     if (options.body !== undefined) {
       requestInit.body = JSON.stringify(options.body);
     }
 
-    let response = await fetch(url, requestInit);
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    if (timeoutController) {
+      timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+    }
+
+    let response: Response;
+
+    try {
+      response = await fetch(url, requestInit);
+    } catch (error) {
+      const mappedError = toApiErrorFromFetchFailure(error, normalizedPath, timeoutMs, Boolean(options.signal?.aborted));
+      throw mappedError ?? error;
+    } finally {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    }
 
     if (!options.skipAuth && response.status === 401) {
       await applyAuthorizationHeader(true);
-      response = await fetch(url, requestInit);
+
+      if (timeoutController) {
+        timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+      }
+
+      try {
+        response = await fetch(url, requestInit);
+      } catch (error) {
+        const mappedError = toApiErrorFromFetchFailure(error, normalizedPath, timeoutMs, Boolean(options.signal?.aborted));
+        throw mappedError ?? error;
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
+
+    if (response.redirected) {
+      throw new ApiError('Unexpected redirect response from API request', response.status, normalizedPath, {
+        redirected: true,
+        url: response.url,
+      });
+    }
+
+    if (!isJsonResponse(response)) {
+      const payload = await parsePayload(response);
+      throw new ApiError('Unexpected non-JSON API response', response.status, normalizedPath, payload);
     }
 
     const payload = await parsePayload(response);

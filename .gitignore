@@ -19,3 +19,9 @@ pnpm-debug.log*
 
 # Graphify generated cache artifacts
 graphify-out/cache/
+
+# Mobile fixture/security artifacts
+audit-output/mobile-gate1-fixtures-*.json
+audit-output/mobile-gate1-fixtures-*.secrets.json
+audit-output/mobile-auth-lifecycle-smoke-*.json
+audit-output/mobile-role-routing-smoke-*.json

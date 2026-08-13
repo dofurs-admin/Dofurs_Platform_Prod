@@ -91,8 +91,12 @@ export default function ProviderBookingsScreen() {
       });
   }, [bookingsQuery.data?.bookings]);
 
+  function handleRefresh() {
+    void bookingsQuery.refetch();
+  }
+
   return (
-    <Screen scroll>
+    <Screen scroll refreshing={bookingsQuery.isRefetching} onRefresh={handleRefresh}>
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>Dofurs</Text>
         <Text style={styles.title}>Bookings</Text>

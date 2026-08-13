@@ -1,6 +1,10 @@
 import { getMobileApiClient } from './mobile-client';
+import type { ApiRequestOptions } from '../types/api';
+import { readMobileEnv } from '../constants/env';
 
 type QueryValue = string | number | boolean | null | undefined;
+
+export type StorageBucketName = 'user-photos' | 'pet-photos' | 'service-images';
 
 export type RoleName = 'user' | 'provider' | 'admin' | 'staff';
 
@@ -47,9 +51,31 @@ export type BookingPayload = {
   providerNotes?: string | null;
   discountCode?: string;
   addOns?: Array<{ id: string; quantity: number }>;
+  useSubscriptionCredit?: boolean;
   walletCreditsAppliedInr?: number;
   paymentMode?: 'direct_to_provider' | 'platform' | 'mixed';
   pincode?: string;
+  bundleProviderServiceIds?: string[];
+  bundleEstimatedTotalInr?: number;
+  bundleSummary?: string;
+};
+
+export type BookingOrderPayload = BookingPayload | { entries: BookingPayload[] };
+
+export type ServiceAddOn = {
+  id: string;
+  mappingId: string;
+  serviceId: string;
+  addonTemplateId: string;
+  name: string;
+  description: string | null;
+  iconUrl: string | null;
+  durationMinutes: number | null;
+  price: number;
+  minQuantity: number;
+  maxQuantity: number;
+  defaultQuantity: number;
+  isRequired: boolean;
 };
 
 type ProviderStatusUpdate = {
@@ -104,12 +130,36 @@ function buildPath(path: string, query?: Record<string, QueryValue>) {
   return serialized ? `${path}?${serialized}` : path;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function ensureArrayField(
+  payload: unknown,
+  field: string,
+): asserts payload is Record<string, unknown> & { [key: string]: unknown[] } {
+  if (!isRecord(payload) || !Array.isArray(payload[field])) {
+    throw new Error(`Invalid API response shape: expected array field "${field}".`);
+  }
+}
+
+function ensureObjectField(
+  payload: unknown,
+  field: string,
+): asserts payload is Record<string, unknown> & { [key: string]: Record<string, unknown> } {
+  if (!isRecord(payload) || !isRecord(payload[field])) {
+    throw new Error(`Invalid API response shape: expected object field "${field}".`);
+  }
+}
+
 async function apiGet<T>(path: string, query?: Record<string, QueryValue>) {
   return getMobileApiClient().get<T>(buildPath(path, query));
 }
 
-async function apiPost<T>(path: string, body?: unknown, skipAuth = false) {
-  return getMobileApiClient().post<T>(path, body, { skipAuth });
+type ApiPostOptions = Pick<ApiRequestOptions, 'idempotencyKey' | 'skipAuth' | 'timeoutMs' | 'signal'>;
+
+async function apiPost<T>(path: string, body?: unknown, options: ApiPostOptions = {}) {
+  return getMobileApiClient().post<T>(path, body, options);
 }
 
 async function apiPatch<T>(path: string, body?: unknown) {
@@ -125,7 +175,7 @@ async function apiDelete<T>(path: string) {
 }
 
 export async function preSignup(payload: AuthProfilePayload) {
-  return apiPost<{ success: boolean }>('/api/auth/pre-signup', payload, true);
+  return apiPost<{ success: boolean }>('/api/auth/pre-signup', payload, { skipAuth: true });
 }
 
 export async function completeProfile(payload: AuthProfilePayload) {
@@ -137,7 +187,7 @@ export async function bootstrapProfile() {
 }
 
 export async function getUserProfile() {
-  return apiGet<{
+  const response = await apiGet<{
     profile: {
       id: string;
       name?: string | null;
@@ -151,6 +201,10 @@ export async function getUserProfile() {
       [key: string]: unknown;
     };
   }>('/api/user/profile');
+
+  ensureObjectField(response, 'profile');
+
+  return response;
 }
 
 export async function patchUserProfile(payload: {
@@ -165,7 +219,7 @@ export async function patchUserProfile(payload: {
 }
 
 export async function getBookingCatalog() {
-  return apiGet<{
+  const response = await apiGet<{
     actorRole: RoleName | null;
     providers: Array<{ id: number; name: string | null; provider_type: string | null }>;
     services: Array<{
@@ -204,14 +258,29 @@ export async function getBookingCatalog() {
       valid_until: string | null;
     }>;
   }>('/api/bookings/catalog');
+
+  ensureArrayField(response, 'providers');
+  ensureArrayField(response, 'services');
+  ensureArrayField(response, 'pets');
+  ensureArrayField(response, 'addresses');
+
+  return response;
 }
 
 export async function getUserBookings() {
-  return apiGet<{ bookings: Array<Record<string, unknown>> }>('/api/user/bookings');
+  const response = await apiGet<{ bookings: Array<Record<string, unknown>> }>('/api/user/bookings');
+  ensureArrayField(response, 'bookings');
+  return response;
 }
 
 export async function getUserPets() {
-  return apiGet<{ pets: Array<Record<string, unknown>> }>('/api/user/pets');
+  const response = await apiGet<{ pets: Array<Record<string, unknown>> }>('/api/user/pets');
+  ensureArrayField(response, 'pets');
+  return response;
+}
+
+export async function getPetPassport(petId: number) {
+  return apiGet<{ profile: Record<string, unknown> }>(`/api/user/pets/${petId}/passport`);
 }
 
 export async function createPet(payload: CreatePetPayload) {
@@ -238,7 +307,9 @@ export async function patchOwnerProfile(payload: {
 }
 
 export async function getOwnerAddresses() {
-  return apiGet<{ addresses: Array<Record<string, unknown>> }>('/api/user/owner-profile/addresses');
+  const response = await apiGet<{ addresses: Array<Record<string, unknown>> }>('/api/user/owner-profile/addresses');
+  ensureArrayField(response, 'addresses');
+  return response;
 }
 
 export async function createOwnerAddress(payload: CreateAddressPayload) {
@@ -287,8 +358,34 @@ export async function getBillingHistory(query?: { limit?: number }) {
   return apiGet<{ invoices: Array<Record<string, unknown>> }>('/api/billing/me', query);
 }
 
+export async function getBillingInvoiceDetail(invoiceId: string) {
+  return apiGet<Record<string, unknown>>(`/api/billing/me/invoices/${invoiceId}`);
+}
+
+export function getBillingInvoiceDocumentUrl(
+  invoiceId: string,
+  options?: { kind?: 'print' | 'pdf'; inline?: boolean },
+) {
+  const env = readMobileEnv();
+  const kind = options?.kind ?? 'print';
+  const path =
+    kind === 'pdf'
+      ? `/api/billing/me/invoices/${invoiceId}/pdf?inline=${options?.inline ? '1' : '0'}`
+      : `/api/billing/me/invoices/${invoiceId}/print`;
+
+  return `${env.EXPO_PUBLIC_API_BASE_URL}${path}`;
+}
+
+export async function getStorageSignedReadUrl(input: {
+  bucket: StorageBucketName;
+  path: string;
+  expiresIn?: number;
+}) {
+  return apiPost<{ signedUrl: string }>('/api/storage/signed-read-url', input);
+}
+
 export async function validateReferralCode(code: string) {
-  return apiPost<{ valid: boolean; message?: string }>('/api/referrals/validate', { code }, true);
+  return apiPost<{ valid: boolean; message?: string }>('/api/referrals/validate', { code }, { skipAuth: true });
 }
 
 export async function getAvailableSlots(input: {
@@ -301,6 +398,74 @@ export async function getAvailableSlots(input: {
     '/api/bookings/available-slots',
     input,
   );
+}
+
+type AdminFlowAvailabilityProvider = {
+  providerId: number;
+  providerName: string;
+  providerType: string | null;
+  providerServiceId: string;
+  serviceType: string;
+  serviceMode: string | null;
+  basePrice: number;
+  serviceDurationMinutes: number;
+  availableSlotCount: number;
+  availableForSelectedSlot: boolean;
+  recommended: boolean;
+};
+
+type AdminFlowAvailabilitySlotOption = {
+  startTime: string;
+  endTime: string;
+  availableProviderCount: number;
+  recommended: boolean;
+};
+
+export async function getAdminFlowAvailability(input: {
+  pincode: string;
+  serviceType?: string;
+  serviceTypes?: string;
+  bookingMode?: 'home_visit' | 'clinic_visit' | 'teleconsult';
+  serviceDurationMinutes?: number;
+  bookingDate?: string;
+  startTime?: string;
+  limitProviders?: number;
+  allowCoverageFallback?: boolean;
+  strictCoverage?: boolean;
+}) {
+  const response = await apiGet<{
+    services: Array<{
+      serviceType: string;
+      minBasePrice: number;
+      maxBasePrice: number;
+      providerCount: number;
+    }>;
+    providers: AdminFlowAvailabilityProvider[];
+    slotOptions: AdminFlowAvailabilitySlotOption[];
+    recommendedSlotStartTime: string | null;
+    recommendedProviderServiceId: string | null;
+  }>('/api/bookings/admin-flow-availability', input);
+
+  ensureArrayField(response, 'services');
+  ensureArrayField(response, 'providers');
+  ensureArrayField(response, 'slotOptions');
+
+  return response;
+}
+
+export async function getSubscriptionCreditEligibility(input: {
+  serviceType: string;
+  userId?: string;
+}) {
+  return apiGet<{
+    eligible: boolean;
+    subscriptionId: string | null;
+    serviceType: string;
+    matchedCreditServiceType?: string | null;
+    availableCredits: number;
+    totalCredits: number;
+    reason?: string | null;
+  }>('/api/credits/eligibility', input);
 }
 
 export async function calculateServicePrice(payload: {
@@ -318,7 +483,11 @@ export async function calculateServicePrice(payload: {
       breakdown: string[];
     };
     error?: string;
-  }>('/api/services/calculate-price', payload, true);
+  }>('/api/services/calculate-price', payload, { skipAuth: true });
+}
+
+export async function getServiceAddOns(serviceId: string) {
+  return apiGet<{ success: boolean; data: ServiceAddOn[] }>(`/api/services/addons-v2/${serviceId}`);
 }
 
 export async function previewDiscount(payload: {
@@ -344,16 +513,32 @@ export async function createBooking(payload: BookingPayload) {
   return apiPost<{ success: boolean; booking: Record<string, unknown> }>('/api/bookings/create', payload);
 }
 
-export async function createBookingOrder(payload: BookingPayload) {
-  return apiPost<Record<string, unknown>>('/api/payments/bookings/order', payload);
+export async function createBookingWithIdempotency(payload: BookingPayload, idempotencyKey: string) {
+  return apiPost<{ success: boolean; booking: Record<string, unknown> }>(
+    '/api/bookings/create',
+    payload,
+    { idempotencyKey },
+  );
+}
+
+export async function createBookingOrder(payload: BookingOrderPayload, options?: { idempotencyKey?: string }) {
+  return apiPost<Record<string, unknown>>(
+    '/api/payments/bookings/order',
+    payload,
+    options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {},
+  );
 }
 
 export async function verifyBookingOrder(payload: {
   providerOrderId: string;
   providerPaymentId: string;
   providerSignature: string;
-}) {
-  return apiPost<Record<string, unknown>>('/api/payments/bookings/verify', payload);
+}, options?: { idempotencyKey?: string }) {
+  return apiPost<Record<string, unknown>>(
+    '/api/payments/bookings/verify',
+    payload,
+    options?.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {},
+  );
 }
 
 export async function patchBookingStatus(
@@ -372,7 +557,13 @@ export async function postBookingReview(bookingId: number, payload: { rating: nu
 }
 
 export async function getProviderDashboard() {
-  return apiGet<{ dashboard: Record<string, unknown> | null }>('/api/provider/dashboard');
+  const response = await apiGet<{ dashboard: Record<string, unknown> | null }>('/api/provider/dashboard');
+
+  if (!isRecord(response) || (!isRecord(response.dashboard) && response.dashboard !== null)) {
+    throw new Error('Invalid API response shape: expected object or null field "dashboard".');
+  }
+
+  return response;
 }
 
 export async function getProviderBookings(query?: {
@@ -381,7 +572,9 @@ export async function getProviderBookings(query?: {
   toDate?: string;
   limit?: number;
 }) {
-  return apiGet<{ bookings: Array<Record<string, unknown>> }>('/api/provider/bookings', query);
+  const response = await apiGet<{ bookings: Array<Record<string, unknown>> }>('/api/provider/bookings', query);
+  ensureArrayField(response, 'bookings');
+  return response;
 }
 
 export async function patchProviderBookingStatus(bookingId: number, payload: ProviderStatusUpdate) {
@@ -396,7 +589,9 @@ export async function collectProviderBooking(
 }
 
 export async function getProviderAvailability() {
-  return apiGet<{ availability: ProviderAvailabilitySlot[] }>('/api/provider/availability');
+  const response = await apiGet<{ availability: ProviderAvailabilitySlot[] }>('/api/provider/availability');
+  ensureArrayField(response, 'availability');
+  return response;
 }
 
 export async function putProviderAvailability(payload: ProviderAvailabilitySlot[]) {
@@ -407,7 +602,9 @@ export async function putProviderAvailability(payload: ProviderAvailabilitySlot[
 }
 
 export async function getProviderBlockedDates() {
-  return apiGet<{ blockedDates: Array<Record<string, unknown>> }>('/api/provider/blocked-dates');
+  const response = await apiGet<{ blockedDates: Array<Record<string, unknown>> }>('/api/provider/blocked-dates');
+  ensureArrayField(response, 'blockedDates');
+  return response;
 }
 
 export async function createProviderBlockedDate(payload: {
@@ -452,7 +649,9 @@ export async function patchProviderDetails(payload: {
 }
 
 export async function getProviderDocuments() {
-  return apiGet<{ documents: Array<Record<string, unknown>> }>('/api/provider/documents');
+  const response = await apiGet<{ documents: Array<Record<string, unknown>> }>('/api/provider/documents');
+  ensureArrayField(response, 'documents');
+  return response;
 }
 
 export async function createProviderDocument(payload: {

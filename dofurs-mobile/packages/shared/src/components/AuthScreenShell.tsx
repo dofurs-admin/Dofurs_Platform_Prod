@@ -8,6 +8,8 @@ type AuthScreenShellProps = PropsWithChildren<{
   title: string;
   subtitle: string;
   highlights?: string[];
+  scroll?: boolean;
+  panelFill?: boolean;
 }>;
 
 export function AuthScreenShell({
@@ -15,10 +17,12 @@ export function AuthScreenShell({
   title,
   subtitle,
   highlights = ['Verified experts', 'OTP-secured access', 'Transparent pricing'],
+  scroll = true,
+  panelFill = false,
   children,
 }: AuthScreenShellProps) {
   return (
-    <Screen scroll>
+    <Screen scroll={scroll}>
       <View style={styles.heroShell}>
         <View style={styles.heroGlow} />
         <View style={styles.hero}>
@@ -38,7 +42,7 @@ export function AuthScreenShell({
         </View>
       </View>
 
-      <View style={styles.panel}>{children}</View>
+      <View style={[styles.panel, panelFill && styles.panelFill]}>{children}</View>
     </Screen>
   );
 }
@@ -236,5 +240,8 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 4,
+  },
+  panelFill: {
+    flex: 1,
   },
 });

@@ -1,31 +1,41 @@
-import { useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
+import { useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   ApiError,
-  AuthScreenShell,
-  authFormStyles,
   getSupabaseClient,
   preSignup,
   useAuthStore,
 } from '@dofurs/shared';
+import {
+  AuthBottomSwitch,
+  AuthErrorMessage,
+  AuthInputField,
+  AuthPrimaryButton,
+  AuthScaffold,
+  AuthSectionHeader,
+  useLockBodyScrollOnWeb,
+} from '../../components/auth/auth-ui';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function formatIndianPhoneInput(value: string) {
+  const digits = value.replace(/\D+/g, '').slice(0, 10);
+
+  if (digits.length <= 5) {
+    return digits;
+  }
+
+  return `${digits.slice(0, 5)} ${digits.slice(5)}`;
+}
 
 function normalizeIndianPhone(value: string) {
-  const compact = value.replace(/[\s()-]+/g, '');
-
-  if (/^\+91\d{10}$/.test(compact)) {
-    return compact;
+  const compact = value.replace(/\D+/g, '');
+  if (compact.length !== 10) {
+    return '';
   }
 
-  if (/^91\d{10}$/.test(compact)) {
-    return `+${compact}`;
-  }
-
-  if (/^\d{10}$/.test(compact)) {
-    return `+91${compact}`;
-  }
-
-  return '';
+  return `+91${compact}`;
 }
 
 export default function CustomerSignUpScreen() {
@@ -34,31 +44,55 @@ export default function CustomerSignUpScreen() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
+  const [phoneInput, setPhoneInput] = useState('');
   const [referralCode, setReferralCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [showReferralField, setShowReferralField] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const referralFadeAnim = useRef(new Animated.Value(0)).current;
 
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
-  const normalizedPhone = useMemo(() => normalizeIndianPhone(phone), [phone]);
+  const normalizedPhone = useMemo(() => normalizeIndianPhone(phoneInput), [phoneInput]);
+  useLockBodyScrollOnWeb();
+
+  function revealReferralField() {
+    if (showReferralField) {
+      return;
+    }
+
+    setShowReferralField(true);
+    referralFadeAnim.setValue(0);
+    Animated.timing(referralFadeAnim, {
+      toValue: 1,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }
 
   async function handleSendOtp() {
-    setError(null);
+    setNameError(null);
+    setEmailError(null);
+    setPhoneError(null);
+    setFormError(null);
 
     const trimmedName = name.trim();
 
     if (!trimmedName || trimmedName.length < 2) {
-      setError('Enter your full name.');
+      setNameError('Enter your full name.');
       return;
     }
 
-    if (!normalizedEmail) {
-      setError('Enter a valid email address.');
+    if (!normalizedEmail || !EMAIL_PATTERN.test(normalizedEmail)) {
+      setEmailError('Enter a valid email address.');
       return;
     }
 
     if (!normalizedPhone) {
-      setError('Enter a valid Indian mobile number.');
+      setPhoneError('Enter a valid Indian mobile number.');
       return;
     }
 
@@ -87,7 +121,7 @@ export default function CustomerSignUpScreen() {
       });
 
       if (otpError) {
-        setError(otpError.message || 'Could not send OTP.');
+        setFormError(otpError.message || 'Could not send OTP.');
         return;
       }
 
@@ -105,9 +139,9 @@ export default function CustomerSignUpScreen() {
     } catch (err) {
       if (err instanceof ApiError) {
         const details = err.details as { error?: string } | null;
-        setError(details?.error || `Sign-up failed (${err.status}).`);
+        setFormError(details?.error || `Sign-up failed (${err.status}).`);
       } else {
-        setError('Unable to start sign-up right now.');
+        setFormError('Unable to start sign-up right now.');
       }
     } finally {
       setLoading(false);
@@ -115,80 +149,165 @@ export default function CustomerSignUpScreen() {
   }
 
   return (
-    <AuthScreenShell
-      badge="Dofurs"
-      title="Doorstep Pet Grooming, From Verified Groomers Across Bengaluru"
-      subtitle="Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit."
-      highlights={['Doorstep grooming', 'Background-verified', 'Pet-safe products']}
+    <AuthScaffold
+      showBrandTagline={false}
+      centered
+      footer={
+        <AuthBottomSwitch
+          prompt="Already have an account?"
+          actionLabel="Log in"
+          onPress={() => router.push('/(auth)/sign-in')}
+          disabled={loading}
+        />
+      }
     >
-      <Text style={authFormStyles.sectionEyebrow}>Create account</Text>
-      <Text style={authFormStyles.sectionTitle}>Create your Dofurs account</Text>
-      <Text style={authFormStyles.sectionSubtitle}>Enter your details and we will send an OTP to your email.</Text>
+      <AuthSectionHeader
+        eyebrow="CREATE ACCOUNT"
+        title="Create your Dofurs account"
+        subtitle="Enter your details and we'll send you an OTP."
+      />
 
-      <View style={authFormStyles.fieldGroup}>
-        <Text style={authFormStyles.fieldLabel}>Full name</Text>
-        <TextInput
-          autoCapitalize="words"
-          placeholder="Aarav Mehta"
-          placeholderTextColor="#9b8f87"
-          style={authFormStyles.input}
-          value={name}
-          onChangeText={setName}
-        />
-      </View>
+      <AuthInputField
+        label="Full name"
+        value={name}
+        onChangeText={(next) => {
+          setName(next);
+          if (nameError) {
+            setNameError(null);
+          }
+          if (formError) {
+            setFormError(null);
+          }
+        }}
+        placeholder="Your full name"
+        autoCapitalize="words"
+        autoComplete="name"
+        textContentType="name"
+        returnKeyType="next"
+        error={nameError}
+      />
 
-      <View style={authFormStyles.fieldGroup}>
-        <Text style={authFormStyles.fieldLabel}>Email address</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          placeholderTextColor="#9b8f87"
-          style={authFormStyles.input}
-          value={email}
-          onChangeText={setEmail}
-        />
-      </View>
+      <AuthInputField
+        label="Email address"
+        value={email}
+        onChangeText={(next) => {
+          setEmail(next);
+          if (emailError) {
+            setEmailError(null);
+          }
+          if (formError) {
+            setFormError(null);
+          }
+        }}
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoComplete="email"
+        textContentType="emailAddress"
+        returnKeyType="next"
+        error={emailError}
+      />
 
-      <View style={authFormStyles.fieldGroup}>
-        <Text style={authFormStyles.fieldLabel}>Phone number</Text>
-        <TextInput
-          keyboardType="phone-pad"
-          placeholder="+91XXXXXXXXXX"
-          placeholderTextColor="#9b8f87"
-          style={authFormStyles.input}
-          value={phone}
-          onChangeText={setPhone}
-        />
-      </View>
+      <AuthInputField
+        label="Phone number"
+        value={phoneInput}
+        onChangeText={(next) => {
+          setPhoneInput(formatIndianPhoneInput(next));
+          if (phoneError) {
+            setPhoneError(null);
+          }
+          if (formError) {
+            setFormError(null);
+          }
+        }}
+        placeholder="98765 43210"
+        keyboardType="phone-pad"
+        textContentType="telephoneNumber"
+        autoComplete="tel"
+        maxLength={11}
+        returnKeyType="done"
+        error={phoneError}
+        prefix="+91"
+      />
 
-      <View style={authFormStyles.fieldGroup}>
-        <Text style={authFormStyles.fieldLabel}>Referral code (optional)</Text>
-        <TextInput
-          autoCapitalize="characters"
-          placeholder="DOFURS50"
-          placeholderTextColor="#9b8f87"
-          style={authFormStyles.input}
-          value={referralCode}
-          onChangeText={setReferralCode}
-        />
-      </View>
+      {showReferralField || referralCode ? (
+        <Animated.View
+          style={[
+            styles.referralReveal,
+            {
+              opacity: referralFadeAnim,
+              transform: [
+                {
+                  translateY: referralFadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [6, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <AuthInputField
+            label="Referral code"
+            value={referralCode}
+            onChangeText={(next) => {
+              setReferralCode(next.toUpperCase());
+            }}
+            placeholder="DOFURS50"
+            autoCapitalize="characters"
+            returnKeyType="done"
+          />
 
-      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+          <Pressable
+            style={styles.referralCollapse}
+            onPress={() => {
+              setShowReferralField(false);
+              if (!referralCode.trim()) {
+                referralFadeAnim.setValue(0);
+              }
+            }}
+          >
+            <Text style={styles.referralCollapseLabel}>Hide referral code</Text>
+          </Pressable>
+        </Animated.View>
+      ) : (
+        <Pressable style={styles.referralToggle} onPress={revealReferralField}>
+          <Text style={styles.referralToggleLabel}>Have a referral code? Add one</Text>
+        </Pressable>
+      )}
 
-      <Pressable
-        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
-        disabled={loading}
+      {formError ? <AuthErrorMessage message={formError} /> : null}
+
+      <AuthPrimaryButton
+        label="Create account ->"
+        loadingLabel="Sending OTP..."
+        loading={loading}
         onPress={handleSendOtp}
-      >
-        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Sending OTP...' : 'Send OTP'}</Text>
-      </Pressable>
-
-      <Pressable style={authFormStyles.secondaryButton} onPress={() => router.push('/(auth)/sign-in')}>
-        <Text style={authFormStyles.secondaryButtonLabel}>Already have an account? Sign in</Text>
-      </Pressable>
-    </AuthScreenShell>
+      />
+    </AuthScaffold>
   );
 }
+
+const styles = StyleSheet.create({
+  referralToggle: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  referralToggleLabel: {
+    color: '#6d4f39',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  referralReveal: {
+    width: '100%',
+  },
+  referralCollapse: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+  },
+  referralCollapseLabel: {
+    color: '#8a7565',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+});
 

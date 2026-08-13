@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ApiError, dofursColors, getUserProfile, Screen, useAuthStore } from '@dofurs/shared';
+import {
+  ApiError,
+  dofursColors,
+  getUserProfile,
+  resolveProviderAppRoute,
+  Screen,
+  signOutAndResetClientState,
+  useAuthStore,
+} from '@dofurs/shared';
 
 export default function ProviderApplicationStatusScreen() {
   const router = useRouter();
@@ -18,8 +26,16 @@ export default function ProviderApplicationStatusScreen() {
       const roleName = profileResult.profile?.roles?.name ?? null;
       setRole(roleName);
 
-      if (roleName === 'provider' || roleName === 'admin' || roleName === 'staff') {
-        router.replace('/(tabs)/home');
+      const route = resolveProviderAppRoute(roleName);
+
+      if (route === '/(tabs)/home') {
+        router.replace(route);
+        return;
+      }
+
+      if (route === '/(auth)/sign-in') {
+        await signOutAndResetClientState();
+        router.replace(route);
         return;
       }
 

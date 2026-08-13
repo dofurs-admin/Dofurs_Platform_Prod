@@ -54,8 +54,9 @@ vi.mock('@/lib/utils/geo-distance', () => ({
 
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
-import { createBooking } from '@/lib/bookings/service';
+import { createBooking, updateBookingStatus } from '@/lib/bookings/service';
 import { calculateBookingPriceWithSupabase } from '@/lib/bookings/engines/pricingEngine';
+import { deductCredits } from '@/lib/credits/wallet';
 import { POST } from '@/app/api/bookings/create/route';
 
 const FUTURE_BOOKING_DATE = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -462,5 +463,195 @@ describe('POST /api/bookings/create', () => {
       provider_notes: [bundleSummary, providerNote].join('\n\n'),
       internal_notes: bundleSummary,
     }));
+  });
+
+  it('does not deduct wallet credits when applied amount is zero', async () => {
+    const adminSupabase = makeAdminSupabase();
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: '550e8400-e29b-41d4-a716-446655440001' },
+        role: 'user',
+        supabase: {},
+      },
+    } as never);
+
+    vi.mocked(createBooking).mockResolvedValue({
+      id: 906,
+      service_type: 'grooming',
+      booking_date: FUTURE_BOOKING_DATE,
+      price_at_booking: 1000,
+      final_price: 1000,
+      amount: 1000,
+    } as never);
+
+    const request = new Request('http://localhost/api/bookings/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        petId: 5,
+        providerId: 12,
+        providerServiceId: '550e8400-e29b-41d4-a716-446655440000',
+        bookingDate: FUTURE_BOOKING_DATE,
+        startTime: '10:00',
+        bookingMode: 'home_visit',
+        locationAddress: 'Indiranagar',
+        latitude: 12.97,
+        longitude: 77.64,
+        walletCreditsAppliedInr: 0,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(deductCredits).not.toHaveBeenCalled();
+  });
+
+  it('deducts partial wallet credits and persists applied amount', async () => {
+    const adminSupabase = makeAdminSupabase();
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: '550e8400-e29b-41d4-a716-446655440001' },
+        role: 'user',
+        supabase: {},
+      },
+    } as never);
+
+    vi.mocked(createBooking).mockResolvedValue({
+      id: 907,
+      service_type: 'grooming',
+      booking_date: FUTURE_BOOKING_DATE,
+      price_at_booking: 1000,
+      final_price: 1000,
+      amount: 1000,
+    } as never);
+
+    const request = new Request('http://localhost/api/bookings/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        petId: 5,
+        providerId: 12,
+        providerServiceId: '550e8400-e29b-41d4-a716-446655440000',
+        bookingDate: FUTURE_BOOKING_DATE,
+        startTime: '10:00',
+        bookingMode: 'home_visit',
+        locationAddress: 'Indiranagar',
+        latitude: 12.97,
+        longitude: 77.64,
+        walletCreditsAppliedInr: 300,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(deductCredits).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440001', 300, 907);
+    expect(adminSupabase.__queries.bookings.update).toHaveBeenCalledWith(
+      expect.objectContaining({ wallet_credits_applied_inr: 300 }),
+    );
+  });
+
+  it('caps wallet deduction at effective booking price for stale over-application payloads', async () => {
+    const adminSupabase = makeAdminSupabase();
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: '550e8400-e29b-41d4-a716-446655440001' },
+        role: 'user',
+        supabase: {},
+      },
+    } as never);
+
+    vi.mocked(createBooking).mockResolvedValue({
+      id: 908,
+      service_type: 'grooming',
+      booking_date: FUTURE_BOOKING_DATE,
+      price_at_booking: 900,
+      final_price: 900,
+      amount: 900,
+    } as never);
+
+    const request = new Request('http://localhost/api/bookings/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        petId: 5,
+        providerId: 12,
+        providerServiceId: '550e8400-e29b-41d4-a716-446655440000',
+        bookingDate: FUTURE_BOOKING_DATE,
+        startTime: '10:00',
+        bookingMode: 'home_visit',
+        locationAddress: 'Indiranagar',
+        latitude: 12.97,
+        longitude: 77.64,
+        walletCreditsAppliedInr: 2500,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(200);
+    expect(deductCredits).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440001', 900, 908);
+  });
+
+  it('cancels booking when concurrent wallet-credit deduction fails', async () => {
+    const adminSupabase = makeAdminSupabase();
+    vi.mocked(getSupabaseAdminClient).mockReturnValue(adminSupabase as never);
+
+    vi.mocked(requireApiRole).mockResolvedValue({
+      response: null,
+      context: {
+        user: { id: '550e8400-e29b-41d4-a716-446655440001' },
+        role: 'user',
+        supabase: {},
+      },
+    } as never);
+
+    vi.mocked(createBooking).mockResolvedValue({
+      id: 909,
+      service_type: 'grooming',
+      booking_date: FUTURE_BOOKING_DATE,
+      price_at_booking: 750,
+      final_price: 750,
+      amount: 750,
+    } as never);
+
+    vi.mocked(deductCredits).mockRejectedValueOnce(new Error('Insufficient credit balance'));
+
+    const request = new Request('http://localhost/api/bookings/create', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        petId: 5,
+        providerId: 12,
+        providerServiceId: '550e8400-e29b-41d4-a716-446655440000',
+        bookingDate: FUTURE_BOOKING_DATE,
+        startTime: '10:00',
+        bookingMode: 'home_visit',
+        locationAddress: 'Indiranagar',
+        latitude: 12.97,
+        longitude: 77.64,
+        walletCreditsAppliedInr: 750,
+      }),
+    });
+
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: 'Could not apply Dofurs Credits. Please try again or choose another payment method.',
+    });
+
+    expect(updateBookingStatus).toHaveBeenCalledWith(
+      expect.any(Object),
+      909,
+      'cancelled',
+      expect.objectContaining({ source: 'bookings/create/credit-rollback' }),
+    );
   });
 });

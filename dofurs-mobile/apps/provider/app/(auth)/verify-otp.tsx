@@ -8,6 +8,8 @@ import {
   bootstrapProfile,
   getSupabaseClient,
   getUserProfile,
+  resolveProviderAppRoute,
+  signOutAndResetClientState,
   useAuthStore,
 } from '@dofurs/shared';
 
@@ -35,12 +37,13 @@ export default function VerifyOtpScreen() {
     const roleName = profileResult.profile?.roles?.name ?? null;
     setRole(roleName);
 
-    if (roleName === 'provider' || roleName === 'admin' || roleName === 'staff') {
-      router.replace('/(tabs)/home');
-      return;
+    const route = resolveProviderAppRoute(roleName);
+
+    if (route === '/(auth)/sign-in') {
+      await signOutAndResetClientState();
     }
 
-    router.replace('/(auth)/apply');
+    router.replace(route);
   }
 
   async function handleVerifyOtp() {

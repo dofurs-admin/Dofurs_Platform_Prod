@@ -1,7 +1,17 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ApiError, bootstrapProfile, dofursColors, getUserProfile, Screen, useAuthStore } from '@dofurs/shared';
+import {
+  ApiError,
+  bootstrapProfile,
+  dofursColors,
+  getUserProfile,
+  isCustomerAppRole,
+  requiresProfileSetupFromError,
+  Screen,
+  signOutAndResetClientState,
+  useAuthStore,
+} from '@dofurs/shared';
 
 export default function Index() {
   const router = useRouter();
@@ -31,28 +41,50 @@ export default function Index() {
         const profileResult = await getUserProfile();
         const roleName = profileResult.profile?.roles?.name;
         setRole(roleName ?? null);
-        setRequiresProfileSetup(false);
+        const canUseCustomerTabs = isCustomerAppRole(roleName ?? null);
 
         if (active) {
-          router.replace('/(tabs)/home');
-        }
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 409) {
-          const requiresProfileSetup =
-            typeof error.details === 'object' &&
-            error.details !== null &&
-            'requiresProfileSetup' in error.details &&
-            Boolean((error.details as { requiresProfileSetup?: unknown }).requiresProfileSetup);
-
-          if (requiresProfileSetup) {
-            setRequiresProfileSetup(true);
-            router.replace('/(auth)/complete-profile');
+          if (canUseCustomerTabs) {
+            setRequiresProfileSetup(false);
+            router.replace('/(tabs)/home');
             return;
           }
+
+          await signOutAndResetClientState();
+          setRequiresProfileSetup(false);
+          router.replace('/(auth)/sign-in');
+        }
+      } catch (error) {
+        if (requiresProfileSetupFromError(error)) {
+          if (active) {
+            setRequiresProfileSetup(true);
+            router.replace('/(auth)/complete-profile');
+          }
+
+          return;
         }
 
-        setRequiresProfileSetup(false);
-        router.replace('/(tabs)/home');
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+          if (active) {
+            await signOutAndResetClientState();
+            setRequiresProfileSetup(false);
+            router.replace('/(auth)/sign-in');
+          }
+
+          return;
+        }
+
+        if (active) {
+          setMessage('Could not reach Dofurs right now. Retrying shortly...');
+
+          setTimeout(() => {
+            if (!active) {
+              return;
+            }
+
+            router.replace('/');
+          }, 1200);
+        }
       }
     }
 

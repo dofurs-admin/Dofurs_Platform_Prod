@@ -1,8 +1,34 @@
-import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { dofursColors } from '@dofurs/shared';
+import { dofursColors, isProviderAppRole, useAuthStore } from '@dofurs/shared';
 
 export default function ProviderTabsLayout() {
+  const router = useRouter();
+  const status = useAuthStore((state) => state.status);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const role = useAuthStore((state) => state.role);
+
+  useEffect(() => {
+    if (status === 'loading' || status === 'idle') {
+      return;
+    }
+
+    if (!accessToken) {
+      router.replace('/(auth)/sign-in');
+      return;
+    }
+
+    if (role === null) {
+      router.replace('/');
+      return;
+    }
+
+    if (!isProviderAppRole(role)) {
+      router.replace('/(auth)/sign-in');
+    }
+  }, [accessToken, role, router, status]);
+
   return (
     <Tabs
       screenOptions={{

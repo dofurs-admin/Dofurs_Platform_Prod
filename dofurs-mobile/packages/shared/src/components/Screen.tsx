@@ -1,30 +1,67 @@
 import type { PropsWithChildren } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { dofursColors } from '../constants/colors';
 
 type ScreenProps = PropsWithChildren<{
   scroll?: boolean;
+  refreshing?: boolean;
+  onRefresh?: () => void;
 }>;
 
-export function Screen({ children, scroll = false }: ScreenProps) {
+export function Screen({ children, scroll = false, refreshing = false, onRefresh }: ScreenProps) {
   if (scroll) {
     return (
-      <View style={styles.surface}>
+      <SafeAreaView style={styles.surface} edges={['top', 'right', 'left']}>
         <View style={[styles.glowOrb, styles.glowOrbTop, styles.ignorePointer]} />
         <View style={[styles.glowOrb, styles.glowOrbBottom, styles.ignorePointer]} />
-        <ScrollView contentContainerStyle={styles.scrollContainer} style={styles.scrollView}>
-          {children}
-        </ScrollView>
-      </View>
+        <KeyboardAvoidingView
+          style={styles.keyboardContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContainer}
+            style={styles.scrollView}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            refreshControl={
+              onRefresh ? (
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={onRefresh}
+                  tintColor={dofursColors.coral}
+                  colors={[dofursColors.coral]}
+                />
+              ) : undefined
+            }
+          >
+            {children}
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.surface}>
+    <SafeAreaView style={styles.surface} edges={['top', 'right', 'left']}>
       <View style={[styles.glowOrb, styles.glowOrbTop, styles.ignorePointer]} />
       <View style={[styles.glowOrb, styles.glowOrbBottom, styles.ignorePointer]} />
-      <View style={styles.container}>{children}</View>
-    </View>
+      <KeyboardAvoidingView
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+      >
+        <View style={styles.container}>{children}</View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -34,6 +71,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff9f2',
   },
   scrollView: {
+    flex: 1,
+  },
+  keyboardContainer: {
     flex: 1,
   },
   container: {

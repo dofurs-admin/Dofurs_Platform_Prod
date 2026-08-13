@@ -5,7 +5,7 @@ import {
   Screen,
   dofursColors,
   getProviderDashboard,
-  getSupabaseClient,
+  signOutAndResetClientState,
 } from '@dofurs/shared';
 
 export default function ProviderProfileScreen() {
@@ -20,8 +20,7 @@ export default function ProviderProfileScreen() {
   const provider = (dashboard?.provider as Record<string, unknown> | undefined) ?? null;
 
   async function handleSignOut() {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    await signOutAndResetClientState();
     router.replace('/(auth)/sign-in');
   }
 

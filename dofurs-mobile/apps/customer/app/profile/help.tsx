@@ -13,7 +13,7 @@ const faqs = [
   },
   {
     question: 'How can I update pet profile information?',
-    answer: 'Go to Pets, open your pet profile, then use Edit to update breed, age, allergy notes, or passport details.',
+    answer: 'Go to Pets, open your pet profile, then use Passport or Edit to update medical, vaccination, and care notes.',
   },
 ];
 
@@ -22,11 +22,19 @@ export default function PlaceholderScreen() {
 
   return (
     <Screen scroll>
-      <Text style={styles.title}>Help center</Text>
+      <Text style={styles.title}>Support</Text>
       <Text style={styles.subtitle}>Common support topics and quick actions.</Text>
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Need direct help?</Text>
+
+        <Pressable style={styles.linkRow} onPress={() => router.push('/profile/support/contact')}>
+          <Text style={styles.linkLabel}>Contact support</Text>
+        </Pressable>
+
+        <Pressable style={styles.linkRow} onPress={() => router.push('/profile/support/faqs')}>
+          <Text style={styles.linkLabel}>Open FAQs</Text>
+        </Pressable>
 
         <Pressable style={styles.linkRow} onPress={() => router.push('/messages')}>
           <Text style={styles.linkLabel}>Open support messages</Text>
@@ -38,6 +46,10 @@ export default function PlaceholderScreen() {
 
         <Pressable style={styles.linkRow} onPress={() => router.push('/profile/settings')}>
           <Text style={styles.linkLabel}>Go to account settings</Text>
+        </Pressable>
+
+        <Pressable style={styles.linkRow} onPress={() => router.push('/profile/payment-history')}>
+          <Text style={styles.linkLabel}>Open billing and invoices</Text>
         </Pressable>
       </View>
 

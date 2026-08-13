@@ -65,6 +65,10 @@ export default function ProviderReviewsScreen() {
       .filter((row): row is ProviderReviewRow => Boolean(row));
   }, [reviewsQuery.data]);
 
+  function handleRefresh() {
+    void reviewsQuery.refetch();
+  }
+
   async function handleRespond(reviewId: string) {
     setError(null);
     const responseText = drafts[reviewId]?.trim() ?? '';
@@ -93,7 +97,7 @@ export default function ProviderReviewsScreen() {
   }
 
   return (
-    <Screen scroll>
+    <Screen scroll refreshing={reviewsQuery.isRefetching} onRefresh={handleRefresh}>
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>Dofurs</Text>
         <Text style={styles.title}>Reviews</Text>

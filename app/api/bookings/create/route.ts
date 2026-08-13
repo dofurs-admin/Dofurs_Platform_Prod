@@ -24,6 +24,8 @@ const RATE_LIMIT = {
   maxRequests: 20,
 };
 
+const BOOKING_CREATE_IDEMPOTENCY_ENDPOINT = 'bookings/create';
+
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
 }
@@ -130,6 +132,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again shortly.' }, { status: 429 });
   }
 
+  const idempotencyKey = request.headers.get('x-idempotency-key')?.trim() ?? '';
+  if (idempotencyKey && (idempotencyKey.length < 8 || idempotencyKey.length > 120)) {
+    return NextResponse.json(
+      { error: 'x-idempotency-key must be between 8 and 120 characters when provided' },
+      { status: 400 },
+    );
+  }
+
+  const admin = getSupabaseAdminClient();
+
+  if (idempotencyKey) {
+    const { data: existingResponse, error: idempotencyReadError } = await admin
+      .from('admin_idempotency_keys')
+      .select('status_code, response_body')
+      .eq('endpoint', `${BOOKING_CREATE_IDEMPOTENCY_ENDPOINT}:${user.id}`)
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle();
+
+    if (idempotencyReadError) {
+      return NextResponse.json({ error: 'Unable to verify idempotency key.' }, { status: 500 });
+    }
+
+    if (existingResponse) {
+      return NextResponse.json(existingResponse.response_body, { status: existingResponse.status_code });
+    }
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = bookingCreateSchema.safeParse(body);
 
@@ -161,8 +190,6 @@ export async function POST(request: Request) {
   } catch (err) { console.error(err);
     return forbidden();
   }
-
-  const admin = getSupabaseAdminClient();
 
   const selectedProviderServiceIds = Array.from(
     new Set([
@@ -786,7 +813,31 @@ export async function POST(request: Request) {
       booking_date: responseBooking.booking_date ?? parsed.data.bookingDate,
     }).catch((err) => console.error('Notification hook failed (booking_created)', err));
 
-    return NextResponse.json({ success: true, booking: responseBooking, creditReservation });
+    const successBody = { success: true, booking: responseBooking, creditReservation };
+
+    if (idempotencyKey) {
+      await admin.from('admin_idempotency_keys').upsert(
+        {
+          endpoint: `${BOOKING_CREATE_IDEMPOTENCY_ENDPOINT}:${user.id}`,
+          idempotency_key: idempotencyKey,
+          actor_user_id: user.id,
+          request_payload: {
+            providerId: parsed.data.providerId,
+            providerServiceId: parsed.data.providerServiceId,
+            petId: parsed.data.petId,
+            bookingDate: parsed.data.bookingDate,
+            startTime: parsed.data.startTime,
+            bookingMode: parsed.data.bookingMode,
+            paymentMode: parsed.data.paymentMode ?? null,
+          },
+          status_code: 200,
+          response_body: successBody,
+        },
+        { onConflict: 'endpoint,idempotency_key' },
+      );
+    }
+
+    return NextResponse.json(successBody);
   } catch (error) {
     const mapped = toFriendlyApiError(error, 'Booking failed');
 

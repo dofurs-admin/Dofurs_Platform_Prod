@@ -1,24 +1,39 @@
 import { useMemo, useState } from 'react';
-import { Pressable, Text, TextInput, View } from 'react-native';
-import { useRouter } from 'expo-router';
-import { AuthScreenShell, authFormStyles, getSupabaseClient } from '@dofurs/shared';
-import { useAuthStore } from '@dofurs/shared';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { getSupabaseClient, useAuthStore } from '@dofurs/shared';
+import {
+  AuthBottomSwitch,
+  AuthErrorMessage,
+  AuthInputField,
+  AuthPrimaryButton,
+  AuthScaffold,
+  AuthSectionHeader,
+  AuthSupportText,
+  useLockBodyScrollOnWeb,
+} from '../../components/auth/auth-ui';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function CustomerSignInScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ email?: string }>();
   const setSignupDraft = useAuthStore((state) => state.setSignupDraft);
   const setRequiresProfileSetup = useAuthStore((state) => state.setRequiresProfileSetup);
-  const [email, setEmail] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const initialEmail = typeof params.email === 'string' ? params.email : '';
+  const [email, setEmail] = useState(initialEmail);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const normalizedEmail = useMemo(() => email.trim().toLowerCase(), [email]);
+  useLockBodyScrollOnWeb();
 
   async function handleSendOtp() {
-    setError(null);
+    setEmailError(null);
+    setFormError(null);
 
-    if (!normalizedEmail) {
-      setError('Enter your email address.');
+    if (!normalizedEmail || !EMAIL_PATTERN.test(normalizedEmail)) {
+      setEmailError('Enter a valid email address.');
       return;
     }
 
@@ -34,7 +49,7 @@ export default function CustomerSignInScreen() {
       });
 
       if (otpError) {
-        setError(otpError.message || 'Could not send OTP.');
+        setFormError(otpError.message || 'Could not send OTP.');
         return;
       }
 
@@ -46,52 +61,64 @@ export default function CustomerSignInScreen() {
         params: { email: normalizedEmail, intent: 'sign-in' },
       });
     } catch {
-      setError('Unable to send OTP right now.');
+      setFormError('Unable to send OTP right now.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <AuthScreenShell
-      badge="Dofurs"
-      title="Doorstep Pet Grooming, From Verified Groomers Across Bengaluru"
-      subtitle="Trusted by 100+ pet parents. Compare grooming packages, check inclusions, and book a verified groomer for a home visit."
-    >
-      <Text style={authFormStyles.sectionEyebrow}>Welcome back</Text>
-      <Text style={authFormStyles.sectionTitle}>Sign in to Dofurs</Text>
-      <Text style={authFormStyles.sectionSubtitle}>Use the email linked to your Dofurs account.</Text>
-
-      <View style={authFormStyles.fieldGroup}>
-        <Text style={authFormStyles.fieldLabel}>Email address</Text>
-        <TextInput
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="email-address"
-          placeholder="you@example.com"
-          placeholderTextColor="#9b8f87"
-          style={authFormStyles.input}
-          value={email}
-          onChangeText={setEmail}
+    <AuthScaffold
+      showBrandTagline={false}
+      centered
+      footer={
+        <AuthBottomSwitch
+          prompt="New to Dofurs?"
+          actionLabel="Create an account"
+          onPress={() => router.push('/(auth)/sign-up')}
+          disabled={loading}
         />
-      </View>
+      }
+    >
+      <AuthSectionHeader
+        eyebrow="WELCOME BACK"
+        title="Log in to Dofurs"
+        subtitle="Enter your email to continue."
+      />
 
-      {error ? <Text style={authFormStyles.errorText}>{error}</Text> : null}
+      <AuthInputField
+        label="Email address"
+        value={email}
+        onChangeText={(next) => {
+          setEmail(next);
+          if (emailError) {
+            setEmailError(null);
+          }
+          if (formError) {
+            setFormError(null);
+          }
+        }}
+        placeholder="you@example.com"
+        keyboardType="email-address"
+        autoComplete="email"
+        textContentType="emailAddress"
+        autoFocus
+        returnKeyType="send"
+        onSubmitEditing={handleSendOtp}
+        error={emailError}
+      />
 
-      <Pressable
-        style={[authFormStyles.primaryButton, loading && authFormStyles.primaryButtonDisabled]}
-        disabled={loading}
+      {formError ? <AuthErrorMessage message={formError} /> : null}
+
+      <AuthPrimaryButton
+        label="Send OTP ->"
+        loadingLabel="Sending OTP..."
+        loading={loading}
         onPress={handleSendOtp}
-      >
-        <Text style={authFormStyles.primaryButtonLabel}>{loading ? 'Sending OTP...' : 'Send OTP'}</Text>
-      </Pressable>
+      />
 
-      <Text style={authFormStyles.helperText}>We will send a 6-digit code to your email to verify your identity.</Text>
-
-      <Pressable style={authFormStyles.secondaryButton} onPress={() => router.push('/(auth)/sign-up')}>
-        <Text style={authFormStyles.secondaryButtonLabel}>New to Dofurs? Create account</Text>
-      </Pressable>
-    </AuthScreenShell>
+      <AuthSupportText text="We'll send a 6-digit code to your email to verify your identity." />
+    </AuthScaffold>
   );
 }
 

@@ -2,34 +2,84 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Screen, dofursColors, getSupabaseClient, getUserProfile } from '@dofurs/shared';
+import { Screen, dofursColors, getUserProfile, signOutAndResetClientState, useAuthStore } from '@dofurs/shared';
+
+type AccountLink = {
+  label: string;
+  subtitle: string;
+  route: string;
+  icon: keyof typeof Ionicons.glyphMap;
+};
 
 export default function CustomerProfileScreen() {
   const router = useRouter();
+  const accessToken = useAuthStore((state) => state.accessToken);
 
   const profileQuery = useQuery({
     queryKey: ['customer', 'profile'],
     queryFn: getUserProfile,
+    enabled: Boolean(accessToken),
   });
 
   async function handleSignOut() {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    await signOutAndResetClientState();
     router.replace('/(auth)/sign-in');
   }
 
   const profile = profileQuery.data?.profile;
 
+  const accountLinks: AccountLink[] = [
+    {
+      label: 'Refer & Earn',
+      subtitle: 'Share your code and earn INR 500 credits per referral',
+      route: '/referral',
+      icon: 'gift-outline',
+    },
+    {
+      label: 'Subscriptions',
+      subtitle: 'View your active plan and service credits',
+      route: '/subscription',
+      icon: 'wallet-outline',
+    },
+    {
+      label: 'Billing & Invoices',
+      subtitle: 'Download invoices and review payment history',
+      route: '/profile/payment-history',
+      icon: 'receipt-outline',
+    },
+    {
+      label: 'Saved Addresses',
+      subtitle: 'Manage home and pickup locations',
+      route: '/profile/addresses',
+      icon: 'location-outline',
+    },
+    {
+      label: 'Profile',
+      subtitle: 'Update your name, email, and contact details',
+      route: '/profile/edit',
+      icon: 'person-outline',
+    },
+    {
+      label: 'Settings',
+      subtitle: 'Notification preferences and account options',
+      route: '/profile/settings',
+      icon: 'settings-outline',
+    },
+    {
+      label: 'Support',
+      subtitle: 'Get help, FAQs, and contact support options',
+      route: '/profile/help',
+      icon: 'help-buoy-outline',
+    },
+  ];
+
   return (
     <Screen scroll>
-      <View style={styles.heroCard}>
-        <View style={styles.heroPill}>
-          <Ionicons name="person-circle-outline" color={dofursColors.coral} size={13} />
-          <Text style={styles.heroPillLabel}>Account Center</Text>
-        </View>
-
-        <Text style={styles.title}>Your Dofurs profile</Text>
-        <Text style={styles.subtitle}>Access identity, communication, and subscription controls from one place.</Text>
+      <View style={styles.accountHeader}>
+        <Text style={styles.accountHeaderTitle}>Account Settings</Text>
+        <Text style={styles.accountHeaderSubtitle}>
+          Manage your billing, payment methods, addresses, subscription, and support.
+        </Text>
       </View>
 
       <View style={styles.card}>
@@ -51,51 +101,18 @@ export default function CustomerProfileScreen() {
         </View>
       </View>
 
-      <View style={styles.card}>
-        <View style={styles.sectionHeadingRow}>
-          <Ionicons name="grid-outline" color="#8f613b" size={15} />
-          <Text style={styles.sectionTitle}>Quick links</Text>
-        </View>
-
-        <Pressable style={styles.linkRow} onPress={() => router.push('/profile/addresses')}>
-          <View style={styles.linkLeft}>
-            <Ionicons name="location-outline" color="#8b5f3a" size={14} />
-            <Text style={styles.linkLabel}>Addresses</Text>
-          </View>
-          <Ionicons name="chevron-forward" color="#9a816b" size={15} />
-        </Pressable>
-
-        <Pressable style={styles.linkRow} onPress={() => router.push('/messages')}>
-          <View style={styles.linkLeft}>
-            <Ionicons name="chatbubble-ellipses-outline" color="#8b5f3a" size={14} />
-            <Text style={styles.linkLabel}>Messages</Text>
-          </View>
-          <Ionicons name="chevron-forward" color="#9a816b" size={15} />
-        </Pressable>
-
-        <Pressable style={styles.linkRow} onPress={() => router.push('/notifications')}>
-          <View style={styles.linkLeft}>
-            <Ionicons name="notifications-outline" color="#8b5f3a" size={14} />
-            <Text style={styles.linkLabel}>Notifications</Text>
-          </View>
-          <Ionicons name="chevron-forward" color="#9a816b" size={15} />
-        </Pressable>
-
-        <Pressable style={styles.linkRow} onPress={() => router.push('/subscription')}>
-          <View style={styles.linkLeft}>
-            <Ionicons name="card-outline" color="#8b5f3a" size={14} />
-            <Text style={styles.linkLabel}>Subscription</Text>
-          </View>
-          <Ionicons name="chevron-forward" color="#9a816b" size={15} />
-        </Pressable>
-
-        <Pressable style={styles.linkRow} onPress={() => router.push('/referral')}>
-          <View style={styles.linkLeft}>
-            <Ionicons name="gift-outline" color="#8b5f3a" size={14} />
-            <Text style={styles.linkLabel}>Referral</Text>
-          </View>
-          <Ionicons name="chevron-forward" color="#9a816b" size={15} />
-        </Pressable>
+      <View style={styles.linksGrid}>
+        {accountLinks.map((link) => (
+          <Pressable key={link.route} style={styles.linkCard} onPress={() => router.push(link.route as never)}>
+            <View style={styles.linkBadge}>
+              <Ionicons name={link.icon} color="#8b5f3a" size={16} />
+            </View>
+            <View style={styles.linkTextWrap}>
+              <Text style={styles.linkLabel}>{link.label}</Text>
+              <Text style={styles.linkMeta}>{link.subtitle}</Text>
+            </View>
+          </Pressable>
+        ))}
       </View>
 
       <Pressable style={styles.signOutButton} onPress={handleSignOut}>
@@ -110,48 +127,17 @@ export default function CustomerProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  heroCard: {
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: '#e3c7ad',
-    backgroundColor: '#fff6ed',
-    padding: 18,
-    gap: 9,
-    shadowColor: '#b47a49',
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 5,
+  accountHeader: {
+    gap: 2,
   },
-  heroPill: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e4c5a8',
-    backgroundColor: '#fffaf4',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  heroPillLabel: {
-    color: '#91562b',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.7,
-    textTransform: 'uppercase',
-  },
-  title: {
+  accountHeaderTitle: {
     color: dofursColors.ink,
-    fontSize: 30,
+    fontSize: 24,
     fontWeight: '800',
-    lineHeight: 35,
   },
-  subtitle: {
-    color: '#5f4c3e',
-    fontSize: 14,
-    lineHeight: 21,
+  accountHeaderSubtitle: {
+    color: '#6f6259',
+    fontSize: 12,
   },
   card: {
     borderRadius: 20,
@@ -195,15 +181,10 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
-  sectionHeadingRow: {
+  linksGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-  },
-  sectionTitle: {
-    color: dofursColors.ink,
-    fontSize: 14,
-    fontWeight: '700',
+    flexWrap: 'wrap',
+    gap: 10,
   },
   meta: {
     color: '#7b6959',
@@ -223,26 +204,36 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
-  linkRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderRadius: 10,
+  linkCard: {
+    width: '48%',
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#ead3c0',
     backgroundColor: '#fffdf9',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  linkLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    padding: 10,
     gap: 8,
+  },
+  linkBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#ead3c0',
+    backgroundColor: '#fff8f1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  linkTextWrap: {
+    gap: 2,
   },
   linkLabel: {
     color: dofursColors.ink,
     fontSize: 13,
     fontWeight: '700',
+  },
+  linkMeta: {
+    color: '#7b6959',
+    fontSize: 11,
   },
   signOutButton: {
     alignSelf: 'flex-start',

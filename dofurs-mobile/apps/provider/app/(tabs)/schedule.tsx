@@ -25,6 +25,11 @@ export default function ProviderScheduleScreen() {
 
   const availability = availabilityQuery.data?.availability ?? [];
   const blockedDates = blockedDatesQuery.data?.blockedDates ?? [];
+  const isRefreshing = availabilityQuery.isRefetching || blockedDatesQuery.isRefetching;
+
+  function handleRefresh() {
+    void Promise.all([availabilityQuery.refetch(), blockedDatesQuery.refetch()]);
+  }
 
   const activeDaySet = new Set(
     availability
@@ -38,7 +43,7 @@ export default function ProviderScheduleScreen() {
     .map((day) => dayNames[day]);
 
   return (
-    <Screen scroll>
+    <Screen scroll refreshing={isRefreshing} onRefresh={handleRefresh}>
       <View style={styles.heroCard}>
         <Text style={styles.heroEyebrow}>Dofurs</Text>
         <Text style={styles.title}>Schedule</Text>

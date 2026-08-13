@@ -1,10 +1,16 @@
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Screen, dofursColors } from '@dofurs/shared';
+import { Screen, dofursColors, useBookingDraftStore } from '@dofurs/shared';
 
 export default function PlaceholderScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ bookingId?: string; status?: string; mode?: string }>();
+  const clearDraft = useBookingDraftStore((state) => state.clearDraft);
+
+  useEffect(() => {
+    clearDraft();
+  }, [clearDraft]);
 
   return (
     <Screen>

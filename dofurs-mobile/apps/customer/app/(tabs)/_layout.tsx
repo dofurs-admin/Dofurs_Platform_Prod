@@ -1,41 +1,40 @@
-import { Tabs } from 'expo-router';
+import { useEffect } from 'react';
+import { Tabs, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { dofursColors } from '@dofurs/shared';
+import { isCustomerAppRole, useAuthStore } from '@dofurs/shared';
 
 export default function CustomerTabsLayout() {
+  const router = useRouter();
+  const status = useAuthStore((state) => state.status);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const role = useAuthStore((state) => state.role);
+
+  useEffect(() => {
+    if (status === 'loading' || status === 'idle') {
+      return;
+    }
+
+    if (!accessToken) {
+      router.replace('/(auth)/sign-in');
+      return;
+    }
+
+    if (role === null) {
+      router.replace('/');
+      return;
+    }
+
+    if (!isCustomerAppRole(role)) {
+      router.replace('/(auth)/sign-in');
+    }
+  }, [accessToken, role, router, status]);
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: dofursColors.coral,
-        tabBarInactiveTintColor: '#7a6a5b',
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '700',
-          marginTop: -2,
-        },
-        tabBarHideOnKeyboard: true,
-        tabBarItemStyle: {
-          borderRadius: 14,
-          marginHorizontal: 2,
-        },
         tabBarStyle: {
-          position: 'absolute',
-          left: 12,
-          right: 12,
-          bottom: 12,
-          height: 72,
-          paddingTop: 8,
-          paddingBottom: 10,
-          backgroundColor: '#fff7ee',
-          borderTopColor: '#e3c7ad',
-          borderTopWidth: 1,
-          borderRadius: 22,
-          shadowColor: '#956038',
-          shadowOpacity: 0.2,
-          shadowRadius: 20,
-          shadowOffset: { width: 0, height: 10 },
-          elevation: 9,
+          display: 'none',
         },
       }}
     >
@@ -78,7 +77,8 @@ export default function CustomerTabsLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          href: null,
+          title: 'Account',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} color={color} size={size} />
           ),

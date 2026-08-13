@@ -10,6 +10,8 @@ export type ApiRequestOptions = {
   headers?: Record<string, string>;
   idempotencyKey?: string;
   skipAuth?: boolean;
+  timeoutMs?: number;
+  signal?: AbortSignal;
 };
 
 export type ApiClientConfig = {

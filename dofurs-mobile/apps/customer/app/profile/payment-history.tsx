@@ -1,4 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Screen, dofursColors, getBillingHistory } from '@dofurs/shared';
 
@@ -24,6 +25,8 @@ function formatCurrency(value: number) {
 }
 
 export default function PlaceholderScreen() {
+  const router = useRouter();
+
   const paymentHistoryQuery = useQuery({
     queryKey: ['customer', 'payment-history'],
     queryFn: () => getBillingHistory({ limit: 50 }),
@@ -50,7 +53,7 @@ export default function PlaceholderScreen() {
       {invoices.map((invoice) => {
         const payment = invoice.payment_summary ?? null;
         return (
-          <View key={invoice.id} style={styles.card}>
+          <Pressable key={invoice.id} style={styles.card} onPress={() => router.push(`/profile/payment-history/${invoice.id}`)}>
             <Text style={styles.cardTitle}>{invoice.invoice_number || 'Invoice'}</Text>
             <Text style={styles.meta}>Type: {invoice.invoice_type}</Text>
             <Text style={styles.meta}>Status: {invoice.status}</Text>
@@ -66,7 +69,9 @@ export default function PlaceholderScreen() {
                 <Text style={styles.meta}>Payment status: {payment.status ?? '--'}</Text>
               </View>
             ) : null}
-          </View>
+
+            <Text style={styles.openLabel}>Open invoice details</Text>
+          </Pressable>
         );
       })}
 
@@ -117,6 +122,12 @@ const styles = StyleSheet.create({
   meta: {
     color: '#6d635c',
     fontSize: 12,
+  },
+  openLabel: {
+    marginTop: 4,
+    color: dofursColors.coral,
+    fontSize: 12,
+    fontWeight: '700',
   },
   errorCard: {
     borderRadius: 12,

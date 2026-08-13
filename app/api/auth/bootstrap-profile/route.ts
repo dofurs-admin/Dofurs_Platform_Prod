@@ -5,6 +5,21 @@ import { isRateLimited } from '@/lib/api/rate-limit';
 
 const RATE_LIMIT = { windowMs: 60_000, maxRequests: 10 };
 
+function toTrimmedString(value: unknown) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveE164Phone(candidates: Array<unknown>) {
+  for (const value of candidates) {
+    const candidate = toTrimmedString(value);
+    if (/^\+[1-9]\d{6,14}$/.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  return '';
+}
+
 export async function POST(request: Request) {
   const { supabase, user } = await getApiAuthContext({
     authorizationHeader: request.headers.get('authorization'),
@@ -109,6 +124,88 @@ export async function POST(request: Request) {
         },
         { status: 409 },
       );
+    }
+  }
+
+  const hasAssignedRole = Boolean(existingProfile?.role_id);
+
+  if (!hasAssignedRole) {
+    const { data: providerRecord, error: providerLookupError } = await supabase
+      .from('providers')
+      .select('id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (providerLookupError) {
+      const mapped = toFriendlyApiError(providerLookupError, 'Unable to bootstrap profile');
+      return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+    }
+
+    if (!providerRecord) {
+      const normalizedName =
+        toTrimmedString(existingProfile?.name) ||
+        toTrimmedString(user.user_metadata?.name) ||
+        toTrimmedString(user.user_metadata?.full_name);
+      const normalizedPhone = resolveE164Phone([
+        existingProfile?.phone,
+        user.user_metadata?.phone,
+        user.user_metadata?.phone_number,
+        user.phone,
+      ]);
+      const canAssignUserRole = Boolean(normalizedName) && Boolean(normalizedPhone);
+
+      if (!canAssignUserRole) {
+        return NextResponse.json(
+          {
+            error: 'Profile setup incomplete. Please complete sign up first.',
+            requiresProfileSetup: true,
+          },
+          { status: 409 },
+        );
+      }
+
+      const { data: userRole, error: roleError } = await supabase.from('roles').select('id').eq('name', 'user').single();
+
+      if (roleError || !userRole) {
+        return NextResponse.json({ error: 'Default role not configured' }, { status: 500 });
+      }
+
+      const { error: backfillRoleError } = await supabase
+        .from('users')
+        .update({
+          role_id: userRole.id,
+          name: normalizedName,
+          phone: normalizedPhone,
+          email: user.email?.trim().toLowerCase() ?? existingProfile?.email ?? null,
+        })
+        .eq('id', user.id);
+
+      if (backfillRoleError) {
+        const errorMessage = backfillRoleError.message.toLowerCase();
+
+        if (errorMessage.includes('phone is required for user role') || errorMessage.includes('name is required for user role')) {
+          return NextResponse.json(
+            {
+              error: 'Profile setup incomplete. Please complete sign up first.',
+              requiresProfileSetup: true,
+            },
+            { status: 409 },
+          );
+        }
+
+        const mapped = toFriendlyApiError(backfillRoleError, 'Unable to bootstrap profile');
+        return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+      }
+
+      const refreshProfileResult = await supabase.from('users').select('*').eq('id', user.id).maybeSingle();
+
+      if (refreshProfileResult.error) {
+        const mapped = toFriendlyApiError(refreshProfileResult.error, 'Unable to bootstrap profile');
+        return NextResponse.json({ error: mapped.message }, { status: mapped.status });
+      }
+
+      existingProfile = refreshProfileResult.data;
     }
   }
 

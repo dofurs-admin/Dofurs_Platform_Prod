@@ -9,6 +9,8 @@ import {
   completeProfile,
   getSupabaseClient,
   getUserProfile,
+  isCustomerAppRole,
+  signOutAndResetClientState,
   useAuthStore,
 } from '@dofurs/shared';
 
@@ -102,14 +104,28 @@ export default function CustomerCompleteProfileScreen() {
 
       await bootstrapProfile();
       const profileResult = await getUserProfile();
-      setRole(profileResult.profile?.roles?.name ?? null);
+      const roleName = profileResult.profile?.roles?.name ?? null;
+      setRole(roleName);
+
+      if (!isCustomerAppRole(roleName)) {
+        await signOutAndResetClientState();
+        setRequiresProfileSetup(false);
+        router.replace('/(auth)/sign-in');
+        return;
+      }
+
       setRequiresProfileSetup(false);
       setSignupDraft(null);
       router.replace('/(tabs)/home');
     } catch (err) {
       if (err instanceof ApiError) {
-        const detail = err.details as { error?: string } | null;
+        const detail =
+          typeof err.details === 'object' && err.details !== null
+            ? (err.details as { error?: string })
+            : null;
         setError(detail?.error ?? `Unable to complete profile (${err.status}).`);
+      } else if (err instanceof Error) {
+        setError(err.message || 'Unable to complete profile right now.');
       } else {
         setError('Unable to complete profile right now.');
       }

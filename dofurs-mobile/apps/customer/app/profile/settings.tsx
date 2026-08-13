@@ -5,8 +5,8 @@ import {
   Screen,
   dofursColors,
   getOwnerProfile,
-  getSupabaseClient,
   getUserProfile,
+  signOutAndResetClientState,
 } from '@dofurs/shared';
 
 export default function PlaceholderScreen() {
@@ -26,8 +26,7 @@ export default function PlaceholderScreen() {
   const ownerProfile = ownerProfileQuery.data?.profile as Record<string, unknown> | undefined;
 
   async function handleSignOut() {
-    const supabase = getSupabaseClient();
-    await supabase.auth.signOut();
+    await signOutAndResetClientState();
     router.replace('/(auth)/sign-in');
   }
 
