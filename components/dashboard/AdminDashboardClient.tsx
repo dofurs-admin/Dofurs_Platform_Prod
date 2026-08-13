@@ -66,6 +66,7 @@ type AdminBooking = {
   provider_name?: string | null;
   payment_mode?: string | null;
   cash_collected?: boolean;
+  collected_amount_inr?: number | null;
   completion_task_status?: 'pending' | 'completed' | null;
   completion_due_at?: string | null;
   completion_completed_at?: string | null;

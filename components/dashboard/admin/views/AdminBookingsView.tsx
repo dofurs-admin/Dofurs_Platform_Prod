@@ -38,6 +38,7 @@ type AdminBooking = {
   included_services?: string[] | null;
   payment_mode?: string | null;
   cash_collected?: boolean;
+  collected_amount_inr?: number | null;
   completion_task_status?: 'pending' | 'completed' | null;
   completion_due_at?: string | null;
   completion_completed_at?: string | null;
@@ -187,7 +188,7 @@ function formatPaymentModeForExport(value: string | null | undefined): string {
 
 function resolvePaymentStatusForExport(booking: Pick<AdminBooking, 'payment_mode' | 'cash_collected'>): string {
   const mode = booking.payment_mode ?? null;
-  const isCashCollectionMode = mode === 'direct_to_provider' || mode === 'mixed';
+  const isCashCollectionMode = mode === 'direct_to_provider' || mode === 'mixed' || mode === 'cash';
 
   if (isCashCollectionMode) {
     return booking.cash_collected ? 'cash_collected' : 'cash_pending';
@@ -574,11 +575,14 @@ export default function AdminBookingsView({
                     'Admin price reference (INR)',
                     'Payment mode',
                     'Cash collected',
+                    'Collected Ammount (INR)',
                     'Payment status',
                   ],
                   visibleBookings.map((booking) => {
                     const isCashCollectionMode =
-                      booking.payment_mode === 'direct_to_provider' || booking.payment_mode === 'mixed';
+                      booking.payment_mode === 'direct_to_provider'
+                      || booking.payment_mode === 'mixed'
+                      || booking.payment_mode === 'cash';
 
                     return [
                       booking.id,
@@ -593,6 +597,7 @@ export default function AdminBookingsView({
                       formatAmountForExport(booking.admin_price_reference),
                       formatPaymentModeForExport(booking.payment_mode),
                       isCashCollectionMode ? (booking.cash_collected ? 'yes' : 'no') : 'n/a',
+                      isCashCollectionMode ? formatAmountForExport(booking.collected_amount_inr) : '',
                       resolvePaymentStatusForExport(booking),
                     ];
                   }),
