@@ -44,6 +44,7 @@ type BookingSearchRow = {
   price_at_booking: number | null;
   payment_mode: string | null;
   cash_collected: boolean;
+  collected_amount_inr: number | null;
   included_services?: string[];
 };
 
@@ -295,6 +296,7 @@ export async function GET(request: Request) {
         booking_mode: normalizeNullableBookingMode(row.booking_mode),
         payment_mode: row.payment_mode ?? null,
         cash_collected: Boolean(row.cash_collected ?? false),
+        collected_amount_inr: null,
         admin_price_reference: null,
         price_at_booking: null,
       })) as BookingSearchRow[];
@@ -313,7 +315,7 @@ export async function GET(request: Request) {
             .in('id', bookingIds),
           adminSupabase
             .from('booking_payment_collections')
-            .select('booking_id')
+            .select('booking_id, amount_inr')
             .in('booking_id', bookingIds)
             .eq('status', 'paid'),
         ]);
@@ -324,10 +326,19 @@ export async function GET(request: Request) {
         }
 
         const paidBookingIds = new Set<number>((paidCollections ?? []).map((row) => Number(row.booking_id)));
+        const collectedAmountByBookingId = new Map<number, number>();
+
+        for (const row of paidCollections ?? []) {
+          const amount = Number(row.amount_inr ?? NaN);
+          if (Number.isFinite(amount)) {
+            collectedAmountByBookingId.set(Number(row.booking_id), amount);
+          }
+        }
 
         for (const booking of filteredBookings) {
           booking.payment_mode = paymentModeByBookingId.get(booking.id) ?? booking.payment_mode ?? null;
           booking.cash_collected = paidBookingIds.has(booking.id);
+          booking.collected_amount_inr = collectedAmountByBookingId.get(booking.id) ?? null;
         }
 
         const {
@@ -400,6 +411,7 @@ export async function GET(request: Request) {
           price_at_booking: null,
           payment_mode: row.payment_mode ?? null,
           cash_collected: false,
+          collected_amount_inr: null,
         };
       })
       .filter((booking) => {
@@ -437,13 +449,23 @@ export async function GET(request: Request) {
     if (bookingIds.length > 0) {
       const { data: paidCollections } = await adminSupabase
         .from('booking_payment_collections')
-        .select('booking_id')
+        .select('booking_id, amount_inr')
         .in('booking_id', bookingIds)
         .eq('status', 'paid');
 
       const paidBookingIds = new Set<number>((paidCollections ?? []).map((row) => Number(row.booking_id)));
+      const collectedAmountByBookingId = new Map<number, number>();
+
+      for (const row of paidCollections ?? []) {
+        const amount = Number(row.amount_inr ?? NaN);
+        if (Number.isFinite(amount)) {
+          collectedAmountByBookingId.set(Number(row.booking_id), amount);
+        }
+      }
+
       for (const booking of bookings) {
         booking.cash_collected = paidBookingIds.has(booking.id);
+        booking.collected_amount_inr = collectedAmountByBookingId.get(booking.id) ?? null;
       }
 
       const {

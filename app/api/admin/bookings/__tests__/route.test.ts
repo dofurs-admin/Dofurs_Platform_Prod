@@ -101,7 +101,7 @@ describe('GET /api/admin/bookings', () => {
             select: vi.fn().mockReturnThis(),
             in: vi.fn().mockReturnThis(),
             eq: vi.fn().mockResolvedValue({
-              data: [{ booking_id: 1 }],
+              data: [{ booking_id: 1, amount_inr: 1299 }],
               error: null,
             }),
           };
@@ -130,6 +130,7 @@ describe('GET /api/admin/bookings', () => {
     expect(json.bookings[0].id).toBe(1);
     expect(json.bookings[0].payment_mode).toBe('direct_to_provider');
     expect(json.bookings[0].cash_collected).toBe(true);
+    expect(json.bookings[0].collected_amount_inr).toBe(1299);
     expect(json.bookings[0].included_services).toEqual(['grooming']);
     expect(adminSupabase.rpc).toHaveBeenCalledWith('admin_search_bookings', expect.objectContaining({ p_filter: 'all' }));
   });
