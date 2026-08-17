@@ -1,25 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   dofursColors,
-  getOwnerAddresses,
   getStorageSignedReadUrl,
   getUserProfile,
   useAuthStore,
 } from '@dofurs/shared';
 
 const DOFURS_LOGO = require('../../assets/brand-logo.png');
-
-type AddressSummary = {
-  id: string;
-  label: string | null;
-  city: string | null;
-  pincode: string | null;
-  is_default: boolean;
-};
 
 type ShortcutRoute = '/home' | '/bookings' | '/services' | '/pets';
 
@@ -32,62 +23,33 @@ type ShortcutItem = {
 };
 
 const SHORTCUTS: ShortcutItem[] = [
-  {
-    id: 'home',
-    label: 'Home',
-    route: '/home',
-    icon: 'home-outline',
-    iconActive: 'home',
-  },
-  {
-    id: 'bookings',
-    label: 'Bookings',
-    route: '/bookings',
-    icon: 'calendar-clear-outline',
-    iconActive: 'calendar',
-  },
-  {
-    id: 'services',
-    label: 'Services',
-    route: '/services',
-    icon: 'sparkles-outline',
-    iconActive: 'sparkles',
-  },
-  {
-    id: 'pets',
-    label: 'Pets',
-    route: '/pets',
-    icon: 'paw-outline',
-    iconActive: 'paw',
-  },
+  { id: 'home', label: 'Home', route: '/home', icon: 'home-outline', iconActive: 'home' },
+  { id: 'bookings', label: 'Bookings', route: '/bookings', icon: 'calendar-clear-outline', iconActive: 'calendar' },
+  { id: 'services', label: 'Services', route: '/services', icon: 'sparkles-outline', iconActive: 'sparkles' },
+  { id: 'pets', label: 'Pets', route: '/pets', icon: 'paw-outline', iconActive: 'paw' },
 ];
 
+function resolveActiveShortcut(pathname: string): ShortcutItem['id'] | null {
+  if (pathname === '/home' || pathname === '/') return 'home';
+  if (pathname.startsWith('/booking') || pathname.startsWith('/bookings')) return 'bookings';
+  if (pathname.startsWith('/services') || pathname.startsWith('/subscription')) return 'services';
+  if (pathname.startsWith('/pets')) return 'pets';
+  return null;
+}
+
 function resolveImmediatePhotoUrl(value: string | null) {
-  if (!value) {
-    return null;
-  }
-
+  if (!value) return null;
   const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed;
-  }
-
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return null;
 }
 
 function extractStoragePath(bucket: 'user-photos', value: string) {
   const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
+  if (!trimmed) return null;
   const isAbsolute = /^https?:\/\//i.test(trimmed);
   const isStoragePath = trimmed.startsWith('/storage/v1/object/');
-
   if (isAbsolute || isStoragePath) {
     try {
       const parsedUrl = new URL(trimmed, isStoragePath ? 'https://placeholder.local' : undefined);
@@ -95,11 +57,7 @@ function extractStoragePath(bucket: 'user-photos', value: string) {
       const markerIndex = segments.findIndex(
         (segment, index) => segment === 'storage' && segments[index + 1] === 'v1' && segments[index + 2] === 'object',
       );
-
-      if (markerIndex === -1) {
-        return null;
-      }
-
+      if (markerIndex === -1) return null;
       const objectSegments = segments.slice(markerIndex + 3);
       const mode = objectSegments[0];
       const offset = mode === 'public' || mode === 'authenticated' || mode === 'sign'
@@ -107,81 +65,26 @@ function extractStoragePath(bucket: 'user-photos', value: string) {
         : (mode === 'render' && objectSegments[1] === 'image' ? 2 : 0);
       const bucketName = objectSegments[offset];
       const pathParts = objectSegments.slice(offset + 1);
-
-      if (bucketName !== bucket || pathParts.length === 0) {
-        return null;
-      }
-
+      if (bucketName !== bucket || pathParts.length === 0) return null;
       return decodeURIComponent(pathParts.join('/'));
     } catch {
       return null;
     }
   }
-
   const normalized = trimmed.replace(/^\/+/, '');
   const prefixed = `${bucket}/`;
-  if (normalized.startsWith(prefixed)) {
-    return normalized.slice(prefixed.length);
-  }
-
+  if (normalized.startsWith(prefixed)) return normalized.slice(prefixed.length);
   return normalized;
-}
-
-function parseAddressSummary(row: Record<string, unknown>): AddressSummary | null {
-  const id = typeof row.id === 'string' ? row.id : null;
-  if (!id) {
-    return null;
-  }
-
-  const city = typeof row.city === 'string' && row.city.trim().length > 0 ? row.city.trim() : null;
-  const pincode = typeof row.pincode === 'string' && row.pincode.trim().length > 0 ? row.pincode.trim() : null;
-  const label = typeof row.label === 'string' && row.label.trim().length > 0 ? row.label.trim() : null;
-
-  return {
-    id,
-    label,
-    city,
-    pincode,
-    is_default: row.is_default === true,
-  };
-}
-
-function resolveActiveShortcut(pathname: string): ShortcutItem['id'] | null {
-  if (pathname === '/home' || pathname === '/') {
-    return 'home';
-  }
-
-  if (pathname.startsWith('/booking') || pathname.startsWith('/bookings')) {
-    return 'bookings';
-  }
-
-  if (pathname.startsWith('/services') || pathname.startsWith('/subscription')) {
-    return 'services';
-  }
-
-  if (pathname.startsWith('/pets')) {
-    return 'pets';
-  }
-
-  return null;
 }
 
 export function CustomerHeaderBar() {
   const router = useRouter();
-  const pathname = usePathname();
   const accessToken = useAuthStore((state) => state.accessToken);
-  const [isOptionsMenuOpen, setIsOptionsMenuOpen] = useState(false);
   const [resolvedProfilePhotoUrl, setResolvedProfilePhotoUrl] = useState<string | null>(null);
 
   const profileQuery = useQuery({
     queryKey: ['customer', 'chrome', 'profile'],
     queryFn: getUserProfile,
-    enabled: Boolean(accessToken),
-  });
-
-  const addressesQuery = useQuery({
-    queryKey: ['customer', 'chrome', 'addresses'],
-    queryFn: getOwnerAddresses,
     enabled: Boolean(accessToken),
   });
 
@@ -201,65 +104,29 @@ export function CustomerHeaderBar() {
       ? profileQuery.data.profile.avatar_url
       : null);
 
-  const addresses = useMemo(() => {
-    const rows = addressesQuery.data?.addresses ?? [];
-    return rows
-      .map((row) => parseAddressSummary(row as Record<string, unknown>))
-      .filter((row): row is AddressSummary => Boolean(row));
-  }, [addressesQuery.data?.addresses]);
-
-  const locationText = useMemo(() => {
-    const preferred = addresses.find((address) => address.is_default) ?? addresses[0] ?? null;
-    if (!preferred) {
-      return 'Set your location';
-    }
-
-    const city = preferred.city ?? preferred.label ?? 'Saved address';
-    if (preferred.pincode) {
-      return `${city} • ${preferred.pincode}`;
-    }
-
-    return city;
-  }, [addresses]);
-
-  useEffect(() => {
-    setIsOptionsMenuOpen(false);
-  }, [pathname]);
-
   useEffect(() => {
     let active = true;
-
     async function hydrateProfilePhoto() {
       const immediate = resolveImmediatePhotoUrl(profilePhotoUrl);
       if (immediate) {
-        if (active) {
-          setResolvedProfilePhotoUrl(immediate);
-        }
+        if (active) setResolvedProfilePhotoUrl(immediate);
         return;
       }
-
       if (!profilePhotoUrl) {
-        if (active) {
-          setResolvedProfilePhotoUrl(null);
-        }
+        if (active) setResolvedProfilePhotoUrl(null);
         return;
       }
-
       const storagePath = extractStoragePath('user-photos', profilePhotoUrl);
       if (!storagePath) {
-        if (active) {
-          setResolvedProfilePhotoUrl(null);
-        }
+        if (active) setResolvedProfilePhotoUrl(null);
         return;
       }
-
       try {
         const response = await getStorageSignedReadUrl({
           bucket: 'user-photos',
           path: storagePath,
           expiresIn: 3600,
         });
-
         if (active && typeof response.signedUrl === 'string' && response.signedUrl.length > 0) {
           setResolvedProfilePhotoUrl(response.signedUrl);
           return;
@@ -267,73 +134,29 @@ export function CustomerHeaderBar() {
       } catch {
         // Keep initial fallback if signed URL cannot be resolved.
       }
-
-      if (active) {
-        setResolvedProfilePhotoUrl(null);
-      }
+      if (active) setResolvedProfilePhotoUrl(null);
     }
-
     void hydrateProfilePhoto();
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [profilePhotoUrl]);
 
   return (
     <View style={styles.headerRoot}>
-      <View style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <Pressable
-            style={styles.iconCircleButton}
-            onPress={() => setIsOptionsMenuOpen((open) => !open)}
-            accessibilityLabel="Open app menu"
-          >
-            <Ionicons name="menu" size={20} color="#5e4939" />
-          </Pressable>
-
-          <View style={styles.headerLogoWrap}>
-            <Image source={DOFURS_LOGO} style={styles.headerLogo} resizeMode="contain" accessibilityLabel="Dofurs logo" />
-          </View>
-
-          <Pressable style={styles.profileCircleButton} onPress={() => router.push('/profile')} accessibilityLabel="Open account profile">
-            {resolvedProfilePhotoUrl ? (
-              <Image source={{ uri: resolvedProfilePhotoUrl }} style={styles.profileCircleImage} />
-            ) : (
-              <Text style={styles.profileCircleLabel}>{userName.slice(0, 1).toUpperCase()}</Text>
-            )}
-          </Pressable>
+      <View style={styles.headerRow}>
+        <View style={styles.headerLogoWrap}>
+          <Image source={DOFURS_LOGO} style={styles.headerLogo} resizeMode="contain" accessibilityLabel="Dofurs logo" />
         </View>
-
-        {isOptionsMenuOpen ? (
-          <View style={styles.optionsPanel}>
-            <Pressable style={styles.optionsPanelItem} onPress={() => router.push('/profile/addresses')}>
-              <Ionicons name="location-outline" size={14} color="#8a5c38" />
-              <Text numberOfLines={1} style={styles.optionsPanelItemLabel}>{locationText}</Text>
-              <Ionicons name="chevron-down" size={14} color="#8a5c38" />
-            </Pressable>
-            <Pressable style={styles.optionsPanelItem} onPress={() => router.push('/services')}>
-              <Ionicons name="search" size={14} color="#8a5c38" />
-              <Text style={styles.optionsPanelItemLabel}>Search services and subscriptions</Text>
-            </Pressable>
-            <Pressable style={styles.optionsPanelItem} onPress={() => router.push('/services')}>
-              <Ionicons name="sparkles-outline" size={14} color="#8a5c38" />
-              <Text style={styles.optionsPanelItemLabel}>Services</Text>
-            </Pressable>
-            <Pressable style={styles.optionsPanelItem} onPress={() => router.push('/subscription/plans')}>
-              <Ionicons name="wallet-outline" size={14} color="#8a5c38" />
-              <Text style={styles.optionsPanelItemLabel}>Subscriptions</Text>
-            </Pressable>
-            <Pressable style={styles.optionsPanelItem} onPress={() => router.push('/bookings')}>
-              <Ionicons name="calendar-clear-outline" size={14} color="#8a5c38" />
-              <Text style={styles.optionsPanelItemLabel}>Bookings</Text>
-            </Pressable>
-            <Pressable style={styles.optionsPanelItem} onPress={() => router.push('/profile')}>
-              <Ionicons name="person-outline" size={14} color="#8a5c38" />
-              <Text style={styles.optionsPanelItemLabel}>Account</Text>
-            </Pressable>
-          </View>
-        ) : null}
+        <Pressable
+          style={styles.profileCircleButton}
+          onPress={() => router.push('/profile')}
+          accessibilityLabel="Open account profile"
+        >
+          {resolvedProfilePhotoUrl ? (
+            <Image source={{ uri: resolvedProfilePhotoUrl }} style={styles.profileCircleImage} />
+          ) : (
+            <Text style={styles.profileCircleLabel}>{userName.slice(0, 1).toUpperCase()}</Text>
+          )}
+        </Pressable>
       </View>
     </View>
   );
@@ -375,47 +198,28 @@ export function CustomerShortcutBar() {
 const styles = StyleSheet.create({
   headerRoot: {
     backgroundColor: '#fff9f2',
-    paddingHorizontal: 12,
+    paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 8,
-  },
-  headerCard: {
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: '#e3c8ae',
-    backgroundColor: '#fff9f3',
-    padding: 12,
-    gap: 8,
+    paddingBottom: 4,
   },
   headerRow: {
+    height: 56,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   headerLogoWrap: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: 'flex-start',
   },
   headerLogo: {
     width: 122,
     height: 38,
   },
-  iconCircleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: '#e4cab1',
-    backgroundColor: '#fffefb',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   profileCircleButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    borderColor: '#e4cab1',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: '#fff2e4',
     alignItems: 'center',
     justifyContent: 'center',
@@ -429,28 +233,6 @@ const styles = StyleSheet.create({
     color: '#7f5837',
     fontSize: 16,
     fontWeight: '800',
-  },
-  optionsPanel: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#e6d2bf',
-    backgroundColor: '#fffefb',
-    overflow: 'hidden',
-  },
-  optionsPanelItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f2e4d5',
-  },
-  optionsPanelItemLabel: {
-    color: '#5e4939',
-    fontSize: 13,
-    fontWeight: '700',
-    flex: 1,
   },
   shortcutRoot: {
     backgroundColor: '#fff9f2',

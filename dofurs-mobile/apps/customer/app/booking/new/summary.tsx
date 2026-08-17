@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -82,7 +83,7 @@ function isSlotConflictError(error: ApiError) {
   );
 }
 
-function Stepper({ activeStep }: { activeStep: 1 | 2 | 3 }) {
+function ProgressBar({ activeStep }: { activeStep: 1 | 2 | 3 }) {
   const steps = [
     { id: 1, label: 'Pets & Service' },
     { id: 2, label: 'Schedule' },
@@ -90,19 +91,37 @@ function Stepper({ activeStep }: { activeStep: 1 | 2 | 3 }) {
   ] as const;
 
   return (
-    <View style={styles.stepperWrap}>
-      <View style={styles.stepperRow}>
+    <View style={styles.progressWrap}>
+      <View style={styles.progressTrack}>
         {steps.map((step, index) => {
-          const isActive = activeStep === step.id;
           const isCompleted = activeStep > step.id;
-
+          const isActive = activeStep === step.id;
           return (
-            <View key={step.id} style={styles.stepItem}>
-              <View style={[styles.stepCircle, (isActive || isCompleted) && styles.stepCircleActive]}>
-                <Text style={[styles.stepCircleLabel, (isActive || isCompleted) && styles.stepCircleLabelActive]}>{step.id}</Text>
+            <View key={step.id} style={styles.progressStep}>
+              <View style={styles.progressNodeRow}>
+                {index > 0 ? (
+                  <View style={[styles.progressBar, (isCompleted || isActive) && styles.progressBarFilled]} />
+                ) : null}
+                <View
+                  style={[
+                    styles.progressNode,
+                    isCompleted && styles.progressNodeCompleted,
+                    isActive && styles.progressNodeActive,
+                  ]}
+                >
+                  {isCompleted ? (
+                    <Ionicons name="checkmark" size={10} color="#ffffff" />
+                  ) : (
+                    <View style={[styles.progressNodeDot, (isActive || isCompleted) && styles.progressNodeDotActive]} />
+                  )}
+                </View>
+                {index < steps.length - 1 ? (
+                  <View style={[styles.progressBar, isCompleted && styles.progressBarFilled]} />
+                ) : null}
               </View>
-              <Text style={[styles.stepLabel, isActive && styles.stepLabelActive]}>{step.label}</Text>
-              {index < steps.length - 1 ? <View style={styles.stepConnector} /> : null}
+              <Text style={[styles.progressLabel, (isActive || isCompleted) && styles.progressLabelActive]}>
+                {step.label}
+              </Text>
             </View>
           );
         })}
@@ -757,7 +776,7 @@ export default function PlaceholderScreen() {
 
   return (
     <Screen scroll>
-      <Stepper activeStep={3} />
+      <ProgressBar activeStep={3} />
 
       <View style={styles.containerCard}>
         <Text style={styles.stepKicker}>Step 3 of 3</Text>
@@ -914,62 +933,68 @@ export default function PlaceholderScreen() {
 }
 
 const styles = StyleSheet.create({
-  stepperWrap: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#ead5c2',
-    backgroundColor: '#fffdf9',
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+  progressWrap: {
+    paddingHorizontal: 4,
+    paddingVertical: 8,
   },
-  stepperRow: {
+  progressTrack: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  stepItem: {
+  progressStep: {
     flex: 1,
     alignItems: 'center',
-    position: 'relative',
-    gap: 4,
+    gap: 6,
   },
-  stepCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 999,
-    borderWidth: 1.5,
+  progressNodeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    justifyContent: 'center',
+  },
+  progressBar: {
+    flex: 1,
+    height: 3,
+    backgroundColor: '#e5d8cd',
+    borderRadius: 2,
+  },
+  progressBarFilled: {
+    backgroundColor: dofursColors.coral,
+  },
+  progressNode: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
     borderColor: '#d8cec4',
+    backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  progressNodeCompleted: {
+    borderColor: dofursColors.coral,
+    backgroundColor: dofursColors.coral,
+  },
+  progressNodeActive: {
+    borderColor: dofursColors.coral,
     backgroundColor: '#ffffff',
   },
-  stepCircleActive: {
-    borderColor: '#d78346',
-    backgroundColor: '#ef9e5f',
+  progressNodeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#d8cec4',
   },
-  stepCircleLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#8e857c',
+  progressNodeDotActive: {
+    backgroundColor: dofursColors.coral,
   },
-  stepCircleLabelActive: {
-    color: '#ffffff',
-  },
-  stepLabel: {
+  progressLabel: {
     fontSize: 11,
     color: '#9a9189',
     fontWeight: '600',
   },
-  stepLabelActive: {
-    color: '#a55f2f',
-  },
-  stepConnector: {
-    position: 'absolute',
-    top: 12,
-    right: -20,
-    width: 40,
-    height: 2,
-    backgroundColor: '#e5d8cd',
+  progressLabelActive: {
+    color: dofursColors.coral,
   },
   containerCard: {
     borderRadius: 16,

@@ -16,11 +16,7 @@ type BookingRow = {
 
 function toBookingRow(value: Record<string, unknown>): BookingRow | null {
   const id = Number(value.id ?? NaN);
-
-  if (!Number.isFinite(id) || id <= 0) {
-    return null;
-  }
-
+  if (!Number.isFinite(id) || id <= 0) return null;
   return {
     id,
     service_type: typeof value.service_type === 'string' ? value.service_type : null,
@@ -33,57 +29,45 @@ function toBookingRow(value: Record<string, unknown>): BookingRow | null {
 }
 
 function formatCurrency(value: number | null) {
-  if (value == null) {
-    return 'INR --';
-  }
-
-  return `INR ${Math.round(value)}`;
+  if (value == null) return 'INR --';
+  return `₹${Math.round(value).toLocaleString('en-IN')}`;
 }
 
-function getStatusTone(status: string | null) {
-  if (!status) {
-    return {
-      labelColor: '#7b6959',
-      backgroundColor: '#fff8f1',
-      borderColor: '#e9cfb8',
-    };
+function formatBookingDate(dateStr: string | null): string {
+  if (!dateStr) return 'Date TBA';
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+  } catch {
+    return dateStr;
   }
+}
 
-  if (status === 'completed') {
-    return {
-      labelColor: '#356c47',
-      backgroundColor: '#eef9f1',
-      borderColor: '#cce7d6',
-    };
+function formatBookingTime(timeStr: string | null): string {
+  if (!timeStr) return '';
+  try {
+    const [hours, minutes] = timeStr.split(':');
+    const h = parseInt(hours, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  } catch {
+    return timeStr;
   }
+}
 
-  if (status === 'cancelled') {
-    return {
-      labelColor: '#9a4538',
-      backgroundColor: '#fff2ef',
-      borderColor: '#f0c3ba',
-    };
-  }
-
-  if (status === 'confirmed' || status === 'in_progress') {
-    return {
-      labelColor: '#6a4b31',
-      backgroundColor: '#fff4e6',
-      borderColor: '#ecccae',
-    };
-  }
-
-  return {
-    labelColor: '#7b6959',
-    backgroundColor: '#fff8f1',
-    borderColor: '#e9cfb8',
-  };
+function getStatusConfig(status: string | null) {
+  if (status === 'completed') return { label: 'Completed', dotColor: '#22c55e', bgColor: '#f0fdf4', textColor: '#166534' };
+  if (status === 'cancelled') return { label: 'Cancelled', dotColor: '#ef4444', bgColor: '#fef2f2', textColor: '#991b1b' };
+  if (status === 'confirmed' || status === 'in_progress') return { label: 'Confirmed', dotColor: '#f59e0b', bgColor: '#fffbeb', textColor: '#92400e' };
+  if (status === 'pending') return { label: 'Pending', dotColor: '#f59e0b', bgColor: '#fffbeb', textColor: '#92400e' };
+  return { label: status ?? 'Pending', dotColor: '#a8a29e', bgColor: '#fafaf9', textColor: '#57534e' };
 }
 
 export default function CustomerBookingsScreen() {
   const router = useRouter();
   const accessToken = useAuthStore((state) => state.accessToken);
-  const [bookingFilter, setBookingFilter] = useState<'all' | 'active' | 'history'>('all');
+  const [bookingFilter, setBookingFilter] = useState<'all' | 'upcoming' | 'past'>('all');
 
   const bookingsQuery = useQuery({
     queryKey: ['customer', 'bookings'],
@@ -103,52 +87,24 @@ export default function CustomerBookingsScreen() {
       });
   }, [bookingsQuery.data?.bookings]);
 
-  const bookingCounts = useMemo(() => {
-    const active = bookings.filter((booking) => {
-      const status = booking.booking_status ?? '';
-      return status === 'pending' || status === 'confirmed' || status === 'in_progress';
-    }).length;
-
-    const completed = bookings.filter((booking) => booking.booking_status === 'completed').length;
-    const noShows = bookings.filter((booking) => booking.booking_status === 'no_show').length;
-
-    return {
-      active,
-      completed,
-      noShows,
-      total: bookings.length,
-    };
-  }, [bookings]);
-
   const filteredBookings = useMemo(() => {
-    if (bookingFilter === 'all') {
-      return bookings;
-    }
-
-    if (bookingFilter === 'active') {
-      return bookings.filter((booking) => {
-        const status = booking.booking_status ?? '';
+    if (bookingFilter === 'all') return bookings;
+    if (bookingFilter === 'upcoming') {
+      return bookings.filter((b) => {
+        const status = b.booking_status ?? '';
         return status === 'pending' || status === 'confirmed' || status === 'in_progress';
       });
     }
-
-    return bookings.filter((booking) => {
-      const status = booking.booking_status ?? '';
+    return bookings.filter((b) => {
+      const status = b.booking_status ?? '';
       return status === 'completed' || status === 'cancelled' || status === 'no_show';
     });
   }, [bookingFilter, bookings]);
 
-  const bookingSummaryText = useMemo(() => {
-    if (bookingFilter === 'active') {
-      return `${bookingCounts.active} active bookings`;
-    }
-
-    if (bookingFilter === 'history') {
-      return `${filteredBookings.length} bookings in history`;
-    }
-
-    return `${bookingCounts.active} active and ${bookingCounts.total} total`;
-  }, [bookingCounts.active, bookingCounts.total, bookingFilter, filteredBookings.length]);
+  const upcomingCount = bookings.filter((b) => {
+    const status = b.booking_status ?? '';
+    return status === 'pending' || status === 'confirmed' || status === 'in_progress';
+  }).length;
 
   function handleRefresh() {
     void bookingsQuery.refetch();
@@ -156,62 +112,41 @@ export default function CustomerBookingsScreen() {
 
   return (
     <Screen scroll refreshing={bookingsQuery.isRefetching} onRefresh={handleRefresh}>
+      {/* Header */}
       <View style={styles.headerRow}>
-        <Text style={styles.headerTitle}>Manage Bookings</Text>
+        <Text style={styles.headerTitle}>Bookings</Text>
         <Pressable style={styles.newBookingButton} onPress={() => router.push('/booking/new/service')}>
-          <Ionicons name="add-circle-outline" color="#ffffff" size={14} />
-          <Text style={styles.newBookingButtonLabel}>Book new</Text>
+          <Ionicons name="add" size={16} color={dofursColors.coral} />
+          <Text style={styles.newBookingButtonLabel}>Book New</Text>
         </Pressable>
       </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Your Bookings at a Glance</Text>
-        <View style={styles.glanceGrid}>
-          <View style={styles.glanceStatCard}>
-            <Text style={styles.glanceStatLabel}>Active Bookings</Text>
-            <Text style={styles.glanceStatValue}>{bookingCounts.active}</Text>
-          </View>
-          <View style={styles.glanceStatCard}>
-            <Text style={styles.glanceStatLabel}>Completed</Text>
-            <Text style={styles.glanceStatValue}>{bookingCounts.completed}</Text>
-          </View>
-          <View style={styles.glanceStatCard}>
-            <Text style={styles.glanceStatLabel}>No Shows</Text>
-            <Text style={styles.glanceStatValue}>{bookingCounts.noShows}</Text>
-          </View>
-          <View style={styles.glanceStatCard}>
-            <Text style={styles.glanceStatLabel}>Total Bookings</Text>
-            <Text style={styles.glanceStatValue}>{bookingCounts.total}</Text>
-          </View>
-        </View>
+      {/* Subtle count line (only when bookings exist) */}
+      {bookings.length > 0 ? (
+        <Text style={styles.countLine}>{upcomingCount} upcoming · {bookings.length} total</Text>
+      ) : null}
+
+      {/* Segmented Control */}
+      <View style={styles.segmentedControl}>
+        {(['all', 'upcoming', 'past'] as const).map((filter) => {
+          const isActive = bookingFilter === filter;
+          const label = filter === 'all' ? 'All' : filter === 'upcoming' ? 'Upcoming' : 'Past';
+          return (
+            <Pressable
+              key={filter}
+              style={[styles.segmentItem, isActive && styles.segmentItemActive]}
+              onPress={() => setBookingFilter(filter)}
+            >
+              <Text style={[styles.segmentLabel, isActive && styles.segmentLabelActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <View style={styles.filterCard}>
-        <Text style={styles.filterSummaryText}>{bookingSummaryText}</Text>
-        <View style={styles.filterChipRow}>
-          <Pressable
-            style={[styles.filterChip, bookingFilter === 'all' ? styles.filterChipActive : null]}
-            onPress={() => setBookingFilter('all')}
-          >
-            <Text style={[styles.filterChipLabel, bookingFilter === 'all' ? styles.filterChipLabelActive : null]}>All</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.filterChip, bookingFilter === 'active' ? styles.filterChipActive : null]}
-            onPress={() => setBookingFilter('active')}
-          >
-            <Text style={[styles.filterChipLabel, bookingFilter === 'active' ? styles.filterChipLabelActive : null]}>Active</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.filterChip, bookingFilter === 'history' ? styles.filterChipActive : null]}
-            onPress={() => setBookingFilter('history')}
-          >
-            <Text style={[styles.filterChipLabel, bookingFilter === 'history' ? styles.filterChipLabelActive : null]}>History</Text>
-          </Pressable>
-        </View>
-      </View>
-
+      {/* Loading */}
       {bookingsQuery.isLoading ? <Text style={styles.meta}>Loading bookings...</Text> : null}
 
+      {/* Error */}
       {bookingsQuery.isError ? (
         <View style={styles.errorCard}>
           <Text style={styles.errorText}>Unable to load bookings right now.</Text>
@@ -221,60 +156,58 @@ export default function CustomerBookingsScreen() {
         </View>
       ) : null}
 
+      {/* Booking Cards */}
       {filteredBookings.map((booking) => {
-        const statusTone = getStatusTone(booking.booking_status);
+        const statusConfig = getStatusConfig(booking.booking_status);
+        const isUpcoming = booking.booking_status === 'pending' || booking.booking_status === 'confirmed' || booking.booking_status === 'in_progress';
 
         return (
-          <Pressable key={booking.id} style={styles.card} onPress={() => router.push(`/booking/${booking.id}`)}>
-            <View style={styles.cardLeft}>
-              <View style={styles.listTitleRow}>
-                <View style={styles.listIconWrap}>
-                  <Ionicons name="paw-outline" color="#8d5e37" size={14} />
-                </View>
-                <Text style={styles.cardTitle}>{booking.service_type ?? `Booking #${booking.id}`}</Text>
-              </View>
-
-              <View style={styles.metaRow}>
-                <Ionicons name="calendar-outline" color="#97775d" size={12} />
-                <Text style={styles.meta}>{booking.booking_date ?? 'Date TBA'} {booking.start_time ?? ''}</Text>
-              </View>
-            </View>
-
-            <View style={styles.cardRight}>
-              <View
-                style={[
-                  styles.statusPill,
-                  {
-                    backgroundColor: statusTone.backgroundColor,
-                    borderColor: statusTone.borderColor,
-                  },
-                ]}
-              >
-                <Text style={[styles.status, { color: statusTone.labelColor }]}>
-                  {booking.booking_status ?? 'pending'}
+          <Pressable
+            key={booking.id}
+            style={styles.bookingCard}
+            onPress={() => router.push(`/booking/${booking.id}`)}
+          >
+            {isUpcoming ? <View style={styles.bookingCardAccent} /> : null}
+            <View style={styles.bookingCardContent}>
+              <View style={styles.bookingCardLeft}>
+                <Text style={styles.bookingServiceName}>{booking.service_type ?? `Booking #${booking.id}`}</Text>
+                <Text style={styles.bookingMeta}>
+                  {formatBookingDate(booking.booking_date)}
+                  {booking.start_time ? ` · ${formatBookingTime(booking.start_time)}` : ''}
                 </Text>
               </View>
-
-              <Text style={styles.amount}>{formatCurrency(booking.amount)}</Text>
+              <View style={styles.bookingCardRight}>
+                <View style={[styles.statusBadge, { backgroundColor: statusConfig.bgColor }]}>
+                  <View style={[styles.statusDot, { backgroundColor: statusConfig.dotColor }]} />
+                  <Text style={[styles.statusLabel, { color: statusConfig.textColor }]}>{statusConfig.label}</Text>
+                </View>
+                {booking.amount ? (
+                  <Text style={styles.bookingAmount}>{formatCurrency(booking.amount)}</Text>
+                ) : null}
+              </View>
             </View>
+            <Ionicons name="chevron-forward" size={16} color="#b8a99a" />
           </Pressable>
         );
       })}
 
+      {/* Empty State */}
       {!bookingsQuery.isLoading && !bookingsQuery.isError && filteredBookings.length === 0 ? (
         <View style={styles.emptyStateCard}>
-          <Ionicons name="calendar-outline" color="#8f735d" size={18} />
-          <Text style={styles.emptyStateTitle}>{bookingFilter === 'active' ? 'No Active Bookings' : 'No Bookings'}</Text>
-          <Text style={styles.emptyStateSubtitle}>
-            {bookingFilter === 'active'
-              ? 'You are all caught up. Create a new booking when you are ready.'
-              : 'Start by booking grooming for your pet.'}
+          <View style={styles.emptyStateIconWrap}>
+            <Ionicons name="calendar-outline" size={40} color={dofursColors.coral} />
+          </View>
+          <Text style={styles.emptyStateTitle}>
+            {bookingFilter === 'upcoming' ? 'No upcoming bookings' : 'No bookings yet'}
           </Text>
-          {bookingFilter !== 'active' ? (
-            <Pressable style={styles.emptyStateButton} onPress={() => router.push('/booking/new/service')}>
-              <Text style={styles.emptyStateButtonLabel}>Book now</Text>
-            </Pressable>
-          ) : null}
+          <Text style={styles.emptyStateSubtitle}>
+            {bookingFilter === 'upcoming'
+              ? 'You\'re all caught up. Create a new booking when you\'re ready.'
+              : 'Book a grooming session and it\'ll show up here.'}
+          </Text>
+          <Pressable style={styles.emptyStateButton} onPress={() => router.push('/booking/new/service')}>
+            <Text style={styles.emptyStateButtonLabel}>Book your first session</Text>
+          </Pressable>
         </View>
       ) : null}
     </Screen>
@@ -282,233 +215,195 @@ export default function CustomerBookingsScreen() {
 }
 
 const styles = StyleSheet.create({
-  sectionCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ead3bf',
-    backgroundColor: '#fffaf4',
-    padding: 14,
-    gap: 10,
-  },
-  sectionTitle: {
-    color: '#111827',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  glanceGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  glanceStatCard: {
-    width: '48%',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#ead3bf',
-    backgroundColor: '#fffdf9',
-    padding: 10,
-    gap: 3,
-  },
-  glanceStatLabel: {
-    color: '#6b7280',
-    fontSize: 11,
-  },
-  glanceStatValue: {
-    color: '#111827',
-    fontSize: 17,
-    fontWeight: '700',
-  },
-  filterCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#ead3bf',
-    backgroundColor: '#ffffff',
-    padding: 12,
-    gap: 10,
-  },
-  filterSummaryText: {
-    color: '#4b5563',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  filterChipRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  filterChip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e3c7ad',
-    backgroundColor: '#fff8f1',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
-  filterChipActive: {
-    borderColor: '#ca7d44',
-    backgroundColor: '#ffeedf',
-  },
-  filterChipLabel: {
-    color: '#6b4328',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  filterChipLabelActive: {
-    color: '#8b4a1a',
-    fontWeight: '700',
-  },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 10,
   },
   headerTitle: {
     color: dofursColors.ink,
-    fontSize: 24,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '600',
+    letterSpacing: -0.3,
   },
   newBookingButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#c97a42',
-    backgroundColor: dofursColors.coral,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    borderRadius: 10,
+    backgroundColor: '#fef5eb',
+    paddingHorizontal: 14,
+    paddingVertical: 9,
   },
   newBookingButtonLabel: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
+    color: dofursColors.coral,
+    fontSize: 13,
+    fontWeight: '600',
   },
-  card: {
+  countLine: {
+    color: '#a89b8e',
+    fontSize: 13,
+    fontWeight: '400',
+    marginTop: 4,
+  },
+  segmentedControl: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    backgroundColor: '#f5f0eb',
+    borderRadius: 10,
+    padding: 3,
+    gap: 3,
+  },
+  segmentItem: {
+    flex: 1,
     alignItems: 'center',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#e3c7ad',
-    backgroundColor: '#fffbf7',
-    padding: 13,
-    shadowColor: '#b47a49',
-    shadowOpacity: 0.08,
+    justifyContent: 'center',
+    height: 36,
+    borderRadius: 8,
+  },
+  segmentItemActive: {
+    backgroundColor: '#ffffff',
+    shadowColor: '#000000',
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  segmentLabel: {
+    color: '#78716c',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  segmentLabelActive: {
+    color: dofursColors.ink,
+  },
+  bookingCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000000',
+    shadowOpacity: 0.04,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  cardLeft: {
+  bookingCardAccent: {
+    width: 4,
+    alignSelf: 'stretch',
+    backgroundColor: dofursColors.coral,
+  },
+  bookingCardContent: {
     flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    gap: 10,
+  },
+  bookingCardLeft: {
+    flex: 1,
+    gap: 3,
+  },
+  bookingServiceName: {
+    color: dofursColors.ink,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bookingMeta: {
+    color: dofursColors.inkSoft,
+    fontSize: 13,
+    fontWeight: '400',
+  },
+  bookingCardRight: {
+    alignItems: 'flex-end',
     gap: 6,
   },
-  cardRight: {
-    alignItems: 'flex-end',
-    gap: 7,
-  },
-  listTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  listIconWrap: {
-    width: 28,
-    height: 28,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#e8c9ac',
-    backgroundColor: '#fff5e8',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardTitle: {
-    color: dofursColors.ink,
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'capitalize',
-  },
-  metaRow: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-  },
-  statusPill: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingHorizontal: 10,
+    borderRadius: 8,
+    paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  status: {
-    fontSize: 11,
-    textTransform: 'capitalize',
-    fontWeight: '700',
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
-  amount: {
+  statusLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  bookingAmount: {
     color: dofursColors.ink,
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   meta: {
-    color: '#7b6959',
-    fontSize: 12,
+    color: dofursColors.inkSoft,
+    fontSize: 13,
+    textAlign: 'center',
   },
   errorCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#f1b5a8',
-    backgroundColor: '#fff2ef',
-    padding: 12,
+    borderRadius: 14,
+    backgroundColor: '#fef2f2',
+    padding: 14,
     gap: 8,
   },
   errorText: {
-    color: '#a6483b',
+    color: '#991b1b',
     fontSize: 13,
   },
   retryButton: {
     alignSelf: 'flex-start',
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#d7bda8',
+    borderRadius: 8,
     backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
   },
   retryButtonLabel: {
     color: dofursColors.ink,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   emptyStateCard: {
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#e3c7ad',
-    backgroundColor: '#fffbf7',
-    padding: 16,
     alignItems: 'center',
-    gap: 6,
+    paddingVertical: 40,
+    gap: 10,
+  },
+  emptyStateIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#fef5eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   emptyStateTitle: {
     color: dofursColors.ink,
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '600',
   },
   emptyStateSubtitle: {
-    color: '#7b6959',
-    fontSize: 13,
+    color: dofursColors.inkSoft,
+    fontSize: 14,
+    fontWeight: '400',
     textAlign: 'center',
+    lineHeight: 20,
   },
   emptyStateButton: {
-    marginTop: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#ca7d44',
+    marginTop: 8,
     backgroundColor: dofursColors.coral,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   emptyStateButtonLabel: {
     color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

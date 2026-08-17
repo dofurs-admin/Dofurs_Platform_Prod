@@ -361,7 +361,7 @@ export default function PetAndServiceStep({
                                     )}
                                     <h4 className="text-sm font-semibold text-neutral-950">{service.service_type}</h4>
                                     <p className="mt-1 text-[11px] text-[#6e4d35]">
-                                      {service.service_duration_minutes} mins • From ₹{service.base_price}
+                                      {service.service_duration_minutes} mins • From ₹{getGroomingPackageByServiceType(service.service_type)?.price ?? service.base_price}
                                     </p>
                                     {isBlocked ? (
                                       <p className="mt-1 text-[10px] font-semibold text-[#8f4a1d]">

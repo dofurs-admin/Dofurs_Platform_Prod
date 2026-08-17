@@ -69,6 +69,7 @@ const styles = StyleSheet.create({
   surface: {
     flex: 1,
     backgroundColor: '#fff9f2',
+    overflow: 'hidden',
   },
   scrollView: {
     flex: 1,
