@@ -10,14 +10,16 @@ Phase-based mobile implementation workspace for Dofurs customer and provider app
 
 ## Quick Start
 
-Run commands from the repository root:
+Run commands from `dofurs-mobile/`:
 
 1. Install dependencies:
-   npm run mobile:install
+   npm run install:workspaces
 2. Start customer app:
-   npm run mobile:dev:customer
+   npm run dev:customer
 3. Start provider app:
-   npm run mobile:dev:provider
+   npm run dev:provider
+
+Optional: root-level wrappers are still available from the parent repository (`npm run mobile:*`).
 
 ## Environment Variables
 

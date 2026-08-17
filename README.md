@@ -11,9 +11,20 @@ npm run dev
 
 ## Mobile Workspace (In Repo)
 
-The Expo mobile apps live inside this repository under `dofurs-mobile/` and are managed by the root npm workspace.
+The Expo mobile apps live inside this repository under `dofurs-mobile/` and are managed as a self-contained npm workspace.
 
-Use these commands from the repository root:
+Primary workflow (inside `dofurs-mobile/`):
+
+```bash
+cd dofurs-mobile
+npm run install:workspaces
+npm run dev:customer
+npm run dev:provider
+npm run typecheck
+npm run doctor
+```
+
+Compatibility wrappers are still available from the repository root:
 
 ```bash
 npm run mobile:install
@@ -23,7 +34,7 @@ npm run mobile:typecheck
 npm run mobile:doctor
 ```
 
-Keep using the root `package-lock.json` as the single lockfile source.
+This layout keeps mobile portable as one folder so it can be moved to a standalone repository with minimal script changes.
 
 ## Graphify
 

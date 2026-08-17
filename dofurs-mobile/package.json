@@ -2,14 +2,19 @@
   "name": "dofurs-mobile",
   "version": "0.1.0",
   "private": true,
-  "description": "Legacy convenience scripts. Use the repository root workspace commands.",
+  "description": "Self-contained mobile workspace for customer/provider Expo apps and shared package.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "npm --prefix .. run mobile:dev",
-    "dev:customer": "npm --prefix .. run mobile:dev:customer",
-    "dev:provider": "npm --prefix .. run mobile:dev:provider",
-    "typecheck": "npm --prefix .. run mobile:typecheck",
-    "lint": "npm --prefix .. run mobile:lint",
-    "test": "npm --prefix .. run mobile:test",
-    "doctor": "npm --prefix .. run mobile:doctor"
+    "install:workspaces": "npm install --workspaces --include-workspace-root",
+    "dev": "npm run dev:customer",
+    "dev:customer": "npm --workspace @dofurs/customer run start",
+    "dev:provider": "npm --workspace @dofurs/provider run start",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "doctor": "npm run typecheck --workspaces --if-present && npm run lint --workspaces --if-present"
   }
 }
