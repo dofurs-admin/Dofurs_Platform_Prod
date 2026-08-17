@@ -446,8 +446,8 @@ Run from the repository root unless noted otherwise.
 | Mobile lint | `npm run mobile:lint` | NO-OP: lint is not configured |
 | Mobile tests | `npm run mobile:test` | NO-OP: no mobile tests exist |
 | Mobile doctor | `npm run mobile:doctor` | Not rerun after latest fixes; lint remains no-op |
-| Customer Expo diagnostics | `npm exec --workspace @dofurs/customer -- expo-doctor` | PASSED: 21/21 checks |
-| Provider Expo diagnostics | `npm exec --workspace @dofurs/provider -- expo-doctor` | PASSED: 21/21 checks |
+| Customer Expo diagnostics | `npm --prefix dofurs-mobile exec --workspace @dofurs/customer -- expo-doctor` | PASSED: 21/21 checks |
+| Provider Expo diagnostics | `npm --prefix dofurs-mobile exec --workspace @dofurs/provider -- expo-doctor` | PASSED: 21/21 checks |
 | Customer development server | `npm run mobile:dev:customer` | Not validated during latest audit |
 | Provider development server | `npm run mobile:dev:provider` | Validated via direct provider `expo start` smoke with optional keys unset |
 | Local bearer smoke | `node scripts/setup-mobile-gate1-fixtures.mjs` then run `node scripts/mobile-bearer-smoke.mjs` with `tokens.customer` and `tokens.providerApproved` from the generated gitignored secrets report (`audit-output/mobile-gate1-fixtures-*.secrets.json`) | PASSED: 2026-07-27 strict checks passed for both seeded customer and approved provider tokens (200/200/400 expected sequence) |
@@ -633,6 +633,8 @@ Append one row after every meaningful implementation or verification session. Ne
 | 2026-08-13 | Mobile implementation agent | Gate 2 strict booking-flow parity refinement (multi-pet step parity + bundled payload continuity) | `npm run mobile:typecheck && npm run test -- dofurs-mobile/packages/shared/src/store/booking-draft-store.test.ts` | PASSED | Reworked native Step 1 into web-like multi-pet service assignment with total-selection cap, persisted selected pet/service bundle metadata in shared booking draft, updated Step 2/3 hierarchy with progress stepper and web-style section grouping, and wired Step 3 direct/order payloads to include bundled metadata/entries for multi-pet continuity. |
 | 2026-08-13 | Mobile implementation agent | Gate 2 booking-route availability smoke after strict parity refinement | `for route in /booking/new/service /booking/new/datetime /booking/new/summary; do curl -s -o /dev/null -w "%{http_code}" "http://localhost:8081${route}"; done` | PASSED | Verified all three canonical customer booking routes return `200` after parity refactor (`/service`, `/datetime`, `/summary`). |
 | 2026-08-13 | Mobile implementation agent | Graph maintenance after strict booking-flow parity refinement | `npx graphify hook-rebuild` | PASSED | Graph rebuild completed with `5433` nodes, `13572` edges, and `104` communities; `graphify-out/graph.json` and `graphify-out/GRAPH_REPORT.md` updated. |
+| 2026-08-17 | Mobile implementation agent | Mobile workspace decoupling validation (root wrappers + standalone workspace) | `npm run mobile:typecheck` and `npm --prefix dofurs-mobile run typecheck` | PASSED | Root wrapper path and standalone `dofurs-mobile` workspace path both compile customer/provider/shared successfully after removing root workspace coupling. |
+| 2026-08-17 | Mobile implementation agent | Graph maintenance after mobile workspace decoupling | `npx graphify hook-rebuild` | PASSED | Graph rebuild completed with `5433` nodes, `13572` edges, and `114` communities; `graphify-out/graph.json` and `graphify-out/GRAPH_REPORT.md` updated. |
 
 ## Decision Log
 
@@ -710,6 +712,7 @@ Record product-scope and architecture decisions that change what blocks testing 
 | 2026-08-13 | Remove Account from bottom shortcut bar and keep account entry in header only. | Avoids duplicate account entry in two navigation regions and keeps bottom shortcuts focused on primary task routes while preserving universal account access in the shared header. | Mobile implementation agent |
 | 2026-08-13 | Keep customer booking parity native by mirroring web payment-choice behavior (online/cash/subscription credit) in Step 3 and persisting that choice in shared booking draft state. | Product direction requires exact web-like booking flow details while staying in native routes; persisting payment choice and add-ons across steps keeps retries/recovery deterministic and avoids UI drift. | Mobile implementation agent |
 | 2026-08-13 | Persist per-pet service bundle selections in shared mobile booking-draft state and propagate bundled metadata/entries through review-step booking/order payloads. | Strict parity requires multi-pet Step 1 behavior to survive Step 2/3 and backend submission paths; bundle metadata keeps direct/subscription requests coherent while entry arrays enable bundled online order creation. | Mobile implementation agent |
+| 2026-08-17 | Treat `dofurs-mobile/` as the portable source-of-truth workspace and keep root `mobile:*` commands as compatibility wrappers only. | Allows moving mobile to a standalone repository with minimal churn by removing root-level workspace coupling while preserving current root developer workflows. | Mobile implementation agent |
 
 ## Development Session Template
 
