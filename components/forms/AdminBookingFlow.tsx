@@ -519,10 +519,6 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
   const availabilityDebug = availability.debug ?? null;
 
   const summaryBaseAmount = useMemo(() => {
-    if (!selectedProvider) {
-      return 0;
-    }
-
     let total = 0;
     let hasSelectedService = false;
 
@@ -534,21 +530,36 @@ export default function AdminBookingFlow({ defaultMinimized = false }: AdminBook
 
       const selectedServiceType = selection.serviceType;
 
-      const providerService = catalogServices.find(
-        (service) =>
-          service.provider_id === selectedProvider.providerId &&
-          service.source === 'provider_services' &&
-          service.service_type.toLowerCase() === selectedServiceType.toLowerCase(),
+      // Use maxBasePrice from service options as the estimate (upper bound of price range).
+      // This ensures the base amount reflects the maximum possible price, not the minimum
+      // from the auto-selected cheapest provider.
+      const serviceSummary = serviceOptions.find(
+        (item) => item.serviceType.toLowerCase() === selectedServiceType.toLowerCase(),
       );
+      const estimatedPrice = serviceSummary?.maxBasePrice ?? selectedProvider?.basePrice ?? 0;
+
       const quantity = Math.max(1, selection.quantity);
-      total += Math.max(0, Number(providerService?.base_price ?? selectedProvider.basePrice ?? 0)) * quantity;
+      total += Math.max(0, Number(estimatedPrice)) * quantity;
       hasSelectedService = true;
     }
 
-    return hasSelectedService
-      ? total
-      : (selectedProvider.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
-  }, [catalogServices, petServiceSelections, selectedPetIds, selectedProvider, totalSelectedServices]);
+    if (hasSelectedService) {
+      return total;
+    }
+
+    // Fallback: use maxBasePrice from the first matching service option, or selectedProvider
+    const primaryServiceType = petServiceSelections[selectedPetIds[0]]?.serviceType;
+    if (primaryServiceType) {
+      const serviceSummary = serviceOptions.find(
+        (item) => item.serviceType.toLowerCase() === primaryServiceType.toLowerCase(),
+      );
+      if (serviceSummary?.maxBasePrice) {
+        return serviceSummary.maxBasePrice * Math.max(1, totalSelectedServices || 1);
+      }
+    }
+
+    return (selectedProvider?.basePrice ?? 0) * Math.max(1, totalSelectedServices || 1);
+  }, [petServiceSelections, selectedPetIds, selectedProvider, serviceOptions, totalSelectedServices]);
   const summaryAddOnAmount = useMemo(
     () =>
       serviceAddOns.reduce((sum, addOn) => {
