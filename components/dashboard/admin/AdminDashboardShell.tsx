@@ -29,6 +29,7 @@ export type AdminDashboardView =
   | 'users'
   | 'providers'
   | 'services'
+  | 'gaze'
   | 'blog'
   | 'access'
   | 'health'
@@ -157,6 +158,11 @@ const ServicesTab = dynamic(
   { loading: () => <TabSkeleton />, ssr: false },
 );
 
+const GazeTab = dynamic(
+  () => import('@/components/dashboard/admin/tabs/GazeTab'),
+  { loading: () => <TabSkeleton />, ssr: false },
+);
+
 const BlogTab = dynamic(
   () => import('@/components/dashboard/admin/tabs/BlogTab'),
   { loading: () => <TabSkeleton />, ssr: false },
@@ -228,6 +234,10 @@ const viewCopy: Record<AdminDashboardView, { title: string; description: string 
   services: {
     title: 'Service Catalog',
     description: 'Maintain service types, catalog templates, add-ons, discounts, and provider-facing rollout controls.',
+  },
+  gaze: {
+    title: 'Gaze — Geographic Operations',
+    description: 'Watch the whole operation from above: booking demand by area, groomer footprint, coverage, and gaps on one live map.',
   },
   blog: {
     title: 'Blog Publishing',
@@ -333,10 +343,13 @@ export default function AdminDashboardShell({
   return (
     <AdminWorkspaceShell activeView={view}>
       <div className="space-y-5">
+        {/* Gaze omits the shared header actions: its filter bar already has a
+            data-only Refresh (a full page reload would reset the map view),
+            and Create booking is one click away in the Operations nav. */}
         <AdminPageHeader
           title={activeCopy.title}
           description={activeCopy.description}
-          actions={<AdminHeaderActions />}
+          actions={view === 'gaze' ? null : <AdminHeaderActions />}
         />
 
         {view === 'overview' && (
@@ -383,6 +396,10 @@ export default function AdminDashboardShell({
             moderationProviders={moderationProviders}
             openConfirm={openConfirm}
           />
+        )}
+
+        {view === 'gaze' && (
+          <GazeTab />
         )}
 
         {view === 'blog' && (
