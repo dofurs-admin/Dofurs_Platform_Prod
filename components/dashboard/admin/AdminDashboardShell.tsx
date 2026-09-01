@@ -343,10 +343,13 @@ export default function AdminDashboardShell({
   return (
     <AdminWorkspaceShell activeView={view}>
       <div className="space-y-5">
+        {/* Gaze omits the shared header actions: its filter bar already has a
+            data-only Refresh (a full page reload would reset the map view),
+            and Create booking is one click away in the Operations nav. */}
         <AdminPageHeader
           title={activeCopy.title}
           description={activeCopy.description}
-          actions={<AdminHeaderActions />}
+          actions={view === 'gaze' ? null : <AdminHeaderActions />}
         />
 
         {view === 'overview' && (
