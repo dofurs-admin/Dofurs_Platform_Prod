@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Alert, Badge } from '@/components/ui';
 import AdminBookingFlow from '@/components/forms/AdminBookingFlow';
 import AdminBulkActionToolbar from '@/components/dashboard/admin/AdminBulkActionToolbar';
@@ -9,7 +9,20 @@ import { bookingTimelineLabel } from '@/lib/bookings/timeline';
 import BookingDetailModal from '@/components/dashboard/admin/BookingDetailModal';
 import SendMessageModal from '@/components/dashboard/SendMessageModal';
 import { exportToCsv } from '@/lib/utils/export';
-import { buildIncludedServicesLabel } from '@/lib/bookings/included-services';
+import {
+  BOOKING_EXPORT_COLUMN_GROUPS,
+  BOOKING_EXPORT_PRESETS,
+  DEFAULT_BOOKING_EXPORT_COLUMN_KEYS,
+  buildBookingExportRows,
+  getBookingExportPresetColumnKeys,
+  loadPersistedBookingExportColumnKeys,
+  persistBookingExportColumnKeys,
+  resolveBookingExportColumns,
+  resolveBookingServiceLabel,
+  toggleBookingExportColumn,
+  toggleBookingExportGroup,
+} from '@/components/dashboard/admin/bookingsExport';
+import type { BookingExportColumnKey } from '@/components/dashboard/admin/bookingsExport';
 import type { BookingStatus } from '@/lib/bookings/types';
 
 type AdminBookingStatus = BookingStatus;
@@ -39,6 +52,20 @@ type AdminBooking = {
   payment_mode?: string | null;
   cash_collected?: boolean;
   collected_amount_inr?: number | null;
+  location_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  pincode?: string | null;
+  city?: string | null;
+  pet_names?: string | null;
+  pet_breed?: string | null;
+  discount_code?: string | null;
+  discount_amount?: number | null;
+  wallet_credits_applied_inr?: number | null;
+  amount?: number | null;
+  final_price?: number | null;
+  created_at?: string | null;
+  cancellation_reason?: string | null;
   completion_task_status?: 'pending' | 'completed' | null;
   completion_due_at?: string | null;
   completion_completed_at?: string | null;
@@ -129,10 +156,6 @@ function formatBookingMode(value: AdminBooking['booking_mode']) {
   return 'Teleconsult';
 }
 
-function resolveBookingServiceLabel(booking: AdminBooking) {
-  return buildIncludedServicesLabel(booking.included_services ?? [], booking.service_type);
-}
-
 function formatAmountForDisplay(value: number | null | undefined): string {
   if (!Number.isFinite(value)) {
     return 'N/A';
@@ -168,37 +191,6 @@ function resolvePaymentStatusLabel(booking: Pick<AdminBooking, 'payment_mode' | 
   }
 
   return mode === 'platform' ? 'Platform paid' : 'Non-cash';
-}
-
-function formatAmountForExport(value: number | null | undefined): string {
-  if (!Number.isFinite(value)) {
-    return '';
-  }
-
-  return Number(value).toFixed(2);
-}
-
-function formatPaymentModeForExport(value: string | null | undefined): string {
-  if (!value) {
-    return 'unknown';
-  }
-
-  return value.replace(/_/g, ' ');
-}
-
-function resolvePaymentStatusForExport(booking: Pick<AdminBooking, 'payment_mode' | 'cash_collected'>): string {
-  const mode = booking.payment_mode ?? null;
-  const isCashCollectionMode = mode === 'direct_to_provider' || mode === 'mixed' || mode === 'cash';
-
-  if (isCashCollectionMode) {
-    return booking.cash_collected ? 'cash_collected' : 'cash_pending';
-  }
-
-  if (!mode) {
-    return 'unknown';
-  }
-
-  return 'non_cash';
 }
 
 function getStatusBadgeVariant(status: AdminBookingStatus) {
@@ -273,6 +265,33 @@ export default function AdminBookingsView({
     recipientName: string;
     bookingId?: number;
   } | null>(null);
+  const [isExportColumnPickerOpen, setIsExportColumnPickerOpen] = useState(false);
+  const [exportColumnKeys, setExportColumnKeys] = useState<BookingExportColumnKey[]>([
+    ...DEFAULT_BOOKING_EXPORT_COLUMN_KEYS,
+  ]);
+
+  useEffect(() => {
+    const persistedColumnKeys = loadPersistedBookingExportColumnKeys();
+    if (persistedColumnKeys) {
+      setExportColumnKeys(persistedColumnKeys);
+    }
+  }, []);
+
+  const exportColumns = resolveBookingExportColumns(exportColumnKeys);
+
+  function updateExportColumnKeys(nextKeys: BookingExportColumnKey[]) {
+    setExportColumnKeys(nextKeys);
+    persistBookingExportColumnKeys(nextKeys);
+  }
+
+  function handleExportBookingsCsv() {
+    if (exportColumns.length === 0) {
+      return;
+    }
+
+    const { headers, rows } = buildBookingExportRows(visibleBookings, exportColumns);
+    exportToCsv('bookings-export', headers, rows);
+  }
 
   function renderBookingBadges(booking: AdminBooking) {
     const status = booking.booking_status ?? booking.status;
@@ -556,56 +575,103 @@ export default function AdminBookingsView({
                 Clear dates
               </Button>
             ) : null}
-            <button
-              type="button"
-              className="min-h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral"
-              onClick={() =>
-                exportToCsv(
-                  'bookings-export',
-                  [
-                    'ID',
-                    'Customer',
-                    'Phone',
-                    'Provider',
-                    'Date',
-                    'Status',
-                    'Service',
-                    'Mode',
-                    'Price at booking (INR)',
-                    'Admin price reference (INR)',
-                    'Payment mode',
-                    'Cash collected',
-                    'Collected Ammount (INR)',
-                    'Payment status',
-                  ],
-                  visibleBookings.map((booking) => {
-                    const isCashCollectionMode =
-                      booking.payment_mode === 'direct_to_provider'
-                      || booking.payment_mode === 'mixed'
-                      || booking.payment_mode === 'cash';
+            <div className="relative">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  className="min-h-9 rounded-lg border border-neutral-300 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={handleExportBookingsCsv}
+                  disabled={exportColumns.length === 0}
+                >
+                  Export CSV
+                </button>
+                <button
+                  type="button"
+                  className="min-h-9 rounded-lg border border-neutral-300 bg-white px-2.5 text-xs font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral"
+                  aria-expanded={isExportColumnPickerOpen}
+                  title="Choose which columns to include in the CSV export"
+                  onClick={() => setIsExportColumnPickerOpen((isOpen) => !isOpen)}
+                >
+                  Columns ({exportColumns.length})
+                  <span className="ml-1 text-[10px] font-medium text-neutral-500" aria-hidden="true">▾</span>
+                </button>
+              </div>
+              {isExportColumnPickerOpen ? (
+                <div className="absolute right-0 top-full z-30 mt-2 max-h-[28rem] w-[23rem] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-3 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-neutral-950">Export columns</p>
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-neutral-500 transition hover:text-neutral-900"
+                      onClick={() => setIsExportColumnPickerOpen(false)}
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {BOOKING_EXPORT_PRESETS.map((preset) => (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        title={preset.description}
+                        className="min-h-8 rounded-lg border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-coral/40 hover:bg-brand-50/40 hover:text-coral"
+                        onClick={() => updateExportColumnKeys(getBookingExportPresetColumnKeys(preset.key))}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 space-y-2.5">
+                    {BOOKING_EXPORT_COLUMN_GROUPS.map((group) => {
+                      const groupKeys = group.columns.map((column) => column.key);
+                      const selectedInGroupCount = groupKeys.filter((key) => exportColumnKeys.includes(key)).length;
+                      const isGroupFullySelected = groupKeys.length > 0 && selectedInGroupCount === groupKeys.length;
 
-                    return [
-                      booking.id,
-                      booking.customer_name ?? booking.user_id ?? '',
-                      booking.customer_phone ?? '',
-                      booking.provider_name ?? booking.provider_id,
-                      booking.booking_date ?? booking.booking_start,
-                      booking.booking_status ?? booking.status,
-                      resolveBookingServiceLabel(booking),
-                      booking.booking_mode ?? '',
-                      formatAmountForExport(booking.price_at_booking),
-                      formatAmountForExport(booking.admin_price_reference),
-                      formatPaymentModeForExport(booking.payment_mode),
-                      isCashCollectionMode ? (booking.cash_collected ? 'yes' : 'no') : 'n/a',
-                      isCashCollectionMode ? formatAmountForExport(booking.collected_amount_inr) : '',
-                      resolvePaymentStatusForExport(booking),
-                    ];
-                  }),
-                )
-              }
-            >
-              Export CSV
-            </button>
+                      return (
+                        <div key={group.id}>
+                          <label className="flex items-center gap-2 text-xs font-semibold text-neutral-950">
+                            <input
+                              type="checkbox"
+                              checked={isGroupFullySelected}
+                              onChange={() => updateExportColumnKeys(toggleBookingExportGroup(exportColumnKeys, group.id))}
+                              className="h-3.5 w-3.5 rounded border-neutral-300 accent-coral"
+                            />
+                            {group.label}
+                            <span className="text-[10px] font-medium text-neutral-400">
+                              {selectedInGroupCount}/{groupKeys.length}
+                            </span>
+                          </label>
+                          <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 pl-5">
+                            {group.columns.map((column) => (
+                              <label key={column.key} className="flex items-center gap-1.5 text-[11px] text-neutral-700">
+                                <input
+                                  type="checkbox"
+                                  checked={exportColumnKeys.includes(column.key)}
+                                  onChange={() => updateExportColumnKeys(toggleBookingExportColumn(exportColumnKeys, column.key))}
+                                  className="h-3 w-3 rounded border-neutral-300 accent-coral"
+                                />
+                                <span className="truncate" title={column.label}>{column.label}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Button
+                    size="sm"
+                    className="mt-3 w-full !rounded-lg"
+                    onClick={handleExportBookingsCsv}
+                    disabled={exportColumns.length === 0}
+                  >
+                    Export CSV ({exportColumns.length} {exportColumns.length === 1 ? 'column' : 'columns'})
+                  </Button>
+                  <p className="mt-1.5 text-center text-[10px] text-neutral-500">
+                    Exports the {visibleBookings.length} booking{visibleBookings.length === 1 ? '' : 's'} matching the current filters and search.
+                  </p>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

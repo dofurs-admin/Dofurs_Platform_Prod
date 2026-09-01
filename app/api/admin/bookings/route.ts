@@ -5,6 +5,7 @@ import { toFriendlyApiError } from '@/lib/api/errors';
 import { logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import {
+  extractBundledPetIdsFromNotes,
   extractProviderServiceIdsFromNotes,
   resolveIncludedServicesForBooking,
 } from '@/lib/bookings/included-services';
@@ -46,6 +47,20 @@ type BookingSearchRow = {
   cash_collected: boolean;
   collected_amount_inr: number | null;
   included_services?: string[];
+  location_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  pincode: string | null;
+  city: string | null;
+  pet_names: string | null;
+  pet_breed: string | null;
+  discount_code: string | null;
+  discount_amount: number | null;
+  wallet_credits_applied_inr: number | null;
+  amount: number | null;
+  final_price: number | null;
+  created_at: string | null;
+  cancellation_reason: string | null;
 };
 
 type BookingServiceSourceRow = {
@@ -162,6 +177,313 @@ async function hydrateBookingEnrichmentById(
     adminPriceReferenceByBookingId,
     priceAtBookingByBookingId,
   };
+}
+
+type BookingLocationPricingSourceRow = {
+  id: number;
+  user_id: string | null;
+  pet_id: number | null;
+  location_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  discount_code?: string | null;
+  discount_amount?: number | null;
+  wallet_credits_applied_inr?: number | null;
+  amount?: number | null;
+  final_price?: number | null;
+  created_at?: string | null;
+  cancellation_reason?: string | null;
+  provider_notes?: string | null;
+  internal_notes?: string | null;
+};
+
+type PetSourceRow = {
+  id: number;
+  name: string | null;
+  breed: string | null;
+};
+
+type UserAddressSourceRow = {
+  user_id: string;
+  city: string | null;
+  pincode: string | null;
+  is_default: boolean | null;
+};
+
+type BookingLocationPetPricingHydration = {
+  location_address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  pincode: string | null;
+  city: string | null;
+  pet_names: string | null;
+  pet_breed: string | null;
+  discount_code: string | null;
+  discount_amount: number | null;
+  wallet_credits_applied_inr: number | null;
+  amount: number | null;
+  final_price: number | null;
+  created_at: string | null;
+  cancellation_reason: string | null;
+};
+
+const BOOKING_LOCATION_PET_PRICING_SELECT =
+  'id, user_id, pet_id, location_address, latitude, longitude, discount_code, discount_amount, wallet_credits_applied_inr, amount, final_price, created_at, cancellation_reason, provider_notes, internal_notes';
+
+// Columns that have existed on bookings since the initial schema; used when the
+// full select fails because a legacy database is missing the newer columns.
+const BOOKING_LOCATION_PET_PRICING_SELECT_CORE = 'id, user_id, pet_id, amount, created_at';
+
+function getErrorCode(error: unknown) {
+  if (error && typeof error === 'object' && 'code' in error && typeof (error as { code?: unknown }).code === 'string') {
+    return (error as { code: string }).code;
+  }
+
+  return null;
+}
+
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === 'object' && 'message' in error && typeof (error as { message?: unknown }).message === 'string') {
+    return (error as { message: string }).message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return '';
+}
+
+function isMissingColumnError(error: unknown) {
+  const code = getErrorCode(error);
+  if (code === '42703' || code === 'PGRST204') {
+    return true;
+  }
+
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    message.includes('column') && (message.includes('does not exist') || message.includes('could not find'))
+  );
+}
+
+function isMissingRelationError(error: unknown) {
+  const code = getErrorCode(error);
+  if (code === '42P01') {
+    return true;
+  }
+
+  const message = getErrorMessage(error).toLowerCase();
+  return message.includes('relation') && message.includes('does not exist');
+}
+
+function toFiniteNumberOrNull(value: unknown): number | null {
+  const parsed = Number(value ?? NaN);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function joinDistinctLabels(values: ReadonlyArray<string | null | undefined>): string | null {
+  const seen = new Set<string>();
+  const labels: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    labels.push(trimmed);
+  }
+
+  return labels.length > 0 ? labels.join('; ') : null;
+}
+
+/**
+ * Hydrates admin booking rows with location, pet, and pricing fields that the
+ * admin_search_bookings RPC does not return. Fetches are batched by booking ID
+ * and degrade gracefully (returning nulls) when legacy databases are missing
+ * the underlying columns or tables.
+ *
+ * Pincode/city are best-effort values resolved from the customer's saved
+ * addresses (preferring the default address) because bookings has no pincode
+ * column.
+ */
+async function hydrateBookingLocationPetAndPricingById(
+  adminSupabase: ReturnType<typeof getSupabaseAdminClient>,
+  bookingIds: number[],
+) {
+  const hydrationByBookingId = new Map<number, BookingLocationPetPricingHydration>();
+
+  if (bookingIds.length === 0) {
+    return hydrationByBookingId;
+  }
+
+  const fullSelect = await adminSupabase
+    .from('bookings')
+    .select(BOOKING_LOCATION_PET_PRICING_SELECT)
+    .in('id', bookingIds)
+    .returns<BookingLocationPricingSourceRow[]>();
+
+  let bookingRows: BookingLocationPricingSourceRow[] = [];
+
+  if (fullSelect.error) {
+    if (!isMissingColumnError(fullSelect.error)) {
+      console.warn('Unable to hydrate booking location/pet/pricing fields', fullSelect.error);
+      return hydrationByBookingId;
+    }
+
+    const coreSelect = await adminSupabase
+      .from('bookings')
+      .select(BOOKING_LOCATION_PET_PRICING_SELECT_CORE)
+      .in('id', bookingIds)
+      .returns<BookingLocationPricingSourceRow[]>();
+
+    if (coreSelect.error) {
+      console.warn('Unable to hydrate booking location/pet/pricing fields (core fallback)', coreSelect.error);
+      return hydrationByBookingId;
+    }
+
+    bookingRows = coreSelect.data ?? [];
+  } else {
+    bookingRows = fullSelect.data ?? [];
+  }
+
+  const petIds = new Set<number>();
+  for (const row of bookingRows) {
+    const primaryPetId = toFiniteNumberOrNull(row.pet_id);
+    if (primaryPetId != null) {
+      petIds.add(primaryPetId);
+    }
+
+    for (const bundledPetId of extractBundledPetIdsFromNotes(row.provider_notes)) {
+      petIds.add(bundledPetId);
+    }
+
+    for (const bundledPetId of extractBundledPetIdsFromNotes(row.internal_notes)) {
+      petIds.add(bundledPetId);
+    }
+  }
+
+  const petById = new Map<number, PetSourceRow>();
+
+  if (petIds.size > 0) {
+    const { data: petRows, error: petError } = await adminSupabase
+      .from('pets')
+      .select('id, name, breed')
+      .in('id', Array.from(petIds))
+      .returns<PetSourceRow[]>();
+
+    if (petError) {
+      console.warn('Unable to hydrate pet details for admin bookings', petError);
+    } else {
+      for (const pet of petRows ?? []) {
+        petById.set(Number(pet.id), pet);
+      }
+    }
+  }
+
+  const userIds = Array.from(
+    new Set(
+      bookingRows
+        .map((row) => row.user_id?.trim())
+        .filter((userId): userId is string => Boolean(userId)),
+    ),
+  );
+
+  const preferredAddressByUserId = new Map<string, UserAddressSourceRow>();
+
+  if (userIds.length > 0) {
+    const { data: addressRows, error: addressError } = await adminSupabase
+      .from('user_addresses')
+      .select('user_id, city, pincode, is_default')
+      .in('user_id', userIds)
+      .returns<UserAddressSourceRow[]>();
+
+    if (addressError) {
+      if (!isMissingRelationError(addressError)) {
+        console.warn('Unable to hydrate customer addresses for admin bookings', addressError);
+      }
+    } else {
+      for (const address of addressRows ?? []) {
+        const userId = address.user_id?.trim();
+        if (!userId) {
+          continue;
+        }
+
+        const existing = preferredAddressByUserId.get(userId);
+        if (!existing || address.is_default === true) {
+          preferredAddressByUserId.set(userId, address);
+        }
+      }
+    }
+  }
+
+  for (const row of bookingRows) {
+    const orderedPetIds: number[] = [];
+
+    const primaryPetId = toFiniteNumberOrNull(row.pet_id);
+    if (primaryPetId != null) {
+      orderedPetIds.push(primaryPetId);
+    }
+
+    for (const bundledPetId of [
+      ...extractBundledPetIdsFromNotes(row.provider_notes),
+      ...extractBundledPetIdsFromNotes(row.internal_notes),
+    ]) {
+      if (!orderedPetIds.includes(bundledPetId)) {
+        orderedPetIds.push(bundledPetId);
+      }
+    }
+
+    const petsForBooking = orderedPetIds
+      .map((petId) => petById.get(petId))
+      .filter((pet): pet is PetSourceRow => pet != null);
+
+    const addressUserId = row.user_id?.trim();
+    const address = addressUserId ? preferredAddressByUserId.get(addressUserId) : undefined;
+
+    hydrationByBookingId.set(Number(row.id), {
+      location_address: row.location_address?.trim() || null,
+      latitude: toFiniteNumberOrNull(row.latitude),
+      longitude: toFiniteNumberOrNull(row.longitude),
+      pincode: address?.pincode?.trim() || null,
+      city: address?.city?.trim() || null,
+      pet_names: joinDistinctLabels(petsForBooking.map((pet) => pet.name)),
+      pet_breed: joinDistinctLabels(petsForBooking.map((pet) => pet.breed)),
+      discount_code: row.discount_code?.trim() || null,
+      discount_amount: toFiniteNumberOrNull(row.discount_amount),
+      wallet_credits_applied_inr: toFiniteNumberOrNull(row.wallet_credits_applied_inr),
+      amount: toFiniteNumberOrNull(row.amount),
+      final_price: toFiniteNumberOrNull(row.final_price),
+      created_at: row.created_at ?? null,
+      cancellation_reason: row.cancellation_reason?.trim() || null,
+    });
+  }
+
+  return hydrationByBookingId;
+}
+
+function applyBookingLocationPetPricingHydration(
+  bookings: BookingSearchRow[],
+  hydrationByBookingId: ReadonlyMap<number, BookingLocationPetPricingHydration>,
+) {
+  for (const booking of bookings) {
+    const hydration = hydrationByBookingId.get(booking.id);
+    booking.location_address = hydration?.location_address ?? null;
+    booking.latitude = hydration?.latitude ?? null;
+    booking.longitude = hydration?.longitude ?? null;
+    booking.pincode = hydration?.pincode ?? null;
+    booking.city = hydration?.city ?? null;
+    booking.pet_names = hydration?.pet_names ?? null;
+    booking.pet_breed = hydration?.pet_breed ?? null;
+    booking.discount_code = hydration?.discount_code ?? null;
+    booking.discount_amount = hydration?.discount_amount ?? null;
+    booking.wallet_credits_applied_inr = hydration?.wallet_credits_applied_inr ?? null;
+    booking.amount = hydration?.amount ?? null;
+    booking.final_price = hydration?.final_price ?? null;
+    booking.created_at = hydration?.created_at ?? null;
+    booking.cancellation_reason = hydration?.cancellation_reason ?? null;
+  }
 }
 
 function normalizeBookingStatus(value: unknown): BookingStatus {
@@ -299,6 +621,20 @@ export async function GET(request: Request) {
         collected_amount_inr: null,
         admin_price_reference: null,
         price_at_booking: null,
+        location_address: null,
+        latitude: null,
+        longitude: null,
+        pincode: null,
+        city: null,
+        pet_names: null,
+        pet_breed: null,
+        discount_code: null,
+        discount_amount: null,
+        wallet_credits_applied_inr: null,
+        amount: null,
+        final_price: null,
+        created_at: null,
+        cancellation_reason: null,
       })) as BookingSearchRow[];
       const filteredBookings = bookings.filter((booking) => (
         matchesBookingDateRange(booking, fromDate, toDate)
@@ -341,20 +677,33 @@ export async function GET(request: Request) {
           booking.collected_amount_inr = collectedAmountByBookingId.get(booking.id) ?? null;
         }
 
+        const [
+          enrichmentResult,
+          locationPetPricingByBookingId,
+        ] = await Promise.all([
+          hydrateBookingEnrichmentById(
+            adminSupabase,
+            bookingIds,
+          ),
+          hydrateBookingLocationPetAndPricingById(
+            adminSupabase,
+            bookingIds,
+          ),
+        ]);
+
         const {
           includedServicesByBookingId,
           adminPriceReferenceByBookingId,
           priceAtBookingByBookingId,
-        } = await hydrateBookingEnrichmentById(
-          adminSupabase,
-          bookingIds,
-        );
+        } = enrichmentResult;
 
         for (const booking of filteredBookings) {
           booking.included_services = includedServicesByBookingId.get(booking.id) ?? [];
           booking.admin_price_reference = adminPriceReferenceByBookingId.get(booking.id) ?? null;
           booking.price_at_booking = priceAtBookingByBookingId.get(booking.id) ?? null;
         }
+
+        applyBookingLocationPetPricingHydration(filteredBookings, locationPetPricingByBookingId);
       }
 
       return NextResponse.json({ bookings: filteredBookings });
@@ -412,6 +761,20 @@ export async function GET(request: Request) {
           payment_mode: row.payment_mode ?? null,
           cash_collected: false,
           collected_amount_inr: null,
+          location_address: null,
+          latitude: null,
+          longitude: null,
+          pincode: null,
+          city: null,
+          pet_names: null,
+          pet_breed: null,
+          discount_code: null,
+          discount_amount: null,
+          wallet_credits_applied_inr: null,
+          amount: null,
+          final_price: null,
+          created_at: null,
+          cancellation_reason: null,
         };
       })
       .filter((booking) => {
@@ -468,20 +831,33 @@ export async function GET(request: Request) {
         booking.collected_amount_inr = collectedAmountByBookingId.get(booking.id) ?? null;
       }
 
+      const [
+        enrichmentResult,
+        locationPetPricingByBookingId,
+      ] = await Promise.all([
+        hydrateBookingEnrichmentById(
+          adminSupabase,
+          bookingIds,
+        ),
+        hydrateBookingLocationPetAndPricingById(
+          adminSupabase,
+          bookingIds,
+        ),
+      ]);
+
       const {
         includedServicesByBookingId,
         adminPriceReferenceByBookingId,
         priceAtBookingByBookingId,
-      } = await hydrateBookingEnrichmentById(
-        adminSupabase,
-        bookingIds,
-      );
+      } = enrichmentResult;
 
       for (const booking of bookings) {
         booking.included_services = includedServicesByBookingId.get(booking.id) ?? [];
         booking.admin_price_reference = adminPriceReferenceByBookingId.get(booking.id) ?? null;
         booking.price_at_booking = priceAtBookingByBookingId.get(booking.id) ?? null;
       }
+
+      applyBookingLocationPetPricingHydration(bookings, locationPetPricingByBookingId);
     }
 
     return NextResponse.json({ bookings });

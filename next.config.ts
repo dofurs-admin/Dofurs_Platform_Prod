@@ -344,23 +344,36 @@ const nextConfig: NextConfig = {
     };
   },
   async headers() {
+    // Long-lived cache headers are only safe in production builds, where
+    // static asset URLs are content-hashed. In development, chunk URLs are
+    // stable filenames whose content changes on every edit — serving them
+    // with a long max-age (or `immutable`) makes browsers keep serving stale
+    // chunks after code changes, which breaks HMR and crashes the client with
+    // mismatched module versions. Skip all custom cache headers in dev and
+    // let Next.js apply its own safe dev defaults.
+    const cacheHeaderEntries = isDevelopment
+      ? []
+      : [
+          ...publicPageCacheSources.map((source) => ({
+            source,
+            headers: publicPageCacheHeaders,
+          })),
+          ...publicAssetCacheSources.map((source) => ({
+            source,
+            headers: publicAssetCacheHeaders,
+          })),
+          {
+            source: '/_next/static/:path*',
+            headers: immutableNextAssetCacheHeaders,
+          },
+          {
+            source: '/_next/image/:path*',
+            headers: optimizedImageCacheHeaders,
+          },
+        ];
+
     return [
-      ...publicPageCacheSources.map((source) => ({
-        source,
-        headers: publicPageCacheHeaders,
-      })),
-      ...publicAssetCacheSources.map((source) => ({
-        source,
-        headers: publicAssetCacheHeaders,
-      })),
-      {
-        source: '/_next/static/:path*',
-        headers: immutableNextAssetCacheHeaders,
-      },
-      {
-        source: '/_next/image/:path*',
-        headers: optimizedImageCacheHeaders,
-      },
+      ...cacheHeaderEntries,
       {
         source: '/(.*)',
         headers: securityHeaders,

@@ -73,6 +73,33 @@ describe('GET /api/admin/bookings', () => {
                     });
                   }
 
+                  if (queryState.selectClause.includes('location_address')) {
+                    return {
+                      returns: vi.fn().mockResolvedValue({
+                        data: [
+                          {
+                            id: 1,
+                            user_id: 'user-1',
+                            pet_id: 11,
+                            location_address: '12 Koramangala 5th Block, Bengaluru',
+                            latitude: 12.9352,
+                            longitude: 77.6245,
+                            discount_code: 'WELCOME10',
+                            discount_amount: 129.9,
+                            wallet_credits_applied_inr: 50,
+                            amount: 1299,
+                            final_price: 1119.1,
+                            created_at: '2026-04-01T10:00:00.000Z',
+                            cancellation_reason: null,
+                            provider_notes: null,
+                            internal_notes: null,
+                          },
+                        ],
+                        error: null,
+                      }),
+                    };
+                  }
+
                   return {
                     returns: vi.fn().mockResolvedValue({
                       data: [
@@ -107,6 +134,35 @@ describe('GET /api/admin/bookings', () => {
           };
         }
 
+        if (table === 'pets') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                returns: vi.fn().mockResolvedValue({
+                  data: [{ id: 11, name: 'Simba', breed: 'Labrador' }],
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
+        if (table === 'user_addresses') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                returns: vi.fn().mockResolvedValue({
+                  data: [
+                    { user_id: 'user-1', city: 'Bengaluru', pincode: '560095', is_default: true },
+                    { user_id: 'user-1', city: 'Mumbai', pincode: '400001', is_default: false },
+                  ],
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
         throw new Error(`Unexpected table: ${table}`);
       }),
     };
@@ -132,6 +188,19 @@ describe('GET /api/admin/bookings', () => {
     expect(json.bookings[0].cash_collected).toBe(true);
     expect(json.bookings[0].collected_amount_inr).toBe(1299);
     expect(json.bookings[0].included_services).toEqual(['grooming']);
+    expect(json.bookings[0].location_address).toBe('12 Koramangala 5th Block, Bengaluru');
+    expect(json.bookings[0].latitude).toBe(12.9352);
+    expect(json.bookings[0].longitude).toBe(77.6245);
+    expect(json.bookings[0].city).toBe('Bengaluru');
+    expect(json.bookings[0].pincode).toBe('560095');
+    expect(json.bookings[0].pet_names).toBe('Simba');
+    expect(json.bookings[0].pet_breed).toBe('Labrador');
+    expect(json.bookings[0].discount_code).toBe('WELCOME10');
+    expect(json.bookings[0].discount_amount).toBe(129.9);
+    expect(json.bookings[0].wallet_credits_applied_inr).toBe(50);
+    expect(json.bookings[0].final_price).toBe(1119.1);
+    expect(json.bookings[0].created_at).toBe('2026-04-01T10:00:00.000Z');
+    expect(json.bookings[0].cancellation_reason).toBeNull();
     expect(adminSupabase.rpc).toHaveBeenCalledWith('admin_search_bookings', expect.objectContaining({ p_filter: 'all' }));
   });
 
@@ -197,6 +266,33 @@ describe('GET /api/admin/bookings', () => {
                     return Promise.resolve({ data: [{ id: 1, payment_mode: 'platform' }], error: null });
                   }
 
+                  if (queryState.selectClause.includes('location_address')) {
+                    return {
+                      returns: vi.fn().mockResolvedValue({
+                        data: [
+                          {
+                            id: 1,
+                            user_id: 'user-1',
+                            pet_id: 11,
+                            location_address: '12 Koramangala 5th Block, Bengaluru',
+                            latitude: 12.9352,
+                            longitude: 77.6245,
+                            discount_code: null,
+                            discount_amount: null,
+                            wallet_credits_applied_inr: null,
+                            amount: 1299,
+                            final_price: null,
+                            created_at: '2026-04-01T10:00:00.000Z',
+                            cancellation_reason: null,
+                            provider_notes: null,
+                            internal_notes: null,
+                          },
+                        ],
+                        error: null,
+                      }),
+                    };
+                  }
+
                   return {
                     returns: vi.fn().mockResolvedValue({
                       data: [
@@ -227,6 +323,32 @@ describe('GET /api/admin/bookings', () => {
           };
         }
 
+        if (table === 'pets') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                returns: vi.fn().mockResolvedValue({
+                  data: [{ id: 11, name: 'Simba', breed: 'Labrador' }],
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
+        if (table === 'user_addresses') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => ({
+                returns: vi.fn().mockResolvedValue({
+                  data: [{ user_id: 'user-1', city: 'Bengaluru', pincode: '560095', is_default: true }],
+                  error: null,
+                }),
+              })),
+            })),
+          };
+        }
+
         throw new Error(`Unexpected table: ${table}`);
       }),
     };
@@ -248,6 +370,8 @@ describe('GET /api/admin/bookings', () => {
     const json = await response.json();
     expect(json.bookings).toHaveLength(1);
     expect(json.bookings[0].id).toBe(1);
+    expect(json.bookings[0].pet_names).toBe('Simba');
+    expect(json.bookings[0].pincode).toBe('560095');
     expect(adminSupabase.rpc).toHaveBeenCalledWith('admin_search_bookings', expect.objectContaining({ p_filter: 'confirmed' }));
   });
 

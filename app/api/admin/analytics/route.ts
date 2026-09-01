@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { requireApiRole } from '@/lib/auth/api-auth';
+import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 
 export async function GET(request: Request) {
   const auth = await requireApiRole(['admin', 'staff']);
   if (auth.response) return auth.response;
 
-  const { supabase } = auth.context;
+  // Admin analytics aggregates rows across ALL customers, so it must use the
+  // service-role client. RLS on billing_invoices only permits owner reads for
+  // authenticated sessions — querying with the user's session client silently
+  // returns zero invoice rows and leaves the revenue chart empty.
+  const adminSupabase = getSupabaseAdminClient();
   const { searchParams } = new URL(request.url);
   const days = Math.min(Math.max(Number(searchParams.get('days') ?? 30), 7), 90);
 
@@ -14,24 +19,36 @@ export async function GET(request: Request) {
   const sinceIso = since.toISOString();
 
   // Bookings per day
-  const { data: bookingRows } = await supabase
+  const { data: bookingRows, error: bookingRowsError } = await adminSupabase
     .from('bookings')
     .select('booking_start, status, booking_status')
     .gte('booking_start', sinceIso)
     .order('booking_start', { ascending: true });
 
+  if (bookingRowsError) {
+    console.warn('Unable to load booking rows for admin analytics', bookingRowsError);
+  }
+
   // Revenue from paid invoices per day
-  const { data: invoiceRows } = await supabase
+  const { data: invoiceRows, error: invoiceRowsError } = await adminSupabase
     .from('billing_invoices')
     .select('paid_at, total_inr')
     .eq('status', 'paid')
     .gte('paid_at', sinceIso)
     .order('paid_at', { ascending: true });
 
+  if (invoiceRowsError) {
+    console.warn('Unable to load paid invoices for admin analytics', invoiceRowsError);
+  }
+
   // Booking status distribution (all time counts)
-  const { data: statusCounts } = await supabase
+  const { data: statusCounts, error: statusCountsError } = await adminSupabase
     .from('bookings')
     .select('status, booking_status');
+
+  if (statusCountsError) {
+    console.warn('Unable to load booking status counts for admin analytics', statusCountsError);
+  }
 
   // Aggregate bookings by day
   const bookingsByDay: Record<string, number> = {};
