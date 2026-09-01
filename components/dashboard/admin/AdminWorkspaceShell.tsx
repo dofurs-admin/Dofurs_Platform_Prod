@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Command,
   CreditCard,
+  Eye,
   FileText,
   FileClock,
   GripVertical,
@@ -56,6 +57,7 @@ const navGroups: AdminNavGroup[] = [
       { id: 'bookings', label: 'Bookings', href: '/dashboard/admin/bookings', icon: CalendarDays, description: 'Booking queue and moderation' },
       { id: 'providers', label: 'Providers', href: '/dashboard/admin/providers', icon: UserRoundCog, description: 'Applications and service rollout' },
       { id: 'services', label: 'Services', href: '/dashboard/admin/services', icon: Scissors, description: 'Catalog and discount controls' },
+      { id: 'gaze', label: 'Gaze', href: '/dashboard/admin/gaze', icon: Eye, description: 'Geographic operations overview' },
     ],
   },
   {
