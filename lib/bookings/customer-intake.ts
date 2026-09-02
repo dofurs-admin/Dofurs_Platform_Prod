@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { logAdminAction } from '@/lib/admin/audit';
 import { toIndianE164 } from '@/lib/utils/india-phone';
+import { resolveSiteOrigin } from '@/lib/site-url';
 
 type ExistingUserRole = 'user' | 'provider' | 'admin' | 'staff' | null;
 
@@ -286,7 +287,7 @@ export async function createCustomerProfileForBooking(
 
     authUserId = createdAuthUser.user.id;
   } else {
-    const inviteRedirectTo = new URL('/auth/callback?next=/dashboard/user', input.request?.url ?? 'http://localhost').toString();
+    const inviteRedirectTo = new URL('/auth/callback?next=/dashboard/user', resolveSiteOrigin(input.request)).toString();
 
     const { data: inviteResult, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: {

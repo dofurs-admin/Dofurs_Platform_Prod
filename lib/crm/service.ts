@@ -17,6 +17,9 @@ import {
 } from './sources/meta-sheet';
 import {
   CRM_LEAD_OPEN_STATUSES,
+  RETENTION_DEFAULT_RECOMMENDED_DAYS,
+  RETENTION_LEAD_TIME_DAYS,
+  RETENTION_RECOMMENDED_DAY_OPTIONS,
   type CrmLeadActivityRow,
   type CrmLeadActivityType,
   type CrmLeadRow,
@@ -102,12 +105,23 @@ export type ListCrmLeadsOptions = {
   dueOnly?: boolean;
   limit?: number;
   offset?: number;
+  /** Also resolve the filtered total row count (used by the admin list API for pagination). */
+  includeTotal?: boolean;
+};
+
+export type ListCrmLeadsResult = {
+  leads: CrmLeadWithCustomer[];
+  /**
+   * Filtered total row count. Null when `includeTotal` was not requested or the
+   * count query failed — the pagination UI degrades gracefully in that case.
+   */
+  total: number | null;
 };
 
 export async function listCrmLeads(
   supabase: SupabaseClient,
   options: ListCrmLeadsOptions = {},
-): Promise<CrmLeadWithCustomer[]> {
+): Promise<ListCrmLeadsResult> {
   const limit = Math.min(Math.max(options.limit ?? 50, 1), 5000);
   const offset = Math.max(options.offset ?? 0, 0);
 
@@ -129,36 +143,44 @@ export async function listCrmLeads(
 
     userFilterIds = (matchingUsers ?? []).map((row: { id: string }) => row.id);
     if (userFilterIds.length === 0) {
-      return [];
+      return { leads: [], total: 0 };
     }
   }
 
-  let query = supabase.from('crm_leads').select(LEAD_SELECT);
+  // Single source of truth for the list filters. Applied to both the page query
+  // and (when requested) the exact-count query, so the pagination total always
+  // matches exactly what the same filters would return.
+  const buildFilteredQuery = (select: string, forExactCount: boolean) => {
+    let query = supabase
+      .from('crm_leads')
+      .select(select, forExactCount ? { count: 'exact', head: true } : undefined);
 
-  if (options.status) {
-    query = query.eq('status', options.status);
-  }
-  if (options.source) {
-    query = query.eq('source', options.source);
-  }
-  if (options.priority) {
-    query = query.eq('priority', options.priority);
-  }
-  if (options.assignedTo) {
-    query = query.eq('assigned_to', options.assignedTo);
-  }
-  if (options.dueOnly) {
-    const nowIso = new Date().toISOString();
-    query = query
-      .in('status', ['new', 'contacted', 'interested', 'follow_up'])
-      .not('next_followup_at', 'is', null)
-      .lte('next_followup_at', nowIso);
-  }
-  if (userFilterIds) {
-    query = query.in('user_id', userFilterIds);
-  }
+    if (options.status) {
+      query = query.eq('status', options.status);
+    }
+    if (options.source) {
+      query = query.eq('source', options.source);
+    }
+    if (options.priority) {
+      query = query.eq('priority', options.priority);
+    }
+    if (options.assignedTo) {
+      query = query.eq('assigned_to', options.assignedTo);
+    }
+    if (options.dueOnly) {
+      const nowIso = new Date().toISOString();
+      query = query
+        .in('status', ['new', 'contacted', 'interested', 'follow_up'])
+        .not('next_followup_at', 'is', null)
+        .lte('next_followup_at', nowIso);
+    }
+    if (userFilterIds) {
+      query = query.in('user_id', userFilterIds);
+    }
+    return query;
+  };
 
-  const { data, error } = await query
+  const { data, error } = await buildFilteredQuery(LEAD_SELECT, false)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
     .returns<LeadEmbedRow[]>();
@@ -167,7 +189,18 @@ export async function listCrmLeads(
     throw new CrmServiceError(error.message);
   }
 
-  return (data ?? []).map(toLeadWithCustomer);
+  let total: number | null = null;
+  if (options.includeTotal) {
+    const { count, error: countError } = await buildFilteredQuery('id', true);
+    if (countError) {
+      // The pagination total is convenience, not correctness — degrade, never fail the list.
+      console.error('[crm] Failed to count leads for pagination:', countError.message);
+    } else {
+      total = count ?? 0;
+    }
+  }
+
+  return { leads: (data ?? []).map(toLeadWithCustomer), total };
 }
 
 export async function getCrmLeadSummary(supabase: SupabaseClient): Promise<CrmLeadSummary> {
@@ -1746,15 +1779,26 @@ export type CrmRetentionCandidate = {
 };
 
 /**
- * Repeat customers whose next recommended grooming (last completed booking +
- * 30 days) has arrived, without an open lead already in the pipeline.
+ * Repeat customers whose last completed grooming is old enough that the next
+ * recommended grooming (last completed booking + the selected cadence) is
+ * approaching, without an open lead already in the pipeline. Outreach starts
+ * RETENTION_LEAD_TIME_DAYS before the recommendation so the booking lands on
+ * the cadence (e.g. day 25 for a 30-day recommendation, day 55 for 60).
+ *
+ * The exact total is derived in memory from the same filters used for the page,
+ * so the UI can paginate without a second count query.
  */
 export async function listRetentionCandidates(
   supabase: SupabaseClient,
-  options: { days?: number; limit?: number } = {},
-): Promise<CrmRetentionCandidate[]> {
-  const days = Math.min(Math.max(options.days ?? 25, 7), 90);
-  const limit = Math.min(options.limit ?? 50, 100);
+  options: { recommendedDays?: number; limit?: number; offset?: number } = {},
+): Promise<{ candidates: CrmRetentionCandidate[]; total: number }> {
+  const requestedDays = options.recommendedDays ?? RETENTION_DEFAULT_RECOMMENDED_DAYS;
+  const recommendedDays = (RETENTION_RECOMMENDED_DAY_OPTIONS as readonly number[]).includes(requestedDays)
+    ? requestedDays
+    : RETENTION_DEFAULT_RECOMMENDED_DAYS;
+  const limit = Math.min(Math.max(options.limit ?? 10, 1), 100);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const cutoffDays = Math.max(recommendedDays - RETENTION_LEAD_TIME_DAYS, 7);
 
   const { data: completedRows, error } = await supabase
     .from('bookings')
@@ -1792,47 +1836,54 @@ export async function listRetentionCandidates(
     }
   }
 
-  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
-  const dueUserIds: string[] = [];
+  const cutoff = new Date(Date.now() - cutoffDays * 86_400_000).toISOString().slice(0, 10);
 
-  for (const [userId, stats] of byUser) {
-    if (stats.lastDate <= cutoff) {
-      dueUserIds.push(userId);
-    }
-  }
+  // Full due list, oldest last-grooming first — sorted before paging so every
+  // page is a stable, ordered slice of the same result set.
+  const dueUsers = Array.from(byUser.entries())
+    .filter(([, stats]) => stats.lastDate <= cutoff)
+    .sort((left, right) => left[1].lastDate.localeCompare(right[1].lastDate));
 
-  if (dueUserIds.length === 0) {
-    return [];
+  if (dueUsers.length === 0) {
+    return { candidates: [], total: 0 };
   }
 
   // Exclude customers with a lead already open in the pipeline.
   const { data: openLeadRows } = await supabase
     .from('crm_leads')
     .select('user_id')
-    .in('user_id', dueUserIds)
+    .in('user_id', dueUsers.map(([userId]) => userId))
     .in('status', ['new', 'contacted', 'interested', 'follow_up'])
     .limit(1000)
     .returns<Array<{ user_id: string }>>();
 
   const busyUsers = new Set((openLeadRows ?? []).map((row) => row.user_id));
+  const eligibleUsers = dueUsers.filter(([userId]) => !busyUsers.has(userId));
+  const total = eligibleUsers.length;
+
+  const pageUsers = eligibleUsers.slice(offset, offset + limit);
+  if (pageUsers.length === 0) {
+    return { candidates: [], total };
+  }
+
   const { data: userRows } = await supabase
     .from('users')
     .select('id, name, phone')
-    .in('id', dueUserIds.filter((id) => !busyUsers.has(id)).slice(0, limit))
-    .limit(limit)
+    .in('id', pageUsers.map(([userId]) => userId))
+    .limit(pageUsers.length)
     .returns<Array<{ id: string; name: string | null; phone: string | null }>>();
 
   const userById = new Map((userRows ?? []).map((row) => [row.id, row]));
 
-  return Array.from(byUser.entries())
-    .filter(([userId, stats]) => stats.lastDate <= cutoff && userById.has(userId))
+  const candidates = pageUsers
+    .filter(([userId]) => userById.has(userId))
     .map(([userId, stats]) => ({
       userId,
       name: userById.get(userId)?.name ?? null,
       phone: userById.get(userId)?.phone ?? null,
       lastGroomingDate: stats.lastDate,
       nextRecommendedDate: new Date(
-        new Date(`${stats.lastDate}T00:00:00Z`).getTime() + GROOMING_RECURRENCE_DAYS * 86_400_000,
+        new Date(`${stats.lastDate}T00:00:00Z`).getTime() + recommendedDays * 86_400_000,
       )
         .toISOString()
         .slice(0, 10),
@@ -1841,9 +1892,9 @@ export async function listRetentionCandidates(
       ),
       completedBookings: stats.completed,
       totalSpentInr: stats.spent,
-    }))
-    .sort((left, right) => left.lastGroomingDate.localeCompare(right.lastGroomingDate))
-    .slice(0, limit);
+    }));
+
+  return { candidates, total };
 }
 
 // ── Campaign analytics (Phase 7) ────────────────────────────────────────────────

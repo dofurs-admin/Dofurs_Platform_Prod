@@ -120,3 +120,15 @@ export function isCrmLeadStatus(value: unknown): value is CrmLeadStatus {
 export function isCrmLeadSource(value: unknown): value is CrmLeadSource {
   return typeof value === 'string' && (CRM_LEAD_SOURCES as readonly string[]).includes(value);
 }
+
+// ── Retention cadence (Phase 6) ─────────────────────────────────────────────────
+
+/** Grooming-cadence options the retention section can filter by. */
+export const RETENTION_RECOMMENDED_DAY_OPTIONS = [30, 60, 90, 120] as const;
+
+export type RetentionRecommendedDays = (typeof RETENTION_RECOMMENDED_DAY_OPTIONS)[number];
+
+export const RETENTION_DEFAULT_RECOMMENDED_DAYS: RetentionRecommendedDays = 30;
+
+/** Outreach starts this many days before the next recommended grooming date. */
+export const RETENTION_LEAD_TIME_DAYS = 5;

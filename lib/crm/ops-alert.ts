@@ -1,8 +1,10 @@
 // ── CRM ops alerts (Discord) ───────────────────────────────────────────────────
 //
 // Lightweight, never-throwing ops notifications for CRM background jobs
-// (e.g. Meta sheet import failures). Reuses the existing ops Discord webhook
-// so alerts land in the channel the team already watches.
+// (e.g. new/hot leads, website enquiries, Meta sheet import results).
+// Sends to the dedicated CRM channel via DISCORD_CRM_WEBHOOK_URL. Falls back
+// to the booking ops webhook (with a console.warn) only while the CRM webhook
+// is not configured, so alerts are never silently lost.
 
 const REQUEST_TIMEOUT_MS = 8000;
 
@@ -21,9 +23,19 @@ export async function sendCrmOpsAlert(input: {
     return { sent: false, reason: 'disabled' };
   }
 
-  const webhookUrl = (process.env.DISCORD_BOOKING_WEBHOOK_URL ?? '').trim();
+  const crmWebhookUrl = (process.env.DISCORD_CRM_WEBHOOK_URL ?? '').trim();
+
+  let webhookUrl = crmWebhookUrl;
   if (!webhookUrl) {
-    return { sent: false, reason: 'not_configured' };
+    const bookingWebhookUrl = (process.env.DISCORD_BOOKING_WEBHOOK_URL ?? '').trim();
+    if (!bookingWebhookUrl) {
+      return { sent: false, reason: 'not_configured' };
+    }
+    webhookUrl = bookingWebhookUrl;
+    console.warn(
+      '[crm-ops-alert] DISCORD_CRM_WEBHOOK_URL is not configured — falling back to the booking ops webhook. '
+        + 'Set DISCORD_CRM_WEBHOOK_URL to route CRM alerts to the dedicated CRM channel.',
+    );
   }
 
   const controller = new AbortController();

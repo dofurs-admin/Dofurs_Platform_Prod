@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Rate limit exceeded. Try again shortly.' }, { status: 429 });
     }
 
-    const [leads, summary, staffUsers] = await Promise.all([
+    const [leadPage, summary, staffUsers] = await Promise.all([
       listCrmLeads(adminClient, {
         status: statusFilter,
         source: sourceFilter,
@@ -60,13 +60,19 @@ export async function GET(request: Request) {
         dueOnly,
         limit,
         offset,
+        includeTotal: true,
       }),
       getCrmLeadSummary(adminClient),
       listCrmStaffUsers(adminClient),
     ]);
 
     return NextResponse.json(
-      { leads, summary, staffUsers, pagination: { limit, offset } },
+      {
+        leads: leadPage.leads,
+        summary,
+        staffUsers,
+        pagination: { limit, offset, total: leadPage.total },
+      },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } },
     );
   } catch (error) {

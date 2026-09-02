@@ -9,6 +9,12 @@ import type {
   CrmLeadSummary,
   CrmLeadWithCustomer,
 } from '@/lib/crm/types';
+import {
+  RETENTION_DEFAULT_RECOMMENDED_DAYS,
+  RETENTION_LEAD_TIME_DAYS,
+  RETENTION_RECOMMENDED_DAY_OPTIONS,
+  type RetentionRecommendedDays,
+} from '@/lib/crm/types';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -254,6 +260,12 @@ function formatLeadTimestamp(value: string | null | undefined) {
   });
 }
 
+/** Leads per page on the CRM dashboard table (the API supports offset pagination). */
+const PAGE_SIZE = 50;
+
+/** Retention candidates per page in the "Repeat grooming due" card. */
+const RETENTION_PAGE_SIZE = 10;
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function CrmTab() {
@@ -266,6 +278,8 @@ export default function CrmTab() {
   const [statusFilter, setStatusFilter] = useState<'all' | CrmLeadStatus | 'due'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [totalLeads, setTotalLeads] = useState(0);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCreatingLead, setIsCreatingLead] = useState(false);
@@ -290,6 +304,11 @@ export default function CrmTab() {
   const [customer360Data, setCustomer360Data] = useState<CrmCustomer360Data | null>(null);
   const [isCustomer360Loading, setIsCustomer360Loading] = useState(false);
   const [retentionCandidates, setRetentionCandidates] = useState<CrmRetentionCandidate[]>([]);
+  const [retentionTotal, setRetentionTotal] = useState(0);
+  const [retentionDays, setRetentionDays] = useState<RetentionRecommendedDays>(RETENTION_DEFAULT_RECOMMENDED_DAYS);
+  const [retentionPage, setRetentionPage] = useState(0);
+  const [isRetentionExpanded, setIsRetentionExpanded] = useState(false);
+  const [isRetentionLoading, setIsRetentionLoading] = useState(false);
   const [campaignRows, setCampaignRows] = useState<CrmCampaignRow[]>([]);
   const [isRetentionBusy, setIsRetentionBusy] = useState(false);
 
@@ -321,6 +340,7 @@ export default function CrmTab() {
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
+      setPage(0);
     }, 250);
     return () => window.clearTimeout(timeout);
   }, [searchQuery]);
@@ -329,7 +349,8 @@ export default function CrmTab() {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('limit', '50');
+      params.set('limit', String(PAGE_SIZE));
+      params.set('offset', String(page * PAGE_SIZE));
       if (statusFilter === 'due') {
         params.set('due', 'true');
       } else if (statusFilter !== 'all') {
@@ -343,23 +364,39 @@ export default function CrmTab() {
             leads?: CrmLeadWithCustomer[];
             summary?: CrmLeadSummary;
             staffUsers?: CrmStaffUser[];
+            pagination?: { limit: number; offset: number; total: number | null };
             error?: string;
           }
         | null;
 
       if (!response.ok) throw new Error(payload?.error ?? 'Unable to load leads.');
-      setLeads(payload?.leads ?? []);
+      const fetchedLeads = payload?.leads ?? [];
+      const total = payload?.pagination?.total;
+
+      // If the active page is past the last one (e.g. the result set shrank after
+      // leads changed state), snap back to the final page instead of showing a blank table.
+      if (fetchedLeads.length === 0 && page > 0 && typeof total === 'number' && total > 0) {
+        const lastPage = Math.max(0, Math.ceil(total / PAGE_SIZE) - 1);
+        if (lastPage < page) {
+          setPage(lastPage);
+          return;
+        }
+      }
+
+      setLeads(fetchedLeads);
       setSummary(payload?.summary ?? EMPTY_SUMMARY);
+      setTotalLeads(typeof total === 'number' ? total : fetchedLeads.length);
       if (payload?.staffUsers) {
         setStaffUsers(payload.staffUsers);
       }
     } catch (error) {
       setLeads([]);
+      setTotalLeads(0);
       showToast(error instanceof Error ? error.message : 'Unable to load leads.', 'error');
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, debouncedSearch, showToast]);
+  }, [statusFilter, debouncedSearch, page, showToast]);
 
   useEffect(() => {
     void fetchLeads();
@@ -431,34 +468,60 @@ export default function CrmTab() {
     }
   }, [showToast]);
 
-  const loadRetentionAndCampaigns = useCallback(async () => {
+  const loadRetention = useCallback(async () => {
+    setIsRetentionLoading(true);
     try {
-      const [retentionResponse, campaignsResponse] = await Promise.all([
-        fetch('/api/admin/crm/retention', { cache: 'no-store' }),
-        fetch('/api/admin/crm/analytics/campaigns', { cache: 'no-store' }),
-      ]);
+      const params = new URLSearchParams();
+      params.set('days', String(retentionDays));
+      params.set('limit', String(RETENTION_PAGE_SIZE));
+      params.set('offset', String(retentionPage * RETENTION_PAGE_SIZE));
+      const response = await fetch(`/api/admin/crm/retention?${params.toString()}`, { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = (await response.json().catch(() => null)) as
+        | { candidates?: CrmRetentionCandidate[]; total?: number }
+        | null;
+      const candidates = payload?.candidates ?? [];
+      const total = payload?.total;
 
-      if (retentionResponse.ok) {
-        const retentionPayload = (await retentionResponse.json().catch(() => null)) as
-          | { candidates?: CrmRetentionCandidate[] }
-          | null;
-        setRetentionCandidates(retentionPayload?.candidates ?? []);
+      // If the active page emptied (e.g. a follow-up lead removed the customer
+      // from the list), snap back to the final page instead of a blank list.
+      if (candidates.length === 0 && retentionPage > 0 && typeof total === 'number' && total > 0) {
+        const lastPage = Math.max(0, Math.ceil(total / RETENTION_PAGE_SIZE) - 1);
+        if (lastPage < retentionPage) {
+          setRetentionPage(lastPage);
+          return;
+        }
       }
 
-      if (campaignsResponse.ok) {
-        const campaignPayload = (await campaignsResponse.json().catch(() => null)) as
-          | { campaigns?: CrmCampaignRow[] }
-          | null;
-        setCampaignRows(campaignPayload?.campaigns ?? []);
-      }
+      setRetentionCandidates(candidates);
+      setRetentionTotal(typeof total === 'number' ? total : candidates.length);
     } catch {
-      // Retention and campaign panels are supplementary — silent skip.
+      // Retention panel is supplementary — silent skip.
+    } finally {
+      setIsRetentionLoading(false);
+    }
+  }, [retentionDays, retentionPage]);
+
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/crm/analytics/campaigns', { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = (await response.json().catch(() => null)) as
+        | { campaigns?: CrmCampaignRow[] }
+        | null;
+      setCampaignRows(payload?.campaigns ?? []);
+    } catch {
+      // Campaign panel is supplementary — silent skip.
     }
   }, []);
 
   useEffect(() => {
-    void loadRetentionAndCampaigns();
-  }, [loadRetentionAndCampaigns]);
+    void loadRetention();
+  }, [loadRetention]);
+
+  useEffect(() => {
+    void loadCampaigns();
+  }, [loadCampaigns]);
 
   async function createRetentionLead(candidate: CrmRetentionCandidate) {
     setIsRetentionBusy(true);
@@ -479,7 +542,7 @@ export default function CrmTab() {
       if (!response.ok) throw new Error(payload?.error ?? 'Unable to create follow-up lead.');
 
       showToast('Retention follow-up lead created.', 'success');
-      await Promise.all([fetchLeads(), loadRetentionAndCampaigns()]);
+      await Promise.all([fetchLeads(), loadRetention()]);
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Unable to create follow-up lead.', 'error');
     } finally {
@@ -712,7 +775,10 @@ export default function CrmTab() {
             <button
               key={status}
               type="button"
-              onClick={() => setStatusFilter(status)}
+              onClick={() => {
+                setStatusFilter(status);
+                setPage(0);
+              }}
               className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                 statusFilter === status
                   ? 'border-neutral-900 bg-neutral-900 text-white'
@@ -768,43 +834,115 @@ export default function CrmTab() {
         </div>
       ) : null}
 
-      {/* Retention — repeat grooming due (Phase 6) */}
+      {/* Retention — repeat grooming due (Phase 6); minimized by default, expandable */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setIsRetentionExpanded((open) => !open)}
+          aria-expanded={isRetentionExpanded}
+          className="flex w-full items-center justify-between gap-2 text-left"
+        >
           <div>
-            <p className="text-sm font-semibold text-neutral-900">Repeat grooming due</p>
+            <p className="text-sm font-semibold text-neutral-900">
+              Repeat grooming due{retentionTotal > 0 ? ` (${retentionTotal})` : ''}
+            </p>
             <p className="mt-0.5 text-xs text-neutral-500">
-              Customers whose last completed grooming is 25+ days old (30-day recommendation), without an open lead.
+              {isRetentionExpanded
+                ? `Last completed grooming ${Math.max(retentionDays - RETENTION_LEAD_TIME_DAYS, 7)}+ days ago (${retentionDays}-day recommendation), without an open lead.`
+                : 'Minimized — expand to review and act on repeat-grooming follow-ups.'}
             </p>
           </div>
-        </div>
-        {retentionCandidates.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {retentionCandidates.slice(0, 5).map((candidate) => (
-              <li key={candidate.userId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-100 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-neutral-800">
-                    {candidate.name ?? 'Pet Owner'} · {candidate.phone ?? '—'}
-                  </p>
-                  <p className="text-[11px] text-neutral-500">
-                    Last grooming {candidate.lastGroomingDate} ({candidate.daysSinceLastGrooming}d ago) ·{' '}
-                    {candidate.completedBookings} completed · ₹{candidate.totalSpentInr} lifetime
-                  </p>
-                </div>
+          <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+            {isRetentionExpanded ? 'Hide ▲' : 'Show ▼'}
+          </span>
+        </button>
+
+        {isRetentionExpanded ? (
+          <>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500">
+                Recommended every
+              </span>
+              {RETENTION_RECOMMENDED_DAY_OPTIONS.map((days) => (
                 <button
+                  key={days}
                   type="button"
-                  disabled={isRetentionBusy}
-                  onClick={() => void createRetentionLead(candidate)}
-                  className="shrink-0 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-60"
+                  onClick={() => {
+                    setRetentionDays(days);
+                    setRetentionPage(0);
+                  }}
+                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                    retentionDays === days
+                      ? 'border-neutral-900 bg-neutral-900 text-white'
+                      : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:text-neutral-900'
+                  }`}
                 >
-                  Create follow-up lead
+                  {days} days
                 </button>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-3 text-xs text-neutral-500">No repeat-grooming follow-ups are due right now.</p>
-        )}
+              ))}
+            </div>
+
+            {retentionCandidates.length > 0 ? (
+              <ul className="mt-3 space-y-2">
+                {retentionCandidates.map((candidate) => (
+                  <li key={candidate.userId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-100 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-neutral-800">
+                        {candidate.name ?? 'Pet Owner'} · {candidate.phone ?? '—'}
+                      </p>
+                      <p className="text-[11px] text-neutral-500">
+                        Last grooming {candidate.lastGroomingDate} ({candidate.daysSinceLastGrooming}d ago) · next rec.{' '}
+                        {candidate.nextRecommendedDate} · {candidate.completedBookings} completed · ₹{candidate.totalSpentInr} lifetime
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={isRetentionBusy}
+                      onClick={() => void createRetentionLead(candidate)}
+                      className="shrink-0 rounded-lg bg-neutral-900 px-2.5 py-1.5 text-[11px] font-semibold text-white transition hover:bg-neutral-800 disabled:opacity-60"
+                    >
+                      Create follow-up lead
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-3 text-xs text-neutral-500">
+                {isRetentionLoading
+                  ? 'Loading repeat-grooming candidates…'
+                  : `No repeat-grooming follow-ups are due for the ${retentionDays}-day cadence right now.`}
+              </p>
+            )}
+
+            {retentionTotal > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-neutral-100 pt-2.5">
+                <p className="text-[11px] text-neutral-500">
+                  {retentionCandidates.length > 0
+                    ? `Showing ${retentionPage * RETENTION_PAGE_SIZE + 1}–${retentionPage * RETENTION_PAGE_SIZE + retentionCandidates.length} of ${retentionTotal}`
+                    : 'Loading…'}
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRetentionPage((current) => Math.max(0, current - 1))}
+                    disabled={retentionPage === 0 || isRetentionLoading}
+                    className="min-h-8 rounded-lg border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRetentionPage((current) => current + 1)}
+                    disabled={isRetentionLoading || (retentionPage + 1) * RETENTION_PAGE_SIZE >= retentionTotal}
+                    className="min-h-8 rounded-lg border border-neutral-200 bg-white px-2.5 text-[11px] font-semibold text-neutral-700 transition hover:border-neutral-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       {/* Campaign performance (Phase 7) */}
@@ -960,6 +1098,33 @@ export default function CrmTab() {
             )}
           </tbody>
         </table>
+        {totalLeads > 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 bg-neutral-50/60 px-4 py-3">
+            <p className="text-xs text-neutral-500">
+              {leads.length > 0
+                ? `Showing ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + leads.length} of ${totalLeads} leads`
+                : 'Loading leads…'}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((current) => Math.max(0, current - 1))}
+                disabled={page === 0 || isLoading}
+                className="min-h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-neutral-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((current) => current + 1)}
+                disabled={isLoading || (page + 1) * PAGE_SIZE >= totalLeads}
+                className="min-h-9 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 transition hover:border-neutral-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Create lead modal */}
