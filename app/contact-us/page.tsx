@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ContentPageLayout from '@/components/ContentPageLayout';
+import EnquiryForm from '@/components/site/EnquiryForm';
 import { links, whatsappLinks } from '@/lib/site-data';
 
 export const metadata: Metadata = {
@@ -25,6 +26,9 @@ export default function ContactUsPage() {
       heroImageAlt="Contact Dofurs"
     >
       <div className="h-px w-full bg-[#efdecd]" aria-hidden="true" />
+
+      {/* Enquiry form → CRM lead */}
+      <EnquiryForm />
 
       {/* Contact channels */}
       <div className="grid gap-3 sm:grid-cols-2">

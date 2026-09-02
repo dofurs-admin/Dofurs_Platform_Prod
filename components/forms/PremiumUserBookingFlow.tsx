@@ -18,6 +18,7 @@ import { isGenericGroomingServiceQuery } from '@/lib/service-catalog/service-pol
 import { formatSavedAddress } from '@/lib/utils/address';
 import PremiumBookingConfirmation from './PremiumBookingConfirmation';
 import PetAndServiceStep from './steps/PetAndServiceStep';
+import { reportBookingProgress } from '@/lib/crm/booking-session-client';
 import DateTimeSlotStep from './steps/DateTimeSlotStep';
 import ReviewConfirmStep from './steps/ReviewConfirmStep';
 
@@ -363,6 +364,7 @@ export default function PremiumUserBookingFlow() {
 
   // Booking selections
   const [currentStep, setCurrentStep] = useState<BookingStep>('pet-service');
+
   const [providerId, setProviderId] = useState<number | null>(null);
   const [selectedAutoProvider, setSelectedAutoProvider] = useState(true);
   const [serviceTypeSelection, setServiceTypeSelection] = useState<string | null>(null);
@@ -375,6 +377,17 @@ export default function PremiumUserBookingFlow() {
   const [selectedPetIds, setSelectedPetIds] = useState<number[]>([]);
   const [petServiceSelections, setPetServiceSelections] = useState<Record<number, PetServiceSelection>>({});
   const [bookingDate, setBookingDate] = useState('');
+
+  // CRM telemetry: report progress so unfinished booking flows can become
+  // abandoned-booking hot leads (best-effort, never affects the booking).
+  useEffect(() => {
+    reportBookingProgress({
+      stage: currentStep,
+      service: serviceTypeSelection,
+      petCount: selectedPetIds.length,
+      preferredDate: bookingDate || null,
+    });
+  }, [currentStep, serviceTypeSelection, selectedPetIds, bookingDate]);
   const bookingDateRef = useRef(bookingDate);
   bookingDateRef.current = bookingDate;
   const [bookingEndDate, setBookingEndDate] = useState('');
@@ -2949,6 +2962,9 @@ export default function PremiumUserBookingFlow() {
     if (!bookingId || bookingId <= 0) {
       return;
     }
+
+    // Mark the CRM booking session as completed (no abandoned lead will be made).
+    reportBookingProgress({ stage: 'booked' });
 
     const confirmationPath = buildBookingConfirmationPath(bookingId);
 

@@ -26,6 +26,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  Target,
   UserRound,
   UsersRound,
   UserRoundCog,
@@ -58,6 +59,7 @@ const navGroups: AdminNavGroup[] = [
       { id: 'providers', label: 'Providers', href: '/dashboard/admin/providers', icon: UserRoundCog, description: 'Applications and service rollout' },
       { id: 'services', label: 'Services', href: '/dashboard/admin/services', icon: Scissors, description: 'Catalog and discount controls' },
       { id: 'gaze', label: 'Gaze', href: '/dashboard/admin/gaze', icon: Eye, description: 'Geographic operations overview' },
+      { id: 'crm', label: 'CRM', href: '/dashboard/admin/crm', icon: Target, description: 'Lead pipeline and sales follow-ups' },
     ],
   },
   {

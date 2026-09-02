@@ -1,5 +1,6 @@
 import type { BookingStatus } from '@/lib/bookings/types';
 import { serviceCoveragePincodeMatches } from '@/lib/service-coverage';
+import type { GazeLeadAreaStat, GazeLeadKpis, GazeLeadPoint } from './leads';
 
 // ── Shared response types ─────────────────────────────────────────────────────
 //
@@ -82,6 +83,17 @@ export type GazeOverviewResponse = {
   coverage: GazeCoverageEntry[];
   coverageGaps: GazeCoverageGap[];
   kpis: GazeKpis;
+  /** CRM leads layer: every lead in the window (unmapped areas included). */
+  leads: GazeLeadPoint[];
+  /** CRM leads aggregated per matched Bengaluru area, sorted by lead count. */
+  leadAreas: GazeLeadAreaStat[];
+  leadKpis: GazeLeadKpis;
+  /**
+   * All-time pincode centroids (booking-derived). The lead layer uses them as
+   * a fallback so lead areas plot even when the selected window has no
+   * bookings in that pincode.
+   */
+  pincodeCentroids: Array<{ pincode: string; lat: number; lng: number }>;
   window: {
     key: GazeWindowKey;
     /** Null for the 'alltime' window (no date bounds). */

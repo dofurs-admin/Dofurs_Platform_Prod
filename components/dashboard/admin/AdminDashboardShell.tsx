@@ -26,6 +26,7 @@ import type { BookingStatus } from '@/lib/bookings/types';
 export type AdminDashboardView =
   | 'overview'
   | 'bookings'
+  | 'crm'
   | 'users'
   | 'providers'
   | 'services'
@@ -163,6 +164,11 @@ const GazeTab = dynamic(
   { loading: () => <TabSkeleton />, ssr: false },
 );
 
+const CrmTab = dynamic(
+  () => import('@/components/dashboard/admin/tabs/CrmTab'),
+  { loading: () => <TabSkeleton />, ssr: false },
+);
+
 const BlogTab = dynamic(
   () => import('@/components/dashboard/admin/tabs/BlogTab'),
   { loading: () => <TabSkeleton />, ssr: false },
@@ -238,6 +244,10 @@ const viewCopy: Record<AdminDashboardView, { title: string; description: string 
   gaze: {
     title: 'Gaze — Geographic Operations',
     description: 'Watch the whole operation from above: booking demand by area, groomer footprint, coverage, and gaps on one live map.',
+  },
+  crm: {
+    title: 'CRM — Lead Pipeline',
+    description: 'Capture enquiries, run sales follow-ups, and convert leads into bookings without leaving the operations dashboard.',
   },
   blog: {
     title: 'Blog Publishing',
@@ -400,6 +410,10 @@ export default function AdminDashboardShell({
 
         {view === 'gaze' && (
           <GazeTab />
+        )}
+
+        {view === 'crm' && (
+          <CrmTab />
         )}
 
         {view === 'blog' && (
