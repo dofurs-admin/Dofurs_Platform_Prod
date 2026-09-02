@@ -36,7 +36,7 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 | Area | State | Notes |
 |---|---|---|
 | Data model (migrations 096, 097) | **APPLIED TO PROD DB** | `crm_leads`, `crm_lead_activities`, `crm_sheet_import_runs` live; RLS admin/staff only |
-| CRM admin UI + APIs (Phase 1) | **DEV VERIFIED** | Fully working on localhost dev server; code NOT yet committed or deployed |
+| CRM admin UI + APIs (Phase 1) | **DEV VERIFIED** (leads pagination fix 2026-09-02 — UI re-verify pending) | Fully working on localhost dev server; code NOT yet committed or deployed |
 | Lead attribution display | **DEV VERIFIED** | `source_details` rendered in Lead Detail modal |
 | Meta Google-Sheet import (Phase 4a) | **DEV VERIFIED** | 392 leads imported into prod DB via dev admin UI; cron NOT scheduled yet |
 | Lead location enrichment (manual pincode/address + hot toggle) | **DEV READY — migration 098 applied** | Owner applied + columns verified; UI dev-verification pending |
@@ -44,7 +44,7 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 | Phase 3 — Website leads (enquiry form + abandoned bookings) | **BUILT 2026-09-02 — migration 099 pending** | Contact form live on dev; booking-flow telemetry + sweep built; needs migration 099 + cron |
 | Phase 4b — Direct Meta webhook | **IGNORED (owner, 2026-09-02)** | Sheet import remains the Meta channel; revisit only if the owner re-opens it |
 | Phase 5 — Customer 360 | **BUILT 2026-09-02 — dev verification pending** | Modal in CRM tab; click any customer name |
-| Phase 6 — Retention | **BUILT 2026-09-02 — dev verification pending** | "Repeat grooming due" card; automated outbound messaging still blocked (no sender) |
+| Phase 6 — Retention | **BUILT 2026-09-02 — dev verification pending** | "Repeat grooming due" card: minimized by default + cadence filter (30/60/90/120 d) + Previous/Next pagination (added 2026-09-02); automated outbound messaging still blocked (no sender) |
 | Phase 7 — Analytics | **BUILT 2026-09-02 — dev verification pending** | Campaign performance table + leads CSV export |
 | Cron automation + Render env | **NOT STARTED** | `CRM_SHEET_IMPORT_SECRET` + Google env vars must be set on Render; cron job must be added |
 | Commit + production deploy | **NOT STARTED** | All CRM code uncommitted on `feature/crm-tool-development` |
@@ -62,6 +62,8 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 - [x] `lib/crm/service.ts` — duplicate-aware `createManualLead` via `createCustomerProfileForBooking` (never a second Customer ID), list/summary, detail (activities + converted booking), guarded status transitions, assignment validation (admin/staff only), conversion requires a same-customer booking, activities with auto-advance out of `new`
 - [x] Admin APIs: `GET/POST /api/admin/crm/leads`, `GET/PATCH /api/admin/crm/leads/[id]`, `POST /api/admin/crm/leads/[id]/activities` — admin/staff, Zod, rate-limited, `logAdminAction` audited
 - [x] UI: `CrmTab` — summary cards (incl. hot + overdue follow-ups), status filters, search, leads table, create-lead modal, lead-detail modal, "Attribution & lead details" section, activity form + timeline
+- [x] Leads table pagination (fix 2026-09-02): the UI fetched only the newest 50 leads (`limit=50`, no offset, no paging UI) while the summary cards showed the true total — read as "leads missing from the tool". `listCrmLeads` now returns `{ leads, total }` (`includeTotal` exact filtered count via a shared-filter head-count query), the list API returns `pagination.total`, and the table has Previous/Next + "Showing X–Y of Z" with page reset on filter/search change and a snap-back guard for shrunken result sets
+- [ ] Dev-verify pagination on localhost: table shows "Showing 1–50 of 392 leads" on "All leads" and Previous/Next page through every lead (incl. with a status filter applied)
 - [x] Nav integration (`AdminWorkspaceShell` CRM item, `AdminDashboardShell` crm view)
 
 ## Lead Location Enrichment (BUILT 2026-09-02 — apply migration 098, then verify)
@@ -123,10 +125,11 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 
 ## Phase 6 — Retention (BUILT 2026-09-02 — dev verification pending)
 
-- [x] `listRetentionCandidates` — customers with completed bookings whose last grooming is 25+ days old (30-day recommendation), excluding those with an open lead (no double-pipeline)
-- [x] API `GET /api/admin/crm/retention`
-- [x] UI: "Repeat grooming due" card on the Leads dashboard — top 5 candidates with last-grooming date, days since, lifetime value + **Create follow-up lead** button (reuses the manual-lead create with a pre-filled retention note)
-- [x] Next-recommended-grooming computation shared with Customer 360 (`GROOMING_RECURRENCE_DAYS = 30`)
+- [x] `listRetentionCandidates` — customers with completed bookings whose last grooming is (cadence − 5-day outreach lead time) old, excluding those with an open lead (no double-pipeline); supports cadence filter + offset pagination and returns `{ candidates, total }` with the exact in-memory total
+- [x] API `GET /api/admin/crm/retention` — `days` (30/60/90/120, default 30), `limit` (default 10, max 100), `offset`; returns `candidates` + `total` + `pagination`
+- [x] UI: "Repeat grooming due" card on the Leads dashboard — **minimized by default** (header shows the due count, expand/collapse toggle), "Recommended every" cadence chips (30/60/90/120 days; page resets on change), candidates with last-grooming date, next-recommended date, days since, lifetime value + **Create follow-up lead** button (reuses the manual-lead create with a pre-filled retention note), Previous/Next pagination ("Showing X–Y of Z", 10/page, snap-back guard)
+- [x] Customer 360's next-recommended-grooming stays fixed at 30 days (`GROOMING_RECURRENCE_DAYS`); the retention cadence is a separate UI-selectable filter (`RETENTION_RECOMMENDED_DAY_OPTIONS` / `RETENTION_LEAD_TIME_DAYS` in `lib/crm/types.ts`, shared by service + API + UI)
+- [ ] Dev-verify on localhost: section renders minimized → expand → 30-day default shows "Showing 1–10 of N"; cadence chips 60/90/120 change the list and header count; Previous/Next page through all candidates
 - [ ] Automated outbound reminders remain BLOCKED until a sender service (email/WhatsApp) is chosen — owner decision pending
 
 ## Phase 7 — Analytics (BUILT 2026-09-02 — dev verification pending)
@@ -142,6 +145,7 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 - [ ] Commit all CRM files on `feature/crm-tool-development` (never `.env.local`)
 - [ ] Deploy to Render; verify CRM tab + `/api/admin/crm/*` on https://dofurs.in
 - [ ] Render env: `GOOGLE_SHEETS_CLIENT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `GOOGLE_SHEETS_LEADS_SPREADSHEET_ID`, `GOOGLE_SHEETS_LEADS_TABS` (same values as local)
+- [ ] Render env: `DISCORD_CRM_WEBHOOK_URL` — webhook for the dedicated CRM alerts Discord channel (until set, CRM alerts fall back to the booking webhook with a `console.warn`)
 - [ ] Generate + set `CRM_SHEET_IMPORT_SECRET` (`openssl rand -hex 32`)
 - [ ] Add Render cron: `CRM_IMPORT_BASE_URL=https://dofurs.in CRM_SHEET_IMPORT_SECRET=… node scripts/run-crm-meta-sheet-import.mjs` every 15 min
 - [ ] Add Render cron: `CRM_IMPORT_BASE_URL=https://dofurs.in CRM_SHEET_IMPORT_SECRET=… node scripts/run-crm-abandoned-bookings-sweep.mjs` every 15 min
@@ -155,6 +159,8 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 - `external_lead_id` = `lead:<Meta lead id>` — re-imports can never duplicate
 - Area answers are free text: top values include junk ("Yes", "Grooming") — see Gaze tracker for mapping rate
 - Historical revenue/bookings have no lead attribution (source data never existed) — reports must show source `unknown` for pre-CRM history
+- Root cause of "leads missing from the tool" (fixed 2026-09-02): the leads table was capped at its first page (50 rows, offset pagination existed in the API but was never used by the UI; the API also hard-capped `limit` at 100). All 392 leads were in the DB and in the CSV export (which scans 5000) — a listing-only gap, no data loss. Secondary caps to know: search pre-filters matching customers to 50 users, and the API still caps `limit` at 100 per page
+- Retention cadence (added 2026-09-02): "due" threshold = selected recommendation (30/60/90/120 d) − 5-day outreach lead time → 25/55/85/115 days since last grooming; the 30-day default preserves the old fixed 25+ behavior. Exact candidate total is computed in memory from the last-1000-completed-bookings scan — if completed bookings ever exceed 1000 rows, older customers could be missed (pre-existing scan cap, same as before)
 
 ## Validation Log
 
@@ -179,6 +185,11 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 | 2026-09-02 | **E2E service-level test (real prod DB, temp test file, deleted after)** | enquiry + dedupe ✓ / auto-assign ✓ / location + priority + status transitions + lost ✓ / activity timeline (7 events) ✓ / Customer 360 ✓ / abandoned-booking sweep dry-run → run → hot lead → idempotency ✓ / retention candidates (50 found) ✓ / campaign analytics (2 campaigns, 389 leads) ✓ / CSV export (18 cols) ✓ |
 | 2026-09-02 | **Bug fixed during E2E**: `updateCrmLead` never wrote `status` to the row (the update payload omitted it — status transitions silently no-oped). Root cause: the status block built `activityInserts` and side-field updates but forgot `update.status = input.status`. Fix: one line added at the top of the status block. | Caught by E2E; would have been a critical prod bug (status changes from UI/API would never persist) |
 | 2026-09-02 | Test data cleanup | All 99999xxxxx users, leads, activities, notifications, and booking sessions deleted; verified 0 remaining |
+| 2026-09-02 | Leads pagination fix — `npx tsc --noEmit` + `npx eslint lib/crm/service.ts app/api/admin/crm/leads components/dashboard/admin/tabs/CrmTab.tsx app/api/admin/crm/leads/export` + `npm run test` | 0 CRM type errors/warnings (only pre-existing unrelated test-file tsc errors); 388 passed / 0 failed |
+| 2026-09-02 | Leads pagination fix — UI dev-verification | PENDING (open CRM tab, confirm "Showing 1–50 of 392 leads" + Previous/Next, incl. with status filter) |
+| 2026-09-02 | Retention cadence filter + collapse + pagination — `npx tsc --noEmit` + `npx eslint lib/crm/types.ts lib/crm/service.ts app/api/admin/crm/retention components/dashboard/admin/tabs/CrmTab.tsx` + `npm run test` | 0 CRM type errors/warnings (only pre-existing unrelated test-file tsc errors); 388 passed / 0 failed |
+| 2026-09-02 | Retention UI dev-verification | PENDING (minimized by default → expand → cadence chips 30/60/90/120 → "Showing 1–10 of N" + Previous/Next) |
+| 2026-09-02 | CRM Discord channel split — `npx vitest run lib/crm/ops-alert.test.ts` + `npx eslint lib/crm/ops-alert.ts lib/crm/ops-alert.test.ts` + `npx tsc --noEmit` | 5/5 pass (CRM webhook preferred, booking-webhook fallback warns, disable flag, not_configured, http_500); 0 lint errors; 0 new tsc errors |
 
 ## Decision Log
 
@@ -213,6 +224,12 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 | 2026-09-02 | Retention follow-ups created as manual leads with pre-filled notes (not a new source type) | Avoids enum migration; notes carry the retention context; assignment machinery reused |
 | 2026-09-02 | Campaign revenue = final_price of bookings behind converted leads | Direct lead→booking→revenue attribution; historical (pre-CRM) revenue stays source-unknown |
 | 2026-09-02 | E2E booking-session test uses delete-then-insert, not upsert | The BEFORE UPDATE trigger on `crm_booking_sessions` resets `updated_at = now()`, making upserted stale sessions non-stale; delete-then-insert preserves the injected timestamp |
+| 2026-09-02 | Leads table paginated (50/page) with a filtered exact-count total instead of raising limits | The UI requested only the newest 50 leads while the summary cards scanned 5000 rows — the mismatch read as "missing leads". Offset pagination + a `count: 'exact'` head query from the same shared filter builder keeps payloads small and the total exact; if the count query fails it degrades to `null` (UI falls back to fetched count) and never fails the list |
+| 2026-09-02 | Retention "due" threshold derived from the selected cadence (cadence − 5-day lead time) instead of a fixed 25 days | Keeps the outreach lead-time model intact at every cadence; 30 days preserves the previous 25-day behavior exactly |
+| 2026-09-02 | Retention section minimized by default with the due count shown in the collapsed header | It is a supplementary card on the leads dashboard — staff expand it when working follow-ups; the count keeps it discoverable without occupying space |
+| 2026-09-02 | Retention pagination total computed in memory, not via a DB count query | Candidate eligibility is post-processing (last-1000-completed-bookings scan + open-lead exclusion), so the exact total falls out of the same computation — no extra query, always consistent with the viewed page |
+| 2026-09-02 | Customer 360's next-recommended date stays fixed at 30 days while the retention list is cadence-filterable | Customer 360 describes one customer's own cadence; the retention filter is an outreach-window selector, not a per-customer cadence change |
+| 2026-09-02 | CRM Discord alerts route to `DISCORD_CRM_WEBHOOK_URL` (new dedicated channel), falling back to `DISCORD_BOOKING_WEBHOOK_URL` with a `console.warn` while unset | Owner created a separate CRM alerts channel; fallback keeps alerts flowing (never silently lost) during env rollout instead of hard-failing |
 
 ## Risks
 

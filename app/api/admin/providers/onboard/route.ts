@@ -6,6 +6,7 @@ import { logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { PROVIDER_TYPES } from '@/lib/provider-management/types';
 import { isValidIndianE164, toIndianE164 } from '@/lib/utils/india-phone';
+import { resolveSiteOrigin } from '@/lib/site-url';
 import type { CreateProviderInput, ProviderType } from '@/lib/provider-management/types';
 import type { Json } from '@/lib/supabase/database.types';
 
@@ -401,7 +402,7 @@ export async function POST(request: Request) {
 
       providerUserId = existingUser.id;
     } else {
-      const inviteRedirectTo = new URL('/auth/callback?next=/dashboard/provider', request.url).toString();
+      const inviteRedirectTo = new URL('/auth/callback?next=/dashboard/provider', resolveSiteOrigin(request)).toString();
 
       const { data: authUser, error: authError } = await adminClient.auth.admin.inviteUserByEmail(payload.email, {
         data: {

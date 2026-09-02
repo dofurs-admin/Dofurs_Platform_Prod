@@ -9,7 +9,7 @@ export async function GET() {
   if (auth.response) return auth.response;
 
   try {
-    const leads = await listCrmLeads(getSupabaseAdminClient(), { limit: 5000 });
+    const { leads } = await listCrmLeads(getSupabaseAdminClient(), { limit: 5000 });
     const csv = buildLeadsCsv(leads);
     const filename = `dofurs-crm-leads-${getISTTimestamp().slice(0, 10)}.csv`;
 
