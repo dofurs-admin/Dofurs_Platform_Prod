@@ -1,5 +1,7 @@
 // Cron runner for the CRM abandoned-booking sweep (Phase 3).
-// Mirrors run-crm-meta-sheet-import.mjs. Schedule every 15 minutes on Render:
+// Mirrors run-crm-meta-sheet-import.mjs. Schedule every 5 minutes on Render —
+// the staleness window is CRM_ABANDON_AFTER_MINUTES (default 10), so hot leads
+// surface roughly 10–15 minutes after a customer goes quiet mid-booking:
 //
 //   CRM_IMPORT_BASE_URL=https://dofurs.in \
 //   CRM_SHEET_IMPORT_SECRET=<secret> \

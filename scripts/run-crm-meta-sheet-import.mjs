@@ -1,7 +1,9 @@
 // Cron runner for the CRM Meta sheet import.
 //
 // Mirrors scripts/run-billing-reminders-schedule.mjs: POSTs to the import
-// endpoint with the automation secret. Schedule it every 15 minutes on Render:
+// endpoint with the automation secret. Schedule it every 5 minutes on Render
+// (runs are idempotent via external_lead_id and lock-protected, so frequent
+// schedules are safe — new Meta leads land in the CRM within ~5 minutes):
 //
 //   CRM_IMPORT_BASE_URL=https://dofurs.in \
 //   CRM_SHEET_IMPORT_SECRET=<secret> \

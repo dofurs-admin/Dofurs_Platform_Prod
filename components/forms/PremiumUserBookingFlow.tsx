@@ -2963,8 +2963,9 @@ export default function PremiumUserBookingFlow() {
       return;
     }
 
-    // Mark the CRM booking session as completed (no abandoned lead will be made).
-    reportBookingProgress({ stage: 'booked' });
+    // Mark the CRM booking session as completed. The booking id also lets the
+    // CRM auto-resolve any abandoned-session hot lead that was already created.
+    reportBookingProgress({ stage: 'booked', bookingId });
 
     const confirmationPath = buildBookingConfirmationPath(bookingId);
 

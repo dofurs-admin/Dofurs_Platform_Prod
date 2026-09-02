@@ -1402,8 +1402,22 @@ export async function runMetaSheetImport(
 
 // ── Abandoned booking sweep (Phase 3) ─────────────────────────────────────────
 
-const ABANDON_AFTER_MINUTES = 30;
+const DEFAULT_ABANDON_AFTER_MINUTES = 10;
 const EXPIRE_AFTER_HOURS = 24;
+
+/**
+ * Staleness window before an active booking session counts as abandoned.
+ * Tunable via CRM_ABANDON_AFTER_MINUTES (1–60) without a code change — with the
+ * sweep cron every 5 minutes, a 10-minute window surfaces hot leads roughly
+ * 10–15 minutes after a customer goes quiet in the booking flow.
+ */
+function resolveAbandonAfterMinutes(): number {
+  const raw = Number(process.env.CRM_ABANDON_AFTER_MINUTES);
+  if (Number.isFinite(raw) && raw >= 1 && raw <= 60) {
+    return Math.floor(raw);
+  }
+  return DEFAULT_ABANDON_AFTER_MINUTES;
+}
 
 export type AbandonedBookingSweepOptions = {
   triggerSource: 'admin_panel' | 'cron';
@@ -1451,7 +1465,7 @@ export async function runAbandonedBookingSweep(
   }
 
   try {
-    const abandonBefore = new Date(Date.now() - ABANDON_AFTER_MINUTES * 60_000).toISOString();
+    const abandonBefore = new Date(Date.now() - resolveAbandonAfterMinutes() * 60_000).toISOString();
     const { data: activeSessions, error } = await supabase
       .from('crm_booking_sessions')
       .select(
@@ -1621,6 +1635,105 @@ async function convertAbandonedSessionToLead(supabase: SupabaseClient, session: 
       session.preferred_date ? ` for ${session.preferred_date}` : ''
     }.`,
   });
+}
+
+// ── Abandoned-lead resolution on completed bookings ────────────────────────────
+
+export type ResolveAbandonedLeadOnBookingResult = {
+  resolved: boolean;
+  leadId: string | null;
+  outcome: 'converted' | 'cancelled' | 'none';
+};
+
+/**
+ * When a customer completes a booking after their session was already swept
+ * into an abandoned-booking hot lead, resolve that lead so the pipeline never
+ * shows an open hot lead for a customer who already booked. Same customer →
+ * converted (tied to the real booking); a booking on a different account →
+ * cancelled so no stale hot lead lingers.
+ */
+export async function resolveAbandonedLeadOnBooking(
+  supabase: SupabaseClient,
+  input: { sessionKey: string; bookingId: number },
+): Promise<ResolveAbandonedLeadOnBookingResult> {
+  const { data: session } = await supabase
+    .from('crm_booking_sessions')
+    .select('session_key, abandoned_lead_id')
+    .eq('session_key', input.sessionKey)
+    .maybeSingle<{ session_key: string; abandoned_lead_id: string | null }>();
+
+  const leadId = session?.abandoned_lead_id ?? null;
+  if (!leadId) {
+    return { resolved: false, leadId: null, outcome: 'none' };
+  }
+
+  const { data: lead } = await supabase
+    .from('crm_leads')
+    .select('id, status, user_id')
+    .eq('id', leadId)
+    .maybeSingle<{ id: string; status: CrmLeadStatus; user_id: string }>();
+
+  if (!lead || !(CRM_LEAD_OPEN_STATUSES as readonly string[]).includes(lead.status)) {
+    return { resolved: false, leadId, outcome: 'none' };
+  }
+
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select('id, user_id')
+    .eq('id', input.bookingId)
+    .maybeSingle<{ id: number; user_id: string }>();
+
+  if (!booking) {
+    return { resolved: false, leadId, outcome: 'none' };
+  }
+
+  if (booking.user_id === lead.user_id) {
+    assertLeadStateTransition(lead.status, 'converted');
+    const { error } = await supabase
+      .from('crm_leads')
+      .update({ status: 'converted', converted_booking_id: booking.id })
+      .eq('id', leadId);
+    if (error) {
+      throw new CrmServiceError(`Unable to resolve abandoned-session lead: ${error.message}`);
+    }
+
+    const { error: activityError } = await supabase.from('crm_lead_activities').insert({
+      lead_id: leadId,
+      actor_id: null,
+      activity_type: 'converted',
+      body: `Customer completed booking #${booking.id} — abandoned-session lead auto-converted.`,
+      metadata: { booking_id: booking.id, session_key: input.sessionKey, auto: true },
+    });
+    if (activityError) {
+      console.warn('[crm] Auto-convert activity log failed:', activityError.message);
+    }
+
+    return { resolved: true, leadId, outcome: 'converted' };
+  }
+
+  // The booking belongs to a different account than the lead's customer —
+  // close the lead instead of leaving a stale hot lead in the pipeline.
+  assertLeadStateTransition(lead.status, 'cancelled');
+  const { error } = await supabase
+    .from('crm_leads')
+    .update({ status: 'cancelled', lost_reason: 'Booked on another account' })
+    .eq('id', leadId);
+  if (error) {
+    throw new CrmServiceError(`Unable to resolve abandoned-session lead: ${error.message}`);
+  }
+
+  const { error: activityError } = await supabase.from('crm_lead_activities').insert({
+    lead_id: leadId,
+    actor_id: null,
+    activity_type: 'status_change',
+    body: 'Booking completed on a different account — abandoned-session lead closed automatically.',
+    metadata: { booking_id: booking.id, session_key: input.sessionKey, auto: true },
+  });
+  if (activityError) {
+    console.warn('[crm] Auto-cancel activity log failed:', activityError.message);
+  }
+
+  return { resolved: true, leadId, outcome: 'cancelled' };
 }
 
 // ── Customer 360 (Phase 5) ───────────────────────────────────────────────────

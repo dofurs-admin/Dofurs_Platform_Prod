@@ -41,12 +41,12 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 | Meta Google-Sheet import (Phase 4a) | **DEV VERIFIED** | 392 leads imported into prod DB via dev admin UI; cron NOT scheduled yet |
 | Lead location enrichment (manual pincode/address + hot toggle) | **DEV READY — migration 098 applied** | Owner applied + columns verified; UI dev-verification pending |
 | Phase 2 — Sales workflow (assignment, follow-ups, alerts, lost reasons) | **BUILT 2026-09-02 — dev verification pending** | Least-loaded auto-assign, Due follow-ups queue, staff/reassign selects, in-app + Discord alerts, lost-reason vocabulary + summary |
-| Phase 3 — Website leads (enquiry form + abandoned bookings) | **BUILT 2026-09-02 — migration 099 pending** | Contact form live on dev; booking-flow telemetry + sweep built; needs migration 099 + cron |
+| Phase 3 — Website leads (enquiry form + abandoned bookings) | **BUILT 2026-09-02 — migration 099 applied; dev verification pending** | Contact form + telemetry + sweep built; capture-speed upgrades 2026-09-02 (user-attached sessions, 10-min staleness, booked auto-resolution); 5-min crons deploy-gated |
 | Phase 4b — Direct Meta webhook | **IGNORED (owner, 2026-09-02)** | Sheet import remains the Meta channel; revisit only if the owner re-opens it |
 | Phase 5 — Customer 360 | **BUILT 2026-09-02 — dev verification pending** | Modal in CRM tab; click any customer name |
 | Phase 6 — Retention | **BUILT 2026-09-02 — dev verification pending** | "Repeat grooming due" card: minimized by default + cadence filter (30/60/90/120 d) + Previous/Next pagination (added 2026-09-02); automated outbound messaging still blocked (no sender) |
 | Phase 7 — Analytics | **BUILT 2026-09-02 — dev verification pending** | Campaign performance table + leads CSV export |
-| Cron automation + Render env | **NOT STARTED** | `CRM_SHEET_IMPORT_SECRET` + Google env vars must be set on Render; cron job must be added |
+| Cron automation + Render env | **CRONS DECLARED IN CODE — deploy-gated** | Both 5-min crons + env-var requirements now live in `infra/render.yaml` (npm `ops:crm:import:run` / `ops:crm:sweep:run`); after deploy: enter the `sync: false` secret values in the Render dashboard and confirm the blueprint creates the cron services (or create them manually to match the yaml) |
 | Commit + production deploy | **NOT STARTED** | All CRM code uncommitted on `feature/crm-tool-development` |
 | Phase 2 — Sales workflow | **BUILT — dev verification pending** | See "Phase 2 — Sales Workflow" section |
 | Phase 3 — Website leads | **BUILT — migration 099 pending** | See "Phase 3 — Website Leads" section |
@@ -87,7 +87,7 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 - [x] `scripts/run-crm-meta-sheet-import.mjs` cron runner (mirrors billing scheduler pattern)
 - [x] UI: import card (last-run status, dry run, import now) in `CrmTab`
 - [x] History import executed: **392 leads imported into prod** (tabs "After July 10" + "Main Sheet"); re-runs skip already-imported rows (idempotency verified)
-- [ ] `CRM_SHEET_IMPORT_SECRET` set on Render + 15-min cron job added — **required before production automation**
+- [ ] `CRM_SHEET_IMPORT_SECRET` set on Render + 5-min cron job added — **required before production automation**
 - [ ] Tab decision: confirm whether "Sheet3" (62 leads) is customer leads and add to `GOOGLE_SHEETS_LEADS_TABS` if so
 
 ## Phase 2 — Sales Workflow (BUILT 2026-09-02 — dev verification pending)
@@ -105,11 +105,12 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 - [x] Migration 099 applied to prod: `crm_booking_sessions` (session telemetry, RLS service-role-only) — applied by owner 2026-09-02; table verified read-only (sample query OK)
 - [x] Public enquiry endpoint `POST /api/crm/enquiry` — rate-limited (5/min/IP), Zod, honeypot, `createWebsiteEnquiryLead` with 60-min dedupe + auto-assign + notifications + Discord alert
 - [x] Contact-us enquiry form (`components/site/EnquiryForm.tsx` + `enquiry-fields.tsx`) wired into `app/contact-us/page.tsx`
-- [x] Booking-flow telemetry: `lib/crm/booking-session-client.ts` + `POST /api/crm/booking-progress` (public, rate-limited 60/min/IP); `PremiumUserBookingFlow` reports step/service/pets/date + `booked` on confirmation (best-effort, never blocks booking)
-- [x] Abandoned-booking sweep: `runAbandonedBookingSweep` (lock, 30-min inactivity, idempotent via `external_lead_id = session:<key>`) → **hot leads** (`website_abandoned_booking`) + assignee notifications + Discord alert; sessions without contact expire after 24h
+- [x] Booking-flow telemetry: `lib/crm/booking-session-client.ts` + `POST /api/crm/booking-progress` (public, rate-limited 60/min/IP); `PremiumUserBookingFlow` reports step/service/pets/date + `booked` (with booking id) on confirmation (best-effort, never blocks booking). The endpoint attaches the logged-in user from the auth cookie when present — **critical fix 2026-09-02: the flow never reported contact info, so sessions were contact-less and the sweep would have expired them instead of creating hot leads**
+- [x] Abandoned-booking sweep: `runAbandonedBookingSweep` (lock, idempotent via `external_lead_id = session:<key>`) → **hot leads** (`website_abandoned_booking`) + assignee notifications + Discord alert; sessions without contact expire after 24h. Staleness window env-tunable `CRM_ABANDON_AFTER_MINUTES` (1–60, default 10 min — was hardcoded 30)
+- [x] Booked-resolution (added 2026-09-02): when the flow reports `booked` + `bookingId`, `resolveAbandonedLeadOnBooking` closes the loop on an already-created abandoned-session lead — same customer → `converted` (tied to the real booking, feeds campaign revenue); different account → `cancelled` ("Booked on another account"). Premature flags self-heal, which is what makes the shorter staleness window safe
 - [x] Sweep endpoint `POST /api/admin/crm/abandoned-bookings/run` (admin session OR automation secret, dry-run support) + cron script `scripts/run-crm-abandoned-bookings-sweep.mjs`
-- [ ] Add the abandoned-bookings cron on Render (every 15 min) — required for automatic hot-lead capture
-- [ ] Dev-verify: submit the contact form → lead appears; partial booking → hot lead after sweep
+- [ ] Add both Render crons (every 5 min — import + sweep) — required for automatic capture; deploy-gated (see Deployment Checklist)
+- [ ] Dev-verify: submit the contact form → lead appears; logged-in partial booking → hot lead within ~10–15 min of going quiet; complete a booking after a hot lead exists → lead auto-converts
 - UTM/GCLID/referrer capture — **DEFERRED (owner, 2026-09-02; only Meta is live)**
 
 ## Phase 4b — Direct Meta Webhook (IGNORED BY OWNER 2026-09-02)
@@ -144,11 +145,10 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 
 - [ ] Commit all CRM files on `feature/crm-tool-development` (never `.env.local`)
 - [ ] Deploy to Render; verify CRM tab + `/api/admin/crm/*` on https://dofurs.in
-- [ ] Render env: `GOOGLE_SHEETS_CLIENT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `GOOGLE_SHEETS_LEADS_SPREADSHEET_ID`, `GOOGLE_SHEETS_LEADS_TABS` (same values as local)
+- [ ] Render env (declared in `infra/render.yaml` with `sync: false` — enter the values in the dashboard, never the repo): `GOOGLE_SHEETS_CLIENT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `GOOGLE_SHEETS_LEADS_SPREADSHEET_ID`, `GOOGLE_SHEETS_LEADS_TABS`, `CRM_SHEET_IMPORT_SECRET`, `DISCORD_CRM_WEBHOOK_URL` on the **web service**; `CRM_SHEET_IMPORT_SECRET` on **both cron services** (`CRM_IMPORT_BASE_URL=https://dofurs.in` and `CRM_ABANDON_AFTER_MINUTES=10` are already set in the yaml)
 - [ ] Render env: `DISCORD_CRM_WEBHOOK_URL` — webhook for the dedicated CRM alerts Discord channel (until set, CRM alerts fall back to the booking webhook with a `console.warn`)
-- [ ] Generate + set `CRM_SHEET_IMPORT_SECRET` (`openssl rand -hex 32`)
-- [ ] Add Render cron: `CRM_IMPORT_BASE_URL=https://dofurs.in CRM_SHEET_IMPORT_SECRET=… node scripts/run-crm-meta-sheet-import.mjs` every 15 min
-- [ ] Add Render cron: `CRM_IMPORT_BASE_URL=https://dofurs.in CRM_SHEET_IMPORT_SECRET=… node scripts/run-crm-abandoned-bookings-sweep.mjs` every 15 min
+- [ ] Generate `CRM_SHEET_IMPORT_SECRET` (`openssl rand -hex 32`)
+- [ ] CRM crons are **declared in `infra/render.yaml`** (`dofurs-crm-meta-sheet-import` + `dofurs-crm-abandoned-bookings-sweep`, both `*/5 * * * *`, startCommands `npm run ops:crm:import:run` / `npm run ops:crm:sweep:run`) — if the Render blueprint syncs this repo they are created on deploy; otherwise create the two cron jobs in the dashboard to match the yaml exactly (near-real-time Meta lead capture; hot leads ~10–15 min after abandonment)
 - [ ] Dry-run on prod → import → verify lead KPIs
 
 ## Data Notes (keep current — last measured 2026-09-02)
@@ -189,6 +189,9 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 | 2026-09-02 | Leads pagination fix — UI dev-verification | PENDING (open CRM tab, confirm "Showing 1–50 of 392 leads" + Previous/Next, incl. with status filter) |
 | 2026-09-02 | Retention cadence filter + collapse + pagination — `npx tsc --noEmit` + `npx eslint lib/crm/types.ts lib/crm/service.ts app/api/admin/crm/retention components/dashboard/admin/tabs/CrmTab.tsx` + `npm run test` | 0 CRM type errors/warnings (only pre-existing unrelated test-file tsc errors); 388 passed / 0 failed |
 | 2026-09-02 | Retention UI dev-verification | PENDING (minimized by default → expand → cadence chips 30/60/90/120 → "Showing 1–10 of N" + Previous/Next) |
+| 2026-09-02 | Capture-speed changes (5-min crons, 10-min staleness, user attach, booked auto-resolution) — `npx tsc --noEmit` + `npx eslint` (service, booking-progress, booking-session-client, PremiumUserBookingFlow, both cron scripts) + `npm run test` | 0 type errors/warnings in changed files (1 missed `await` caught by tsc, fixed); 397 passed / 0 failed |
+| 2026-09-02 | Capture-speed E2E dev-verification | PENDING (logged-in partial booking → hot lead within ~10–15 min; complete booking after hot lead → auto-convert) |
+| 2026-09-02 | render.yaml + package.json cron declarations — `js-yaml` parse of `infra/render.yaml`, `node -e` check of the new `ops:crm:*` scripts, guard run of `run-crm-meta-sheet-import.mjs` without env | YAML parses (5 services; both CRM crons `*/5 * * * *`); npm scripts resolve; runner correctly refuses without `CRM_IMPORT_BASE_URL` (guard verified) |
 | 2026-09-02 | CRM Discord channel split — `npx vitest run lib/crm/ops-alert.test.ts` + `npx eslint lib/crm/ops-alert.ts lib/crm/ops-alert.test.ts` + `npx tsc --noEmit` | 5/5 pass (CRM webhook preferred, booking-webhook fallback warns, disable flag, not_configured, http_500); 0 lint errors; 0 new tsc errors |
 
 ## Decision Log
@@ -229,6 +232,11 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 | 2026-09-02 | Retention section minimized by default with the due count shown in the collapsed header | It is a supplementary card on the leads dashboard — staff expand it when working follow-ups; the count keeps it discoverable without occupying space |
 | 2026-09-02 | Retention pagination total computed in memory, not via a DB count query | Candidate eligibility is post-processing (last-1000-completed-bookings scan + open-lead exclusion), so the exact total falls out of the same computation — no extra query, always consistent with the viewed page |
 | 2026-09-02 | Customer 360's next-recommended date stays fixed at 30 days while the retention list is cadence-filterable | Customer 360 describes one customer's own cadence; the retention filter is an outreach-window selector, not a per-customer cadence change |
+| 2026-09-02 | Import + sweep crons at 5-minute cadence (was 15) | Owner wants leads in the CRM ASAP and hot leads immediately; both jobs are idempotent and lock-protected, so frequent runs are safe — a 409 "already running" is treated as success by the cron scripts |
+| 2026-09-02 | Abandonment staleness window env-tunable `CRM_ABANDON_AFTER_MINUTES`, default 10 min (was hardcoded 30) | Balances "immediate" hot-lead capture against flagging slow form-fillers mid-flow; tunable 1–60 per environment without code changes. Supersedes the 30-min sweep decision above |
+| 2026-09-02 | Booking-progress endpoint attaches the logged-in user via optional cookie session | The flow never reported contact info — sessions were contact-less, so the sweep would have expired them instead of creating hot leads; server-side user resolution is more reliable than client-sent contact fields |
+| 2026-09-02 | `booked` telemetry carries `bookingId` and auto-resolves the abandoned-session lead (same customer → converted; other account → cancelled) | A shorter staleness window means a slow customer can be flagged and then still book; self-healing keeps the pipeline clean and ties conversions to real bookings |
+| 2026-09-02 | CRM crons declared as code in `infra/render.yaml` (mirroring the billing crons) + npm `ops:crm:import:run` / `ops:crm:sweep:run` | The commit itself now carries the cron definitions and schedules; only secret values stay in the Render dashboard (`sync: false`) — secrets never enter the repo |
 | 2026-09-02 | CRM Discord alerts route to `DISCORD_CRM_WEBHOOK_URL` (new dedicated channel), falling back to `DISCORD_BOOKING_WEBHOOK_URL` with a `console.warn` while unset | Owner created a separate CRM alerts channel; fallback keeps alerts flowing (never silently lost) during env rollout instead of hard-failing |
 
 ## Risks

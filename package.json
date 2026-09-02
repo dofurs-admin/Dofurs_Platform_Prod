@@ -35,6 +35,8 @@
     "ops:billing:run:schedule": "node scripts/run-billing-reminders-schedule.mjs",
     "ops:billing:run:cleanup-stale": "node scripts/run-cleanup-stale-transactions.mjs",
     "ops:billing:verify": "node scripts/verify-billing-automation.mjs",
+    "ops:crm:import:run": "node scripts/run-crm-meta-sheet-import.mjs",
+    "ops:crm:sweep:run": "node scripts/run-crm-abandoned-bookings-sweep.mjs",
     "test:load:core": "node scripts/load-test-core-flows.mjs",
     "release:gate": "node scripts/release-readiness-gate.mjs"
   },

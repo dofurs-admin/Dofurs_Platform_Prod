@@ -36,6 +36,7 @@ export function reportBookingProgress(payload: {
   petCount?: number | null;
   preferredDate?: string | null;
   area?: string | null;
+  bookingId?: number | null;
 }): void {
   if (typeof window === 'undefined') {
     return;

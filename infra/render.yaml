@@ -12,6 +12,25 @@ services:
         value: 20.11.1
       - key: NODE_OPTIONS
         value: --max-old-space-size=1024
+      # CRM (Meta sheet import + abandoned-booking sweep endpoints). Secret
+      # values are entered in the Render dashboard (sync: false), never in the repo.
+      - key: GOOGLE_SHEETS_CLIENT_EMAIL
+        sync: false
+      - key: GOOGLE_SHEETS_PRIVATE_KEY
+        sync: false
+      - key: GOOGLE_SHEETS_LEADS_SPREADSHEET_ID
+        sync: false
+      - key: GOOGLE_SHEETS_LEADS_TABS
+        sync: false
+      - key: CRM_SHEET_IMPORT_SECRET
+        sync: false
+      # Webhook for the dedicated CRM alerts Discord channel (falls back to the
+      # booking webhook with a console.warn until set).
+      - key: DISCORD_CRM_WEBHOOK_URL
+        sync: false
+      # Abandoned-booking staleness window in minutes (1–60, default 10).
+      - key: CRM_ABANDON_AFTER_MINUTES
+        value: "10"
 
   - type: cron
     name: dofurs-billing-reminders-scheduler
@@ -53,4 +72,42 @@ services:
       - key: BILLING_AUTOMATION_BASE_URL
         sync: false
       - key: BILLING_AUTOMATION_SECRET
+        sync: false
+
+  # CRM — Meta leads Google-Sheet import (Phase 4a). Every 5 minutes: new Meta
+  # leads land in the CRM within ~5 minutes of hitting the sheet. Idempotent
+  # (external_lead_id) and lock-protected, so frequent runs are safe.
+  - type: cron
+    name: dofurs-crm-meta-sheet-import
+    runtime: node
+    plan: starter
+    schedule: "*/5 * * * *"
+    buildCommand: npm ci
+    startCommand: npm run ops:crm:import:run
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: CRM_IMPORT_BASE_URL
+        value: https://dofurs.in
+      - key: CRM_SHEET_IMPORT_SECRET
+        sync: false
+      - key: CRM_SHEET_IMPORT_ACCEPT_CONFLICT
+        value: "true"
+
+  # CRM — abandoned-booking sweep (Phase 3). Every 5 minutes: stale booking
+  # sessions (CRM_ABANDON_AFTER_MINUTES, default 10) become hot leads roughly
+  # 10–15 minutes after a customer goes quiet mid-booking.
+  - type: cron
+    name: dofurs-crm-abandoned-bookings-sweep
+    runtime: node
+    plan: starter
+    schedule: "*/5 * * * *"
+    buildCommand: npm ci
+    startCommand: npm run ops:crm:sweep:run
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.1
+      - key: CRM_IMPORT_BASE_URL
+        value: https://dofurs.in
+      - key: CRM_SHEET_IMPORT_SECRET
         sync: false
