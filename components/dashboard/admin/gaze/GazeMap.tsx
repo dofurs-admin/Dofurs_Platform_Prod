@@ -18,6 +18,13 @@ import {
   type GazePincodeStat,
   type GazeProviderPoint,
 } from '@/lib/gaze/aggregates';
+import {
+  LEAD_DISPLAY_PHASE_LABELS,
+  LEAD_PHASE_COLORS,
+  resolveLeadAreaDisplayPhase,
+  type GazeLeadAreaStat,
+  type GazeLeadDisplayPhase,
+} from '@/lib/gaze/leads';
 
 const DEFAULT_CENTER: [number, number] = [12.9716, 77.5946];
 
@@ -38,13 +45,16 @@ type GazeMapProps = {
   bookings: GazeBookingPoint[];
   providers: GazeProviderPoint[];
   pincodeStats: GazePincodeStat[];
+  pincodeCentroids: Array<{ pincode: string; lat: number; lng: number }>;
   coverage: GazeCoverageEntry[];
   coverageGaps: GazeCoverageGap[];
+  leadAreas: GazeLeadAreaStat[];
   showHeatLayer: boolean;
   showBookingPins: boolean;
   showGroomers: boolean;
   showCoverage: boolean;
   showCoverageGaps: boolean;
+  showLeadAreas: boolean;
   /**
    * Increments whenever the map should auto-fit the area of interest: the
    * first load of a filter context, a filter change, or the "Fit view" button.
@@ -53,6 +63,9 @@ type GazeMapProps = {
   fitToken: number;
   onRequestFit: () => void;
 };
+
+const LEAD_MIN_RADIUS_PX = 10;
+const LEAD_MAX_RADIUS_PX = 28;
 
 function formatInr(value: number): string {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
@@ -139,13 +152,16 @@ export default function GazeMap({
   bookings,
   providers,
   pincodeStats,
+  pincodeCentroids,
   coverage,
   coverageGaps,
+  leadAreas,
   showHeatLayer,
   showBookingPins,
   showGroomers,
   showCoverage,
   showCoverageGaps,
+  showLeadAreas,
   fitToken,
   onRequestFit,
 }: GazeMapProps) {
@@ -155,6 +171,42 @@ export default function GazeMap({
   );
 
   const coverageGapPincodes = useMemo(() => new Set(coverageGaps.map((gap) => gap.pincode)), [coverageGaps]);
+
+  // Lead areas plot at the booking-derived centroid of their primary pincode.
+  // Windowed pincode stats win; all-time centroids fill the gaps so areas with
+  // no bookings in the current window still plot. Areas with neither stay off
+  // the map but remain in stats/KPIs.
+  const centroidByPincode = useMemo(() => {
+    const map = new Map<string, [number, number]>();
+
+    for (const entry of pincodeCentroids) {
+      map.set(entry.pincode, [entry.lat, entry.lng]);
+    }
+
+    for (const stat of pincodeStats) {
+      if (stat.centroidLat !== null && stat.centroidLng !== null) {
+        map.set(stat.pincode, [stat.centroidLat, stat.centroidLng]);
+      }
+    }
+
+    return map;
+  }, [pincodeStats, pincodeCentroids]);
+
+  const mappableLeadAreas = useMemo(
+    () =>
+      leadAreas
+        .map((area) => ({
+          area,
+          coordinate: area.pincode ? centroidByPincode.get(area.pincode) ?? null : null,
+        }))
+        .filter((entry): entry is { area: GazeLeadAreaStat; coordinate: [number, number] } => entry.coordinate !== null),
+    [leadAreas, centroidByPincode],
+  );
+
+  const maxLeadAreaCount = useMemo(
+    () => mappableLeadAreas.reduce((max, entry) => Math.max(max, entry.area.leadCount), 0),
+    [mappableLeadAreas],
+  );
 
   const coverageByProviderId = useMemo(() => {
     const map = new Map<number, GazeCoverageEntry>();
@@ -185,6 +237,12 @@ export default function GazeMap({
       }
     }
 
+    if (showLeadAreas) {
+      for (const entry of mappableLeadAreas) {
+        coordinates.push(entry.coordinate);
+      }
+    }
+
     if (coordinates.length === 0 && showBookingPins) {
       for (const booking of bookings) {
         if (isMappableBooking(booking)) {
@@ -194,7 +252,7 @@ export default function GazeMap({
     }
 
     return coordinates;
-  }, [bookings, pincodeStats, providers, showBookingPins, showCoverageGaps, showGroomers, showHeatLayer]);
+  }, [bookings, pincodeStats, providers, showBookingPins, showCoverageGaps, showGroomers, showHeatLayer, showLeadAreas, mappableLeadAreas]);
 
   return (
     <div className="relative h-[62vh] min-h-[420px] w-full">
@@ -303,6 +361,57 @@ export default function GazeMap({
                     </Circle>
                   ) : null}
                 </Fragment>
+              );
+            })
+          : null}
+
+        {showLeadAreas && maxLeadAreaCount > 0
+          ? mappableLeadAreas.map(({ area, coordinate }) => {
+              const radius =
+                LEAD_MIN_RADIUS_PX +
+                Math.round((area.leadCount / maxLeadAreaCount) * (LEAD_MAX_RADIUS_PX - LEAD_MIN_RADIUS_PX));
+              const displayPhase = resolveLeadAreaDisplayPhase(area);
+              const color = LEAD_PHASE_COLORS[displayPhase];
+
+              return (
+                <CircleMarker
+                  key={`lead-area-${area.areaSlug}`}
+                  center={coordinate}
+                  radius={radius}
+                  pathOptions={{
+                    // White halo + translucent fill: status colour stays readable
+                    // on any background while the map shows through the bubble.
+                    color: '#ffffff',
+                    weight: 2.5,
+                    fillColor: color,
+                    fillOpacity: 0.5,
+                  }}
+                >
+                  <Tooltip direction="top" offset={[0, -4]}>
+                    {area.areaName} — {area.leadCount} lead(s)
+                  </Tooltip>
+                  <Popup>
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold text-neutral-950">
+                        {area.areaName} — lead demand
+                      </p>
+                      {area.pincode ? (
+                        <p className="text-xs text-neutral-600">Area pincode {area.pincode}</p>
+                      ) : null}
+                      <p className="text-xs text-neutral-600">
+                        {area.leadCount} lead(s) · {area.openCount} open
+                        {area.hotCount > 0 ? ` · ${area.hotCount} hot` : ''}
+                      </p>
+                      <p className="text-xs text-neutral-600">
+                        {area.convertedCount} converted · {area.lostCount} lost ·{' '}
+                        {area.cancelledCount} cancelled · {Math.round(area.conversionRate * 100)}% conversion
+                      </p>
+                      <p className="text-xs font-medium text-neutral-500">
+                        Colour: {LEAD_DISPLAY_PHASE_LABELS[displayPhase]}
+                      </p>
+                    </div>
+                  </Popup>
+                </CircleMarker>
               );
             })
           : null}
@@ -446,6 +555,23 @@ export default function GazeMap({
               style={{ borderColor: COVERAGE_GAP_COLOR }}
             />
             <span className="text-[10px] text-neutral-600">Demand without coverage</span>
+          </div>
+        ) : null}
+        {showLeadAreas ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              Lead areas
+            </span>
+            {(Object.keys(LEAD_PHASE_COLORS) as GazeLeadDisplayPhase[]).map((phase) => (
+              <span key={phase} className="flex items-center gap-1">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: LEAD_PHASE_COLORS[phase] }}
+                />
+                <span className="text-[10px] text-neutral-600">{LEAD_DISPLAY_PHASE_LABELS[phase]}</span>
+              </span>
+            ))}
+            <span className="text-[10px] text-neutral-400">bigger circle = more leads, click for details</span>
           </div>
         ) : null}
         {showBookingPins ? (

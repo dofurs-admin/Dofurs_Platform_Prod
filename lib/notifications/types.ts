@@ -4,7 +4,8 @@ export type NotificationType =
   | 'pet_added'
   | 'message_received'
   | 'referral_welcome_credit'
-  | 'referral_reward_credited';
+  | 'referral_reward_credited'
+  | 'crm.lead_assigned';
 
 export type NotificationRow = {
   id: number;

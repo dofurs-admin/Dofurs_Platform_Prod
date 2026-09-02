@@ -18,6 +18,12 @@ import {
   type GazeProviderPoint,
   type GazeWindowKey,
 } from '@/lib/gaze/aggregates';
+import {
+  aggregateLeadsByArea,
+  buildGazeLeadKpis,
+  buildGazeLeadPoints,
+  type GazeLeadSourceRow,
+} from '@/lib/gaze/leads';
 
 const GAZE_WINDOWS = ['today', '7d', '30d', '90d', 'custom', 'alltime'] as const;
 
@@ -110,6 +116,92 @@ function resolveTodayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+type GazeAllTimeBookingRow = {
+  user_id: string | null;
+  latitude: number | null;
+  longitude: number | null;
+};
+
+/**
+ * Booking-derived pincode centroids across ALL time (address pincode preferred
+ * per user, same semantics as the windowed pincode stats). Used by the lead
+ * layer as a coordinate fallback so lead areas plot even when the selected
+ * window has no bookings in that pincode.
+ */
+async function computeAllTimePincodeCentroids(adminSupabase: ReturnType<typeof getSupabaseAdminClient>) {
+  const { data: bookingRows, error } = await adminSupabase
+    .from('bookings')
+    .select('user_id, latitude, longitude')
+    .limit(2000)
+    .returns<GazeAllTimeBookingRow[]>();
+
+  if (error) {
+    // Centroids are a convenience layer — degrade to empty rather than fail Gaze.
+    console.warn('Unable to load all-time booking rows for pincode centroids', error.message);
+    return [] as Array<{ pincode: string; lat: number; lng: number }>;
+  }
+
+  const userIds = Array.from(
+    new Set(
+      (bookingRows ?? [])
+        .map((row) => row.user_id?.trim())
+        .filter((userId): userId is string => Boolean(userId)),
+    ),
+  );
+
+  if (userIds.length === 0) {
+    return [] as Array<{ pincode: string; lat: number; lng: number }>;
+  }
+
+  const { data: addressRows, error: addressError } = await adminSupabase
+    .from('user_addresses')
+    .select('user_id, pincode, is_default')
+    .in('user_id', userIds)
+    .limit(3000)
+    .returns<GazeUserAddressRow[]>();
+
+  const pincodeByUserId = new Map<string, string | null>();
+
+  for (const address of addressRows ?? []) {
+    const userId = address.user_id?.trim();
+    if (!userId) continue;
+    const existing = pincodeByUserId.get(userId);
+    if (existing === undefined || address.is_default === true) {
+      pincodeByUserId.set(userId, normalizeGazePincode(address.pincode) || null);
+    }
+  }
+
+  if (addressError && addressError.code !== '42P01') {
+    console.warn('Unable to load addresses for pincode centroids', addressError.message);
+  }
+
+  const sumsByPincode = new Map<string, { latSum: number; lngSum: number; count: number }>();
+
+  for (const row of bookingRows ?? []) {
+    const latitude = toMappableCoordinateOrNull(row.latitude);
+    const longitude = toMappableCoordinateOrNull(row.longitude);
+    const userId = row.user_id?.trim();
+    const pincode = userId ? pincodeByUserId.get(userId) : undefined;
+
+    if (latitude === null || longitude === null || !pincode) continue;
+
+    const sums = sumsByPincode.get(pincode) ?? { latSum: 0, lngSum: 0, count: 0 };
+    sums.latSum += latitude;
+    sums.lngSum += longitude;
+    sums.count += 1;
+    sumsByPincode.set(pincode, sums);
+  }
+
+  return Array.from(sumsByPincode.entries())
+    .filter(([, sums]) => sums.count > 0)
+    .map(([pincode, sums]) => ({
+      pincode,
+      lat: sums.latSum / sums.count,
+      lng: sums.lngSum / sums.count,
+    }))
+    .sort((left, right) => left.pincode.localeCompare(right.pincode));
+}
+
 function resolveWindowRange(windowKey: GazeWindowKey, fromDate?: string, toDate?: string) {
   const todayKey = resolveTodayKey();
 
@@ -194,7 +286,7 @@ export async function GET(request: Request) {
       bookingsQuery.lte('booking_start', `${addDaysToDateKey(range.toDate, 1)}T23:59:59.999Z`);
     }
 
-    const [bookingsResult, providersResult, clinicDetailsResult, providerServicesResult, coverageResult] =
+    const [bookingsResult, providersResult, clinicDetailsResult, providerServicesResult, coverageResult, leadsResult] =
       await Promise.all([
         bookingsQuery.returns<GazeBookingSourceRow[]>(),
         adminSupabase
@@ -224,11 +316,41 @@ export async function GET(request: Request) {
           .select('provider_service_id, pincode, is_enabled')
           .limit(10000)
           .returns<GazeCoverageRow[]>(),
+        // CRM leads layer: same window semantics as bookings, but keyed on
+        // lead creation. Booking status/mode/provider filters intentionally do
+        // not apply — leads are pre-booking demand. The users embed MUST use
+        // FK disambiguation (crm_leads has two FKs to users: user_id + assigned_to).
+        (async () => {
+          let leadQuery = adminSupabase
+            .from('crm_leads')
+            .select('id, status, priority, source, source_details, pincode, created_at, users!crm_leads_user_id_fkey(name)')
+            .order('created_at', { ascending: false })
+            .limit(2000);
+
+          if (range.fromDate !== null) {
+            leadQuery = leadQuery.gte('created_at', `${range.fromDate}T00:00:00.000Z`);
+          }
+
+          if (range.toDate !== null) {
+            leadQuery = leadQuery.lte('created_at', `${addDaysToDateKey(range.toDate, 1)}T00:00:00.000Z`);
+          }
+
+          return leadQuery.returns<GazeLeadSourceRow[]>();
+        })(),
       ]);
 
     if (bookingsResult.error) {
       throw bookingsResult.error;
     }
+
+    // Leads are an optional layer — a CRM table hiccup must not break Gaze —
+    // but never silently: log loudly so an empty lead layer is diagnosable.
+    if (leadsResult.error) {
+      console.warn('Unable to load CRM leads for the gaze lead layer:', leadsResult.error.message);
+    }
+    const leadRows: GazeLeadSourceRow[] = leadsResult.error
+      ? []
+      : (leadsResult.data ?? []);
 
     if (providersResult.error) {
       throw providersResult.error;
@@ -459,6 +581,14 @@ export async function GET(request: Request) {
       todayKey: range.todayKey,
     });
 
+    const leadPoints = buildGazeLeadPoints(leadRows);
+    const leadAreas = aggregateLeadsByArea(leadPoints);
+    const leadKpis = buildGazeLeadKpis(leadPoints);
+
+    // All-time pincode centroids (booking-derived) — fallback coordinates for
+    // lead areas whose pincode has no bookings in the selected window.
+    const pincodeCentroids = await computeAllTimePincodeCentroids(adminSupabase);
+
     const response: GazeOverviewResponse = {
       bookings: bookingPoints,
       providers: providerPoints,
@@ -466,6 +596,10 @@ export async function GET(request: Request) {
       coverage,
       coverageGaps,
       kpis,
+      leads: leadPoints,
+      leadAreas,
+      leadKpis,
+      pincodeCentroids,
       window: {
         key: windowKey,
         fromDate: range.fromDate,

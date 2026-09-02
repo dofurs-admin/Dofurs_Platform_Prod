@@ -3,10 +3,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Flame, MapPin, Radar, RefreshCw, Scissors, TriangleAlert, type LucideIcon } from 'lucide-react';
+import { Flame, MapPin, Radar, RefreshCw, Scissors, Target, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/ToastProvider';
 import { BOOKING_MODES, BOOKING_STATUSES, type BookingMode, type BookingStatus } from '@/lib/bookings/types';
 import type { GazeOverviewResponse, GazeWindowKey } from '@/lib/gaze/aggregates';
+import { aggregateLeadsByArea, buildGazeLeadKpis, type GazeLeadPoint } from '@/lib/gaze/leads';
+
+const LEAD_SOURCE_LABELS: Record<string, string> = {
+  meta_lead_form: 'Meta lead form',
+  google_ads: 'Google Ads',
+  website_enquiry: 'Website enquiry',
+  website_booking: 'Website booking',
+  website_abandoned_booking: 'Abandoned booking',
+  whatsapp: 'WhatsApp',
+  direct: 'Direct',
+  referral: 'Referral',
+  manual: 'Manual',
+};
+
+type GazeLeadStatusFilter = 'all' | 'open' | 'hot' | 'converted' | 'lost' | 'cancelled';
 
 const GazeMap = dynamic(() => import('@/components/dashboard/admin/gaze/GazeMap'), {
   ssr: false,
@@ -37,7 +52,7 @@ const MODE_LABELS: Record<BookingMode, string> = {
   teleconsult: 'Teleconsult',
 };
 
-type GazeLayerKey = 'heat' | 'pins' | 'groomers' | 'coverage' | 'gaps';
+type GazeLayerKey = 'heat' | 'pins' | 'groomers' | 'coverage' | 'gaps' | 'leads';
 
 type GazeLayerDefinition = {
   key: GazeLayerKey;
@@ -52,6 +67,7 @@ const LAYER_DEFINITIONS: GazeLayerDefinition[] = [
   { key: 'groomers', label: 'Groomers', icon: Scissors },
   { key: 'coverage', label: 'Coverage radius', icon: Radar },
   { key: 'gaps', label: 'Coverage gaps', icon: TriangleAlert },
+  { key: 'leads', label: 'Lead demand', icon: Target, note: 'CRM leads by Bengaluru area' },
 ];
 
 function formatInr(value: number): string {
@@ -122,7 +138,11 @@ export default function GazeTab() {
     groomers: true,
     coverage: true,
     gaps: true,
+    leads: true,
   });
+
+  const [leadStatusFilter, setLeadStatusFilter] = useState<GazeLeadStatusFilter>('all');
+  const [leadSourceFilter, setLeadSourceFilter] = useState<'all' | string>('all');
 
   const [overview, setOverview] = useState<GazeOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -241,6 +261,31 @@ export default function GazeTab() {
   const topPincodeStats = useMemo(() => overview?.pincodeStats.slice(0, 8) ?? [], [overview]);
   const topCoverageGaps = useMemo(() => overview?.coverageGaps.slice(0, 8) ?? [], [overview]);
   const providerOptions = useMemo(() => overview?.providers ?? [], [overview]);
+
+  // Lead-layer filters are applied client-side using the same pure aggregation
+  // functions the API uses, so filtering is instant with no refetch.
+  const filteredLeadPoints = useMemo<GazeLeadPoint[]>(() => {
+    if (!overview) {
+      return [];
+    }
+
+    return overview.leads.filter((lead) => {
+      if (leadStatusFilter === 'hot') {
+        if (!(lead.isHot && lead.phase === 'open')) return false;
+      } else if (leadStatusFilter !== 'all' && lead.phase !== leadStatusFilter) {
+        return false;
+      }
+
+      if (leadSourceFilter !== 'all' && lead.source !== leadSourceFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [overview, leadStatusFilter, leadSourceFilter]);
+
+  const visibleLeadAreas = useMemo(() => aggregateLeadsByArea(filteredLeadPoints), [filteredLeadPoints]);
+  const visibleLeadKpis = useMemo(() => buildGazeLeadKpis(filteredLeadPoints), [filteredLeadPoints]);
 
   return (
     <div className="space-y-4">
@@ -371,6 +416,63 @@ export default function GazeTab() {
             <span className="text-[10px] font-medium text-neutral-400">Exact customer locations are visible</span>
           ) : null}
         </div>
+
+        {enabledLayers.leads ? (
+          <div className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3 py-2.5">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                Lead status
+              </span>
+              <select
+                value={leadStatusFilter}
+                onChange={(event) => setLeadStatusFilter(event.target.value as GazeLeadStatusFilter)}
+                className="h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 outline-none transition focus:border-coral/60"
+              >
+                <option value="all">All lead statuses</option>
+                <option value="open">Open (pipeline)</option>
+                <option value="hot">Hot only</option>
+                <option value="converted">Converted</option>
+                <option value="lost">Lost</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+                Lead source
+              </span>
+              <select
+                value={leadSourceFilter}
+                onChange={(event) => setLeadSourceFilter(event.target.value)}
+                className="h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-medium text-neutral-700 outline-none transition focus:border-coral/60"
+              >
+                <option value="all">All sources</option>
+                {Object.entries(LEAD_SOURCE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <span className="text-[10px] font-medium text-neutral-400">
+              {formatCount(visibleLeadKpis.totalLeads)} lead(s) match · {formatCount(visibleLeadKpis.mappedLeads)} mapped to areas
+            </span>
+
+            {leadStatusFilter !== 'all' || leadSourceFilter !== 'all' ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setLeadStatusFilter('all');
+                  setLeadSourceFilter('all');
+                }}
+                className="h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-50"
+              >
+                Clear lead filters
+              </button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -395,13 +497,16 @@ export default function GazeTab() {
                 bookings={overview.bookings}
                 providers={overview.providers}
                 pincodeStats={overview.pincodeStats}
+                pincodeCentroids={overview.pincodeCentroids}
                 coverage={overview.coverage}
                 coverageGaps={overview.coverageGaps}
+                leadAreas={visibleLeadAreas}
                 showHeatLayer={enabledLayers.heat}
                 showBookingPins={enabledLayers.pins}
                 showGroomers={enabledLayers.groomers}
                 showCoverage={enabledLayers.coverage}
                 showCoverageGaps={enabledLayers.gaps}
+                showLeadAreas={enabledLayers.leads}
                 fitToken={fitRequestToken}
                 onRequestFit={handleRequestFit}
               />
@@ -439,6 +544,17 @@ export default function GazeTab() {
                   value={formatCount(overview.kpis.coverageGapCount)}
                   tone={overview.kpis.coverageGapCount > 0 ? 'warning' : 'default'}
                 />
+                <KpiCard
+                  label="Leads"
+                  value={formatCount(visibleLeadKpis.totalLeads)}
+                  hint={`${formatCount(visibleLeadKpis.mappedLeads)} mapped to areas`}
+                />
+                <KpiCard
+                  label="Open leads"
+                  value={formatCount(visibleLeadKpis.openLeads)}
+                  hint={visibleLeadKpis.hotLeads > 0 ? `${formatCount(visibleLeadKpis.hotLeads)} hot` : undefined}
+                  tone={visibleLeadKpis.openLeads > 0 ? 'warning' : 'default'}
+                />
               </div>
 
               <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
@@ -461,6 +577,34 @@ export default function GazeTab() {
                   </ul>
                 ) : (
                   <p className="mt-3 text-xs text-neutral-500">No pincode demand in this window yet.</p>
+                )}
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-neutral-950">Top lead areas</h3>
+                  <span className="text-[10px] font-medium text-neutral-400">
+                    {formatCount(visibleLeadKpis.mappedLeads)} mapped
+                  </span>
+                </div>
+                {visibleLeadAreas.length > 0 ? (
+                  <ul className="mt-3 space-y-2">
+                    {visibleLeadAreas.slice(0, 6).map((area) => (
+                      <li key={area.areaSlug} className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-semibold text-neutral-800">{area.areaName}</span>
+                        <span className="text-neutral-500">
+                          {formatCount(area.leadCount)} lead(s) · {formatCount(area.openCount)} open ·{' '}
+                          {Math.round(area.conversionRate * 100)}% conv
+                          {area.hotCount > 0 ? ` · ${formatCount(area.hotCount)} hot` : ''}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-3 text-xs text-neutral-500">
+                    No area-matched leads in this window. Leads without a recognized Bengaluru area are
+                    excluded from the map.
+                  </p>
                 )}
               </div>
 
@@ -510,10 +654,12 @@ function KpiCard({
   label,
   value,
   tone = 'default',
+  hint,
 }: {
   label: string;
   value: string;
   tone?: 'default' | 'warning';
+  hint?: string;
 }) {
   return (
     <div
@@ -523,6 +669,7 @@ function KpiCard({
     >
       <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
       <p className={`mt-1 text-lg font-bold ${tone === 'warning' ? 'text-red-700' : 'text-neutral-950'}`}>{value}</p>
+      {hint ? <p className="mt-0.5 text-[10px] font-medium text-neutral-400">{hint}</p> : null}
     </div>
   );
 }
