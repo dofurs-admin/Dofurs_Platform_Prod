@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { NextRequest } from 'next/server';
 
 const hoisted = vi.hoisted(() => ({
   updateSessionMock: vi.fn(),
@@ -32,7 +33,7 @@ function createRequest(pathname: string, authorizationHeader = 'Bearer mobile-to
     cookies: {
       getAll: () => [],
     },
-  } as any;
+  } as unknown as NextRequest;
 }
 
 function createSupabaseAdminForBearer(options: {
@@ -253,5 +254,126 @@ describe('middleware bearer helpers', () => {
 
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: 'Account suspended' });
+  });
+});
+
+describe('middleware automation token routes (billing + CRM crons)', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createAutomationRequest(pathname: string, headers: Record<string, string>) {
+    const url = new URL(pathname, 'https://example.com');
+    return {
+      method: 'POST',
+      nextUrl: {
+        pathname,
+        clone: () => new URL(url.toString()),
+        search: '',
+      },
+      headers: new Headers(headers),
+      cookies: {
+        getAll: () => [],
+      },
+    } as unknown as NextRequest;
+  }
+
+  /** Simulates Supabase rejecting a token — what happens when the middleware
+   *  wrongly tries to validate a CRM automation secret as a user JWT. */
+  function createSupabaseAdminRejectingTokens() {
+    return {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: null },
+          error: { message: 'invalid claim: kid parsing failed' },
+        }),
+      },
+    };
+  }
+
+  function mockUpdateSessionPassThrough() {
+    hoisted.updateSessionMock.mockResolvedValue({
+      response: new Response(null, { status: 200 }),
+      user: null,
+    });
+    hoisted.getSupabaseAdminClientMock.mockReturnValue(createSupabaseAdminRejectingTokens());
+  }
+
+  it('passes through the CRM Meta sheet import cron request (automation secret as bearer token)', async () => {
+    mockUpdateSessionPassThrough();
+
+    const response = await middleware(
+      createAutomationRequest('/api/admin/crm/imports/meta-sheet', {
+        authorization: 'Bearer crm-sheet-import-secret',
+        'content-type': 'application/json',
+      }),
+    );
+
+    // Regression: previously the middleware rejected the cron with 401 by
+    // validating the automation secret as a Supabase user JWT.
+    expect(response.status).toBe(200);
+    expect(hoisted.getSupabaseAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it('passes through the CRM abandoned-booking sweep cron request (automation secret as bearer token)', async () => {
+    mockUpdateSessionPassThrough();
+
+    const response = await middleware(
+      createAutomationRequest('/api/admin/crm/abandoned-bookings/run', {
+        authorization: 'Bearer crm-sheet-import-secret',
+        'content-type': 'application/json',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(hoisted.getSupabaseAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it('passes through CRM automation requests using the x-crm-import-token header', async () => {
+    mockUpdateSessionPassThrough();
+
+    const response = await middleware(
+      createAutomationRequest('/api/admin/crm/imports/meta-sheet', {
+        'x-crm-import-token': 'crm-sheet-import-secret',
+        'content-type': 'application/json',
+      }),
+    );
+
+    // Regression: with no bearer header and no session cookie the middleware
+    // used to reject these requests at the cookie gate before this mode could
+    // reach the route handler's dual auth.
+    expect(response.status).toBe(200);
+    expect(hoisted.getSupabaseAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it('still passes through the billing reminder scheduler cron request', async () => {
+    mockUpdateSessionPassThrough();
+
+    const response = await middleware(
+      createAutomationRequest('/api/admin/billing/reminders/schedule', {
+        authorization: 'Bearer billing-automation-secret',
+        'content-type': 'application/json',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(hoisted.getSupabaseAdminClientMock).not.toHaveBeenCalled();
+  });
+
+  it('still rejects non-automation admin CRM routes carrying a non-Supabase bearer token', async () => {
+    mockUpdateSessionPassThrough();
+
+    const response = await middleware(
+      createAutomationRequest('/api/admin/crm/leads', {
+        authorization: 'Bearer not-a-supabase-jwt',
+      }),
+    );
+
+    // The whitelist is scoped: only the dual-auth automation routes bypass
+    // middleware validation; every other /api/admin route still requires a
+    // valid Supabase session or user bearer token.
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toEqual({ error: 'Unauthorized' });
+    expect(hoisted.getSupabaseAdminClientMock).toHaveBeenCalledTimes(1);
   });
 });

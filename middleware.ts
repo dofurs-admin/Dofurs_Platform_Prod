@@ -40,6 +40,15 @@ function isAutomationTokenRoute(pathname: string) {
     || pathname.startsWith('/api/admin/billing/reminders/schedule/')
     || pathname === '/api/admin/payments/cleanup-stale-transactions'
     || pathname.startsWith('/api/admin/payments/cleanup-stale-transactions/')
+    // CRM automation routes (Meta sheet import + abandoned-booking sweep). These
+    // route handlers implement dual auth (admin/staff session OR automation
+    // secret via timing-safe compare); without this whitelist the middleware
+    // would try to validate the automation secret as a Supabase user JWT and
+    // reject every cron run with 401 before the handler could run.
+    || pathname === '/api/admin/crm/imports/meta-sheet'
+    || pathname.startsWith('/api/admin/crm/imports/meta-sheet/')
+    || pathname === '/api/admin/crm/abandoned-bookings/run'
+    || pathname.startsWith('/api/admin/crm/abandoned-bookings/run/')
   );
 }
 

@@ -69,42 +69,106 @@ if (!secret) {
 }
 
 const endpoint = `${baseUrl}/api/admin/crm/imports/meta-sheet`;
+const heartbeatEndpoint = `${baseUrl}/api/crm/automation/heartbeat`;
 const body = {
   dryRun: parseBoolean(process.env.CRM_SHEET_IMPORT_DRY_RUN, false),
 };
 
-const response = await fetch(endpoint, {
-  method: 'POST',
-  headers: {
-    'content-type': 'application/json',
-    ...buildAuthHeaders(secret),
-  },
-  body: JSON.stringify(body),
-});
-
-const responseText = await response.text();
-const payload = parseResponsePayload(response, responseText);
-const acceptConflict = parseBoolean(process.env.CRM_SHEET_IMPORT_ACCEPT_CONFLICT, true);
-const ok = response.ok || (acceptConflict && response.status === 409);
-
-if (!ok) {
-  throw new Error(
-    `CRM sheet import request failed (${response.status}): ${JSON.stringify(payload)}`,
-  );
+// Out-of-band observability: report every attempt (success or failure) to the
+// PUBLIC heartbeat endpoint so the CRM "Automation health" panel and Discord
+// alerts keep working even when the main admin endpoint above is unreachable
+// (middleware gating, auth regressions, route crashes). Never throws — a
+// heartbeat problem must not mask or amplify the main-run outcome.
+async function reportHeartbeat(outcome) {
+  try {
+    const response = await fetch(heartbeatEndpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...buildAuthHeaders(secret) },
+      body: JSON.stringify(outcome),
+    });
+    if (!response.ok) {
+      console.warn(
+        `[heartbeat] Endpoint returned ${response.status} — this run will not appear in the CRM automation panel.`,
+      );
+    }
+  } catch (error) {
+    console.warn(`[heartbeat] Failed to report: ${error instanceof Error ? error.message : error}`);
+  }
 }
 
-console.log(
-  JSON.stringify(
-    {
-      ok: true,
-      endpoint,
-      status: response.status,
-      accepted_conflict: response.status === 409,
-      request: body,
-      response: payload,
-      ran_at: new Date().toISOString(),
+const JOB = 'meta_sheet_import';
+const startedAtMs = Date.now();
+let mainOutcome;
+
+try {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...buildAuthHeaders(secret),
     },
-    null,
-    2,
-  ),
-);
+    body: JSON.stringify(body),
+  });
+
+  const responseText = await response.text();
+  const payload = parseResponsePayload(response, responseText);
+  const acceptConflict = parseBoolean(process.env.CRM_SHEET_IMPORT_ACCEPT_CONFLICT, true);
+  const ok = response.ok || (acceptConflict && response.status === 409);
+  const result = payload && typeof payload === 'object' ? payload.result : undefined;
+
+  mainOutcome = {
+    job: JOB,
+    ok,
+    httpStatus: response.status,
+    durationMs: Date.now() - startedAtMs,
+    errorMessage: ok ? null : `HTTP ${response.status}: ${JSON.stringify(payload).slice(0, 400)}`,
+    summary:
+      result && typeof result === 'object'
+        ? {
+            dryRun: Boolean(result.dryRun),
+            imported: result.imported ?? null,
+            skipped: result.skippedExisting ?? null,
+            invalid: result.invalid ?? null,
+            newCustomers: result.newCustomers ?? null,
+            candidatesFound: result.candidatesFound ?? null,
+            acceptedConflict: response.status === 409,
+          }
+        : { acceptedConflict: response.status === 409 },
+  };
+
+  await reportHeartbeat(mainOutcome);
+
+  if (!ok) {
+    throw new Error(
+      `CRM sheet import request failed (${response.status}): ${JSON.stringify(payload)}`,
+    );
+  }
+
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        endpoint,
+        status: response.status,
+        accepted_conflict: response.status === 409,
+        request: body,
+        response: payload,
+        ran_at: new Date().toISOString(),
+      },
+      null,
+      2,
+    ),
+  );
+} catch (error) {
+  if (!mainOutcome) {
+    // Network-level failure (fetch threw before a response arrived) — still
+    // report so the outage is visible in the automation panel.
+    await reportHeartbeat({
+      job: JOB,
+      ok: false,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      durationMs: Date.now() - startedAtMs,
+    });
+  }
+  throw error;
+}

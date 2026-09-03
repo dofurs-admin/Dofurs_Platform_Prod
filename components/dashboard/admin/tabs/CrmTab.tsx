@@ -66,6 +66,38 @@ type SheetImportRunResult = {
   warnings: string[];
 };
 
+type AutomationJobHealth = {
+  job: 'meta_sheet_import' | 'abandoned_bookings_sweep';
+  status: 'healthy' | 'stale' | 'failing' | 'not_reporting' | 'misconfigured';
+  severity: 'ok' | 'warn' | 'critical';
+  detail: string;
+  lastHeartbeatAt: string | null;
+  minutesSinceLastHeartbeat: number | null;
+  lastHeartbeatOk: boolean | null;
+  lastHeartbeatHttpStatus: number | null;
+  lastHeartbeatError: string | null;
+  lastSuccessAt: string | null;
+  consecutiveFailures: number;
+  recentHeartbeats: Array<{
+    id: string;
+    ok: boolean;
+    http_status: number | null;
+    error_message: string | null;
+    created_at: string;
+    summary: Record<string, unknown>;
+  }>;
+};
+
+type AutomationStatusSnapshot = {
+  overall: { status: AutomationJobHealth['status']; severity: 'ok' | 'warn' | 'critical'; detail: string };
+  expectedCadenceMinutes: number;
+  staleAfterMinutes: number;
+  criticalAfterMinutes: number;
+  generatedAt: string;
+  config: Array<{ key: string; label: string; ok: boolean; hint?: string }>;
+  jobs: AutomationJobHealth[];
+};
+
 type CrmStaffUser = { id: string; name: string };
 
 type CrmCustomer360Data = {
@@ -260,6 +292,47 @@ function formatLeadTimestamp(value: string | null | undefined) {
   });
 }
 
+// ── Automation health panel (cron import + sweep observability) ────────────────
+
+const AUTOMATION_JOB_LABELS: Record<AutomationJobHealth['job'], string> = {
+  meta_sheet_import: 'Meta sheet import',
+  abandoned_bookings_sweep: 'Abandoned-booking sweep',
+};
+
+const AUTOMATION_STATUS_LABELS: Record<AutomationJobHealth['status'], string> = {
+  healthy: 'Healthy',
+  stale: 'Stale',
+  failing: 'Failing',
+  not_reporting: 'Not reporting',
+  misconfigured: 'Misconfigured',
+};
+
+const AUTOMATION_SEVERITY_BADGE_VARIANTS: Record<AutomationJobHealth['severity'], 'success' | 'warning' | 'error'> = {
+  ok: 'success',
+  warn: 'warning',
+  critical: 'error',
+};
+
+function formatAutomationMinutesAgo(minutes: number | null): string {
+  if (minutes === null) return 'never';
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder > 0 ? `${hours}h ${remainder}m ago` : `${hours}h ago`;
+}
+
+/** Compact run counts from the last heartbeat summary (e.g. "12 imported · 3 skipped"). */
+function summarizeAutomationHeartbeat(summary: Record<string, unknown> | null | undefined): string {
+  if (!summary) return '';
+  const parts: string[] = [];
+  if (typeof summary.imported === 'number') parts.push(`${summary.imported} imported`);
+  if (typeof summary.skipped === 'number') parts.push(`${summary.skipped} skipped`);
+  if (typeof summary.scanned === 'number') parts.push(`${summary.scanned} scanned`);
+  if (typeof summary.abandonedLeads === 'number') parts.push(`${summary.abandonedLeads} hot lead(s)`);
+  return parts.length > 0 ? parts.join(' · ') : '';
+}
+
 /** Leads per page on the CRM dashboard table (the API supports offset pagination). */
 const PAGE_SIZE = 50;
 
@@ -315,6 +388,7 @@ export default function CrmTab() {
   const [lastImportRun, setLastImportRun] = useState<SheetImportRunRow | null>(null);
   const [isImportRunning, setIsImportRunning] = useState(false);
   const [importDryRunResult, setImportDryRunResult] = useState<string | null>(null);
+  const [automationStatus, setAutomationStatus] = useState<AutomationStatusSnapshot | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -336,6 +410,27 @@ export default function CrmTab() {
       cancelled = true;
     };
   }, []);
+
+  const fetchAutomationStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/crm/automation/status', { cache: 'no-store' });
+      if (!response.ok) return;
+      const payload = (await response.json().catch(() => null)) as AutomationStatusSnapshot | null;
+      if (payload) {
+        setAutomationStatus(payload);
+      }
+    } catch {
+      // The health panel is optional context — silently ignore.
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchAutomationStatus();
+    // Keep the panel current while the tab is open (the crons run every 5 min;
+    // heartbeats land within seconds of each attempt).
+    const interval = window.setInterval(() => void fetchAutomationStatus(), 60_000);
+    return () => window.clearInterval(interval);
+  }, [fetchAutomationStatus]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -726,6 +821,10 @@ export default function CrmTab() {
         const historyPayload = (await historyResponse.json().catch(() => null)) as { runs?: SheetImportRunRow[] } | null;
         setLastImportRun(historyPayload?.runs?.[0] ?? null);
       }
+
+      // Refresh the automation health panel (a manual run lands as an
+      // admin-panel run, but the heartbeat-side view may also update).
+      void fetchAutomationStatus();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Import failed.', 'error');
     } finally {
@@ -985,6 +1084,90 @@ export default function CrmTab() {
           </div>
         ) : (
           <p className="mt-3 text-xs text-neutral-500">No campaign data yet.</p>
+        )}
+      </div>
+
+      {/* Automation health — cron import + sweep observability */}
+      <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <p className="text-sm font-semibold text-neutral-900">Automation health</p>
+            {automationStatus ? (
+              <Badge variant={AUTOMATION_SEVERITY_BADGE_VARIANTS[automationStatus.overall.severity]} size="sm">
+                {AUTOMATION_STATUS_LABELS[automationStatus.overall.status]}
+              </Badge>
+            ) : (
+              <span className="text-xs text-neutral-400">loading…</span>
+            )}
+          </div>
+          <p className="text-xs text-neutral-500">
+            {automationStatus
+              ? `Crons expected every ${automationStatus.expectedCadenceMinutes} min · auto-refreshes every minute`
+              : 'Cron import + sweep monitoring'}
+          </p>
+        </div>
+
+        {automationStatus ? (
+          <>
+            <p
+              className={`mt-1.5 text-xs ${
+                automationStatus.overall.severity === 'ok' ? 'text-neutral-500' : 'font-medium text-red-600'
+              }`}
+            >
+              {automationStatus.overall.detail}
+            </p>
+            <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+              {automationStatus.jobs.map((job) => {
+                const lastSummary = summarizeAutomationHeartbeat(job.recentHeartbeats[0]?.summary);
+                return (
+                  <div key={job.job} className="rounded-xl border border-neutral-100 bg-neutral-50/60 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-neutral-800">{AUTOMATION_JOB_LABELS[job.job]}</p>
+                      <Badge variant={AUTOMATION_SEVERITY_BADGE_VARIANTS[job.severity]} size="sm">
+                        {AUTOMATION_STATUS_LABELS[job.status]}
+                      </Badge>
+                    </div>
+                    <p className="mt-1 text-[11px] text-neutral-500">
+                      Last report {formatAutomationMinutesAgo(job.minutesSinceLastHeartbeat)}
+                      {job.lastHeartbeatAt ? ` · ${formatLeadTimestamp(job.lastHeartbeatAt)}` : ''}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-neutral-600">{job.detail}</p>
+                    {job.lastHeartbeatOk && lastSummary ? (
+                      <p className="mt-0.5 text-[11px] text-neutral-500">{lastSummary}</p>
+                    ) : null}
+                    {job.severity !== 'ok' && job.recentHeartbeats.some((heartbeat) => !heartbeat.ok) ? (
+                      <ul className="mt-1.5 space-y-1">
+                        {job.recentHeartbeats
+                          .filter((heartbeat) => !heartbeat.ok)
+                          .slice(0, 3)
+                          .map((heartbeat) => (
+                            <li key={heartbeat.id} className="text-[11px] text-red-600">
+                              {formatLeadTimestamp(heartbeat.created_at)} —{' '}
+                              {heartbeat.error_message ?? `HTTP ${heartbeat.http_status ?? '??'}`}
+                            </li>
+                          ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {automationStatus.config.map((check) => (
+                <span
+                  key={check.key}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                    check.ok ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+                  }`}
+                >
+                  {check.label}
+                  {check.hint ? ` · ${check.hint}` : ''}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="mt-3 text-xs text-neutral-500">Loading automation status…</p>
         )}
       </div>
 

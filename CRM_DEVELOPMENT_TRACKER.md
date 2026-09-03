@@ -1,6 +1,6 @@
 # Dofurs CRM Development Tracker
 
-Last audited: 2026-09-02
+Last audited: 2026-09-03
 Applies to: `lib/crm/**`, `app/api/admin/crm/**`, `components/dashboard/admin/tabs/CrmTab.tsx`, `app/dashboard/admin/crm/**`, CRM migrations (`infra/supabase/migrations/096…`, `097…`), and the Gaze lead layer (`lib/gaze/leads.ts`)
 
 Related documents:
@@ -36,9 +36,9 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 | Area | State | Notes |
 |---|---|---|
 | Data model (migrations 096, 097) | **APPLIED TO PROD DB** | `crm_leads`, `crm_lead_activities`, `crm_sheet_import_runs` live; RLS admin/staff only |
-| CRM admin UI + APIs (Phase 1) | **DEV VERIFIED** (leads pagination fix 2026-09-02 — UI re-verify pending) | Fully working on localhost dev server; code NOT yet committed or deployed |
+| CRM admin UI + APIs (Phase 1) | **DEV VERIFIED → DEPLOYED 2026-09-02** | Leads-pagination fix deployed with commit 91a8aa0 on main; production endpoints verified via probes; pagination UI walkthrough pending |
 | Lead attribution display | **DEV VERIFIED** | `source_details` rendered in Lead Detail modal |
-| Meta Google-Sheet import (Phase 4a) | **DEV VERIFIED** | 392 leads imported into prod DB via dev admin UI; cron NOT scheduled yet |
+| Meta Google-Sheet import (Phase 4a) | **DEV VERIFIED → DEPLOYED 2026-09-02; middleware 401 root cause fixed 2026-09-03 (deploy pending)** | 392 leads imported earlier via dev admin UI; every automated run was 401-rejected by `middleware.ts` (CRM routes missing from the automation-token whitelist — secret validated as a Supabase JWT). Fixed in code; deploy + Render env/cron activation still required |
 | Lead location enrichment (manual pincode/address + hot toggle) | **DEV READY — migration 098 applied** | Owner applied + columns verified; UI dev-verification pending |
 | Phase 2 — Sales workflow (assignment, follow-ups, alerts, lost reasons) | **BUILT 2026-09-02 — dev verification pending** | Least-loaded auto-assign, Due follow-ups queue, staff/reassign selects, in-app + Discord alerts, lost-reason vocabulary + summary |
 | Phase 3 — Website leads (enquiry form + abandoned bookings) | **BUILT 2026-09-02 — migration 099 applied; dev verification pending** | Contact form + telemetry + sweep built; capture-speed upgrades 2026-09-02 (user-attached sessions, 10-min staleness, booked auto-resolution); 5-min crons deploy-gated |
@@ -46,8 +46,9 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 | Phase 5 — Customer 360 | **BUILT 2026-09-02 — dev verification pending** | Modal in CRM tab; click any customer name |
 | Phase 6 — Retention | **BUILT 2026-09-02 — dev verification pending** | "Repeat grooming due" card: minimized by default + cadence filter (30/60/90/120 d) + Previous/Next pagination (added 2026-09-02); automated outbound messaging still blocked (no sender) |
 | Phase 7 — Analytics | **BUILT 2026-09-02 — dev verification pending** | Campaign performance table + leads CSV export |
-| Cron automation + Render env | **CRONS DECLARED IN CODE — deploy-gated** | Both 5-min crons + env-var requirements now live in `infra/render.yaml` (npm `ops:crm:import:run` / `ops:crm:sweep:run`); after deploy: enter the `sync: false` secret values in the Render dashboard and confirm the blueprint creates the cron services (or create them manually to match the yaml) |
-| Commit + production deploy | **NOT STARTED** | All CRM code uncommitted on `feature/crm-tool-development` |
+| Cron automation + Render env | **CRONS DECLARED IN CODE + MIDDLEWARE AUTH PATH UNBLOCKED (2026-09-03) — deploy-gated** | Both 5-min crons + env-var requirements live in `infra/render.yaml` (npm `ops:crm:import:run` / `ops:crm:sweep:run`); the middleware whitelist fix unblocks the cron auth path — after deploy: enter the `sync: false` secret values in the Render dashboard and confirm the blueprint creates the cron services (or create them manually to match the yaml) |
+| Automation observability (heartbeats + health panel) | **BUILT + DEV VERIFIED 2026-09-03 — migration 100 applied; deploy pending** | Out-of-band heartbeat channel (public `/api/crm/automation/heartbeat`, immune to middleware gating) + consecutive-failure/recovery Discord alerts + "Automation health" panel in CrmTab; verified E2E via a real cron-path dry run (first `cron`-triggered run row + first heartbeat landed) |
+| Commit + production deploy | **DEPLOYED 2026-09-02 (commit 91a8aa0 on main)** | All CRM endpoints verified live on https://dofurs.in via unauthenticated probes; remaining: confirm Render env values entered + both `dofurs-crm-*` cron services active |
 | Phase 2 — Sales workflow | **BUILT — dev verification pending** | See "Phase 2 — Sales Workflow" section |
 | Phase 3 — Website leads | **BUILT — migration 099 pending** | See "Phase 3 — Website Leads" section |
 | Phase 4b — Direct Meta webhook | **IGNORED (owner)** | See Decision Log |
@@ -87,7 +88,8 @@ A table, route, or UI existing is not enough to mark work complete. A feature is
 - [x] `scripts/run-crm-meta-sheet-import.mjs` cron runner (mirrors billing scheduler pattern)
 - [x] UI: import card (last-run status, dry run, import now) in `CrmTab`
 - [x] History import executed: **392 leads imported into prod** (tabs "After July 10" + "Main Sheet"); re-runs skip already-imported rows (idempotency verified)
-- [ ] `CRM_SHEET_IMPORT_SECRET` set on Render + 5-min cron job added — **required before production automation**
+- [ ] `CRM_SHEET_IMPORT_SECRET` set on Render (web service **and both cron services**, same value) + both 5-min cron jobs active — **required before production automation**
+- [x] **Root cause of "cron never imports" found + fixed (2026-09-03)**: `middleware.ts` `isAutomationTokenRoute()` whitelisted only the billing automation routes, so cron requests to `/api/admin/crm/imports/meta-sheet` and `/api/admin/crm/abandoned-bookings/run` were stopped by the middleware, which tried to validate `CRM_SHEET_IMPORT_SECRET` as a Supabase user JWT → **401 before the route handlers' dual auth could run** (hence no `crm_sheet_import_runs` rows with `trigger_source='cron'`, no Discord failure alerts — the breakage was invisible in the CRM; manual imports worked because they carry an admin session cookie). Fix: both CRM routes added to the whitelist (billing pattern); the route handlers keep enforcing admin-session-or-secret themselves. Regression-tested in `middleware.bearer.test.ts`; **deploy of this fix is still required**
 - [ ] Tab decision: confirm whether "Sheet3" (62 leads) is customer leads and add to `GOOGLE_SHEETS_LEADS_TABS` if so
 
 ## Phase 2 — Sales Workflow (BUILT 2026-09-02 — dev verification pending)
@@ -141,17 +143,31 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 - [x] CSV export: `buildLeadsCsv` (18 columns incl. campaign/adset/ad/area/pincode/lost reason) + `GET /api/admin/crm/leads/export` (Content-Disposition attachment) + "Export CSV" button
 -[x] E2E service-verified 2026-09-02 (campaign analytics returned 2 campaigns; CSV export built 18-column headers; revenue column populated for converted leads)
 
+## Automation Observability (BUILT 2026-09-03 — DEV VERIFIED; deploy pending)
+
+Closes the visibility gap exposed by the 2026-09-03 middleware incident (automation dead for days with zero signal inside the CRM). Out-of-band heartbeats survive main-path failures by design.
+
+- [x] Migration 100: `crm_automation_heartbeats` (job, ok, http_status, error_message, duration_ms, summary jsonb) + admin/staff-only RLS — **applied to prod and verified live** (service-role insert/select OK; anon read correctly returns no rows)
+- [x] `POST /api/crm/automation/heartbeat` — PUBLIC path (outside the middleware matcher, immune to protected-route gating), auth via `CRM_SHEET_IMPORT_SECRET` (timing-safe), Zod-validated, rate-limited 30/min/IP; inserts one row per cron attempt
+- [x] Alerting at the heartbeat endpoint: one Discord error alert when a job fails `CRM_AUTOMATION_ALERT_FAIL_THRESHOLD` consecutive times (default 3), one recovery alert when it heals after a confirmed outage — the alarm that was missing for days
+- [x] `lib/crm/automation-status.ts` — pure health derivation (healthy / stale / failing / not_reporting / misconfigured) vs expected cadence `CRM_AUTOMATION_EXPECTED_CADENCE_MINUTES` (default 5; stale > 2×cadence+5 min warn, > 6×cadence critical), 13 unit tests
+- [x] `GET /api/admin/crm/automation/status` — admin/staff snapshot: per-job verdicts, last report times, consecutive failures, recent heartbeat errors, config checks (heartbeat table, Sheets creds, automation secret, Discord webhook), overall verdict; degrades (not fails) pre-migration
+- [x] Both cron runners report a heartbeat after EVERY attempt (success, HTTP failure, network failure) with duration + result summaries (imported/skipped/hot-lead counts); heartbeat failures only `console.warn` and never mask the main outcome
+- [x] "Automation health" panel in `CrmTab` — overall status pill, per-job rows (last report X min ago + counts), recent failure messages, config chips; auto-refreshes every 60 s
+- [x] **Second latent bug found + fixed during this work**: `scripts/run-crm-abandoned-bookings-sweep.mjs` had a SyntaxError (`await` inside a non-async arrow, line 40) — the sweep cron would have crashed on every run even after the middleware fix; both scripts now `node --check` clean
+- [ ] Deploy + activate crons on Render (see Deployment Checklist) — then confirm heartbeats arrive every ~5 min and the panel shows Healthy for both jobs
+
 ## Deployment Checklist (must be done in order)
 
-- [ ] Commit all CRM files on `feature/crm-tool-development` (never `.env.local`)
-- [ ] Deploy to Render; verify CRM tab + `/api/admin/crm/*` on https://dofurs.in
+- [x] Commit all CRM files (never `.env.local`) — committed 2026-09-02 via `feature/new-development` → main (`259f214`, `91a8aa0`)
+- [x] Deploy to Render — live 2026-09-02; unauthenticated probes on https://dofurs.in: `POST /api/admin/crm/imports/meta-sheet` → 401, `POST /api/admin/crm/abandoned-bookings/run` → 401, `POST /api/crm/booking-progress` → 400, `POST /api/crm/enquiry` → 400, `GET /contact-us` → 200 (all as expected: deployed, auth/validation guards active)
 - [ ] Render env (declared in `infra/render.yaml` with `sync: false` — enter the values in the dashboard, never the repo): `GOOGLE_SHEETS_CLIENT_EMAIL`, `GOOGLE_SHEETS_PRIVATE_KEY`, `GOOGLE_SHEETS_LEADS_SPREADSHEET_ID`, `GOOGLE_SHEETS_LEADS_TABS`, `CRM_SHEET_IMPORT_SECRET`, `DISCORD_CRM_WEBHOOK_URL` on the **web service**; `CRM_SHEET_IMPORT_SECRET` on **both cron services** (`CRM_IMPORT_BASE_URL=https://dofurs.in` and `CRM_ABANDON_AFTER_MINUTES=10` are already set in the yaml)
 - [ ] Render env: `DISCORD_CRM_WEBHOOK_URL` — webhook for the dedicated CRM alerts Discord channel (until set, CRM alerts fall back to the booking webhook with a `console.warn`)
 - [ ] Generate `CRM_SHEET_IMPORT_SECRET` (`openssl rand -hex 32`)
 - [ ] CRM crons are **declared in `infra/render.yaml`** (`dofurs-crm-meta-sheet-import` + `dofurs-crm-abandoned-bookings-sweep`, both `*/5 * * * *`, startCommands `npm run ops:crm:import:run` / `npm run ops:crm:sweep:run`) — if the Render blueprint syncs this repo they are created on deploy; otherwise create the two cron jobs in the dashboard to match the yaml exactly (near-real-time Meta lead capture; hot leads ~10–15 min after abandonment)
 - [ ] Dry-run on prod → import → verify lead KPIs
 
-## Data Notes (keep current — last measured 2026-09-02)
+## Data Notes (keep current — last measured 2026-09-03)
 
 - 392 Meta leads imported; all still `status = new` (open)
 - Lead form has **no email question** — all leads are phone-based (phone-only customer profiles, invite-free)
@@ -161,6 +177,7 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 - Historical revenue/bookings have no lead attribution (source data never existed) — reports must show source `unknown` for pre-CRM history
 - Root cause of "leads missing from the tool" (fixed 2026-09-02): the leads table was capped at its first page (50 rows, offset pagination existed in the API but was never used by the UI; the API also hard-capped `limit` at 100). All 392 leads were in the DB and in the CSV export (which scans 5000) — a listing-only gap, no data loss. Secondary caps to know: search pre-filters matching customers to 50 users, and the API still caps `limit` at 100 per page
 - Retention cadence (added 2026-09-02): "due" threshold = selected recommendation (30/60/90/120 d) − 5-day outreach lead time → 25/55/85/115 days since last grooming; the 30-day default preserves the old fixed 25+ behavior. Exact candidate total is computed in memory from the last-1000-completed-bookings scan — if completed bookings ever exceed 1000 rows, older customers could be missed (pre-existing scan cap, same as before)
+- Automation observability (added 2026-09-03): `crm_automation_heartbeats` is ops data, not lead data — one row per cron attempt (incl. failures) with run summaries; the first `cron`-triggered run row (`crm_sheet_import_runs`, dry run, 404 rows scanned) + first heartbeat landed 2026-09-03 via the E2E dev-verified dry run and are kept as honest history (admin-panel run at 11:41 imported 7 leads manually)
 
 ## Validation Log
 
@@ -192,7 +209,13 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 | 2026-09-02 | Capture-speed changes (5-min crons, 10-min staleness, user attach, booked auto-resolution) — `npx tsc --noEmit` + `npx eslint` (service, booking-progress, booking-session-client, PremiumUserBookingFlow, both cron scripts) + `npm run test` | 0 type errors/warnings in changed files (1 missed `await` caught by tsc, fixed); 397 passed / 0 failed |
 | 2026-09-02 | Capture-speed E2E dev-verification | PENDING (logged-in partial booking → hot lead within ~10–15 min; complete booking after hot lead → auto-convert) |
 | 2026-09-02 | render.yaml + package.json cron declarations — `js-yaml` parse of `infra/render.yaml`, `node -e` check of the new `ops:crm:*` scripts, guard run of `run-crm-meta-sheet-import.mjs` without env | YAML parses (5 services; both CRM crons `*/5 * * * *`); npm scripts resolve; runner correctly refuses without `CRM_IMPORT_BASE_URL` (guard verified) |
+| 2026-09-02 | **Production deploy verification** (unauthenticated probes on https://dofurs.in after commit 91a8aa0) | `meta-sheet` → 401, `abandoned-bookings/run` → 401, `booking-progress` → 400, `enquiry` → 400, `/contact-us` → 200 — all CRM endpoints live with auth/validation guards active; cron-run success + env values still to confirm on Render |
 | 2026-09-02 | CRM Discord channel split — `npx vitest run lib/crm/ops-alert.test.ts` + `npx eslint lib/crm/ops-alert.ts lib/crm/ops-alert.test.ts` + `npx tsc --noEmit` | 5/5 pass (CRM webhook preferred, booking-webhook fallback warns, disable flag, not_configured, http_500); 0 lint errors; 0 new tsc errors |
+| 2026-09-03 | **Root cause investigation + fix: automatic CRM import never ran.** Trace: cron POSTs `/api/admin/crm/imports/meta-sheet` with `Authorization: Bearer <CRM_SHEET_IMPORT_SECRET>` and no cookie → `middleware.ts` matches `/api/admin/:path*` → `isAutomationTokenRoute()` (billing-only whitelist) doesn't include the CRM routes → middleware validates the secret as a Supabase user JWT → **401 before the route's dual auth**; same for `/api/admin/crm/abandoned-bookings/run` (hot leads). Fix: both CRM routes added to the whitelist. Validation: `git stash` of the fix + `npx vitest run middleware.bearer.test.ts` → **3/3 new regression tests fail with 401 (reproduces the production symptom)**; with the fix → 14/14 pass; full `npx vitest run` → 402 passed / 0 failed; unauthenticated prod probe still 401 (guards active, pre-deploy). **Production cron success remains pending: deploy fix + enter Render env values + activate both cron services** | Middleware 401 reproduced exactly at unit level; fix verified; prod E2E pending deploy |
+| 2026-09-03 | Automation observability — `npx vitest run lib/crm/automation-status.test.ts app/api/crm/automation/heartbeat/__tests__/route.test.ts` | 21/21 pass (derivation 13: healthy / stale-warn / stale-critical / failing / not_reporting / misconfigured, tunable clamps, threshold + recovery alert edges; route 8: secret auth both header modes, payload validation, threshold alert fires once, recovery alert, 429 rate limit) |
+| 2026-09-03 | Automation observability — full suite + typecheck + lint + script syntax | `npx vitest run` 423 passed / 0 failed; `npx tsc --noEmit` 9 pre-existing errors only (baseline unchanged); `npx eslint` clean on all new files; `node --check` OK on both cron scripts (sweep script previously had a SyntaxError — fixed) |
+| 2026-09-03 | **Live smoke (dev server → prod DB): heartbeat endpoint** | wrong secret → 401; valid secret → 201 recorded; `crm_automation_heartbeats` anon read → no rows while a row existed (RLS enforced); the smoke-test heartbeat row deleted afterwards (table left clean) |
+| 2026-09-03 | **E2E dev-verified cron path (the previously broken flow)** — `CRM_IMPORT_BASE_URL=http://localhost:3100 CRM_SHEET_IMPORT_DRY_RUN=true node scripts/run-crm-meta-sheet-import.mjs` | Script exit 0, HTTP 200 through the middleware whitelist + dual auth; real Google Sheet scanned (2 tabs, 404 rows, 400 candidates, 3 invalid); first `cron`-triggered run row + first heartbeat row (summary: dryRun, imported 0, candidatesFound 400, duration 23.5 s) landed in prod and kept as honest history |
 
 ## Decision Log
 
@@ -238,6 +261,11 @@ The owner dropped this from the roadmap; the Google-Sheet import remains the onl
 | 2026-09-02 | `booked` telemetry carries `bookingId` and auto-resolves the abandoned-session lead (same customer → converted; other account → cancelled) | A shorter staleness window means a slow customer can be flagged and then still book; self-healing keeps the pipeline clean and ties conversions to real bookings |
 | 2026-09-02 | CRM crons declared as code in `infra/render.yaml` (mirroring the billing crons) + npm `ops:crm:import:run` / `ops:crm:sweep:run` | The commit itself now carries the cron definitions and schedules; only secret values stay in the Render dashboard (`sync: false`) — secrets never enter the repo |
 | 2026-09-02 | CRM Discord alerts route to `DISCORD_CRM_WEBHOOK_URL` (new dedicated channel), falling back to `DISCORD_BOOKING_WEBHOOK_URL` with a `console.warn` while unset | Owner created a separate CRM alerts channel; fallback keeps alerts flowing (never silently lost) during env rollout instead of hard-failing |
+| 2026-09-03 | CRM automation routes added to the middleware `isAutomationTokenRoute()` pass-through whitelist (mirroring the billing cron pattern) instead of making the middleware compare `CRM_SHEET_IMPORT_SECRET` itself | The CRM route handlers already implement timing-safe dual auth (admin/staff session OR secret) and `requireApiRole` resolves sessions independently of the middleware, so the whitelist keeps exactly one auth path per route — the proven production pattern for the billing crons. The whitelist stays scoped: non-automation `/api/admin/*` routes (e.g. `/api/admin/crm/leads`) still get middleware role validation (regression-tested to still 401 on non-Supabase bearer tokens) |
+| 2026-09-03 | Heartbeat channel mounted on the PUBLIC `/api/crm/automation/heartbeat` path (outside the middleware matcher) instead of under `/api/admin` | The incident's failure mode was middleware-level rejection of `/api/admin/*` — an out-of-band channel on a path the middleware never gates keeps reporting when the main path is down; auth is still enforced at the route itself (timing-safe secret + rate limit + strict Zod) |
+| 2026-09-03 | Discord alerting lives at the heartbeat endpoint (server-side consecutive-failure threshold, default 3, + one recovery alert) instead of in the cron scripts | The scripts are stateless and their failures were the invisible ones; centralizing the logic server-side covers both jobs with one code path and matches the billing scheduler's threshold-alert pattern — one alert per confirmed outage, no spam on repeat failures |
+| 2026-09-03 | Heartbeat insert failure returns 500 (the cron logs it loudly) but the cron runners never fail a job because of a heartbeat problem | The heartbeat is observability, not correctness — the main import/sweep outcome governs job success; a broken heartbeat path surfaces as Render cron warnings + the panel's "not reporting" verdict instead of blocking lead capture |
+| 2026-09-03 | Health panel derives staleness from the expected cadence (default 5 min, env-tunable) with warn > 2×+5 min and critical > 6×; "not_reporting" (never reported) is distinct from "stale" (was reporting) | Thresholds scale with the schedule so changing the cron cadence never silently orphans the alert thresholds; the status distinction separates "cron service missing on Render" from "cron was running and stopped" |
 
 ## Risks
 
