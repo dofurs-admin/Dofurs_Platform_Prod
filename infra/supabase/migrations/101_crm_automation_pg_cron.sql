@@ -71,6 +71,10 @@ BEGIN
   FROM private.crm_automation_config
   WHERE key = 'crm_sheet_import_secret';
 
+  -- Self-heal copy-paste padding: a trailing newline in the stored secret
+  -- caused silent 401s on 2026-09-03 (65 chars instead of 64).
+  v_secret := btrim(v_secret, E' \n\r\t');
+
   IF v_secret IS NULL OR v_secret = '' OR v_secret LIKE '<%' THEN
     RAISE EXCEPTION 'CRM automation secret is not configured: insert the CRM_SHEET_IMPORT_SECRET value into private.crm_automation_config (key = crm_sheet_import_secret)';
   END IF;
@@ -81,17 +85,22 @@ BEGIN
     v_url := 'https://dofurs.in/api/admin/crm/abandoned-bookings/run';
   END IF;
 
-  SELECT id INTO v_request_id FROM net.http_post(
+  -- pg_net's http_post RETURNS the request id directly (bigint) — it is NOT a
+  -- table function. `SELECT id FROM net.http_post(...)` fails with
+  -- "column id does not exist" (the 2026-09-03 activation incident: every
+  -- tick failed until this direct-call form was applied).
+  v_request_id := net.http_post(
     url := v_url,
     body := '{"dryRun": false}'::jsonb,
     headers := jsonb_build_object(
       'content-type', 'application/json',
       'authorization', 'Bearer ' || v_secret
     ),
-    -- The sheet import can take ~30 s (404-row scan). pg_net's default 5 s
-    -- timeout would only mark the request timed-out client-side (the endpoint
-    -- finishes the run regardless); a generous timeout keeps the response
-    -- visible in net._http_response for debugging.
+    -- The sheet import can take ~50 s (405-row scan; first production run
+    -- measured 48.9 s). pg_net's default 5 s timeout would only mark the
+    -- request timed-out client-side (the endpoint finishes the run
+    -- regardless); a generous timeout keeps the response visible in
+    -- net._http_response for debugging.
     timeout_milliseconds := 180000
   );
 
