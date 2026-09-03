@@ -372,6 +372,12 @@ export default function CrmTab() {
     custom: '',
   });
   const [reassignDraft, setReassignDraft] = useState('');
+  const [convertForm, setConvertForm] = useState<{
+    open: boolean;
+    bookings: CrmCustomer360Data['bookings'];
+    bookingId: string;
+    isLoadingBookings: boolean;
+  }>({ open: false, bookings: [], bookingId: '', isLoadingBookings: false });
 
   const [customer360UserId, setCustomer360UserId] = useState<string | null>(null);
   const [customer360Data, setCustomer360Data] = useState<CrmCustomer360Data | null>(null);
@@ -513,6 +519,7 @@ export default function CrmTab() {
       });
       setLostForm({ open: false, reason: 'No response', custom: '' });
       setReassignDraft('');
+      setConvertForm({ open: false, bookings: [], bookingId: '', isLoadingBookings: false });
     } catch (error) {
       setLeadDetail(null);
       showToast(error instanceof Error ? error.message : 'Unable to load lead.', 'error');
@@ -560,6 +567,21 @@ export default function CrmTab() {
       showToast(error instanceof Error ? error.message : 'Unable to load customer.', 'error');
     } finally {
       setIsCustomer360Loading(false);
+    }
+  }, [showToast]);
+
+  // Conversion is guarded service-side (requires a booking id belonging to the
+  // same customer), so the UI collects the booking before patching the status.
+  const openConvertForm = useCallback(async (userId: string) => {
+    setConvertForm({ open: true, bookings: [], bookingId: '', isLoadingBookings: true });
+    try {
+      const response = await fetch(`/api/admin/crm/customers/${userId}`, { cache: 'no-store' });
+      const payload = (await response.json().catch(() => null)) as CrmCustomer360Data & { error?: string } | null;
+      if (!response.ok || !payload) throw new Error(payload?.error ?? 'Unable to load customer bookings.');
+      setConvertForm({ open: true, bookings: payload.bookings, bookingId: '', isLoadingBookings: false });
+    } catch (error) {
+      setConvertForm({ open: false, bookings: [], bookingId: '', isLoadingBookings: false });
+      showToast(error instanceof Error ? error.message : 'Unable to load customer bookings.', 'error');
     }
   }, [showToast]);
 
@@ -1516,7 +1538,7 @@ export default function CrmTab() {
               );
             })()}
 
-            {/* Actions (only while the lead is open) */}
+            {/* Status actions (only while the lead is open) */}
             {(leadDetail.lead.status === 'new' ||
               leadDetail.lead.status === 'contacted' ||
               leadDetail.lead.status === 'interested' ||
@@ -1526,7 +1548,13 @@ export default function CrmTab() {
                   value=""
                   onChange={(event) => {
                     const next = event.target.value as CrmLeadStatus;
-                    if (!next || !selectedLeadId) return;
+                    if (!next || !selectedLeadId || !leadDetail) return;
+                    if (next === 'converted') {
+                      // Conversion requires a same-customer booking (service contract),
+                      // so collect the booking link instead of patching the status directly.
+                      void openConvertForm(leadDetail.lead.user_id);
+                      return;
+                    }
                     void patchLead(selectedLeadId, { status: next }, `Lead moved to ${STATUS_LABELS[next]}.`);
                   }}
                   className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none"
@@ -1535,6 +1563,7 @@ export default function CrmTab() {
                   <option value="contacted">Contacted</option>
                   <option value="interested">Interested</option>
                   <option value="follow_up">Follow-up</option>
+                  <option value="converted">Converted</option>
                   <option value="cancelled">Cancelled</option>
                 </select>
                 <button
@@ -1587,6 +1616,13 @@ export default function CrmTab() {
                     Apply
                   </button>
                 ) : null}
+              </div>
+            ) : null}
+
+            {/* Customer 360 (read-only; available for every lead with a linked customer,
+                including converted/lost/cancelled — not gated to open leads) */}
+            {leadDetail.lead.user_id ? (
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => void openCustomer360(leadDetail.lead.user_id)}
@@ -1654,6 +1690,73 @@ export default function CrmTab() {
                     Confirm lost
                   </button>
                 </div>
+              </div>
+            ) : null}
+
+            {/* Inline convert form (open leads only) — conversion requires a same-customer booking */}
+            {convertForm.open &&
+            (leadDetail.lead.status === 'new' ||
+              leadDetail.lead.status === 'contacted' ||
+              leadDetail.lead.status === 'interested' ||
+              leadDetail.lead.status === 'follow_up') ? (
+              <div className="space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+                <p className="text-sm font-semibold text-neutral-900">Which booking converted this lead?</p>
+                {convertForm.isLoadingBookings ? (
+                  <p className="text-xs text-neutral-500">Loading bookings…</p>
+                ) : convertForm.bookings.length === 0 ? (
+                  <p className="text-xs text-neutral-600">
+                    No bookings found for this customer. A lead can only be marked converted by linking a booking that
+                    belongs to the same customer — create the booking first, then convert.
+                  </p>
+                ) : (
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <select
+                        aria-label="Converted booking"
+                        value={convertForm.bookingId}
+                        onChange={(event) =>
+                          setConvertForm((draft) => ({ ...draft, bookingId: event.target.value }))
+                        }
+                        className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none"
+                      >
+                        <option value="">Select booking…</option>
+                        {convertForm.bookings.map((booking) => (
+                          <option key={booking.id} value={String(booking.id)}>
+                            #{booking.id} · {booking.bookingDate ?? '—'} · {booking.serviceType ?? 'Service'} ·{' '}
+                            {booking.status} · {booking.finalPrice != null ? `₹${booking.finalPrice}` : '—'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setConvertForm({ open: false, bookings: [], bookingId: '', isLoadingBookings: false })
+                        }
+                        className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-600 transition hover:bg-neutral-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isLeadBusy || !convertForm.bookingId}
+                        onClick={() => {
+                          if (!selectedLeadId || !convertForm.bookingId) return;
+                          void patchLead(
+                            selectedLeadId,
+                            { status: 'converted', convertedBookingId: Number(convertForm.bookingId) },
+                            'Lead marked converted.',
+                          );
+                          setConvertForm({ open: false, bookings: [], bookingId: '', isLoadingBookings: false });
+                        }}
+                        className="min-h-10 rounded-xl bg-emerald-600 px-3 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Confirm converted
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : null}
 

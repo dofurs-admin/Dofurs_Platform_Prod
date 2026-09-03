@@ -61,9 +61,10 @@ Matching chain: manual pincode (`crm_leads.pincode`, highest priority — revers
 - [ ] Server-side lead filters if lead volume ever exceeds the 2000-point cap
 - [ ] Lead bubble click-through to a filtered CRM leads view (area + status deep-link)
 
-## Data Notes (last measured 2026-09-02, read-only diagnostics vs prod)
+## Data Notes (last measured 2026-09-03, read-only diagnostics vs prod)
 
 - 392 leads in DB, all `new` → every area currently open-dominant (amber) until statuses diversify
+- **2026-09-03 historical backfill applied** (rounds 1 + 2: `infra/supabase/backfill_crm_historical_leads_2026-09-03.sql` + `backfill_crm_lead_pincodes_round2_2026-09-03.sql`): **324 leads now have explicit `crm_leads.pincode`** (~80% of all leads — manual pincode wins for plotting, so most leads plot by exact pincode instead of gazetteer guess) and 320 have `address`; statuses diversified — now new 250 / contacted 107 / converted 34 (24 booking-linked) / lost 10 / interested 1 / follow_up 1, so area bubbles are no longer uniformly open-dominant; each fill logged as a `location_updated` activity with `metadata.backfill='historical_sheet'`; 79 leads remain unpinnable until real addresses are collected (the sheet's own "still_missing" set)
 - 159/392 leads matched to gazetteer areas (60 distinct areas)
 - Lead areas with coordinates: 28/60 in a 30d window; 39/60 with the all-time fallback
 - Lead city values include junk ("Yes" ×14, "Grooming" ×4) — form question is free text
