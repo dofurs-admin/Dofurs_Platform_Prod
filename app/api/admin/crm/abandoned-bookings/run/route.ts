@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { CrmServiceError, runAbandonedBookingSweep } from '@/lib/crm/service';
+import { recordCrmAutomationHeartbeat } from '@/lib/crm/automation-status';
 
 function safeTokenEqual(expected: string, provided: string) {
   const expectedBuffer = Buffer.from(expected);
@@ -34,6 +35,26 @@ const runSchema = z.object({
   dryRun: z.boolean().default(false),
 });
 
+// ── Route-side automation heartbeat ────────────────────────────────────────────
+//
+// Scheduling moved database-side (pg_cron + pg_net, migration 101), so the
+// ROUTE records the heartbeat for every secret-authenticated run instead of
+// relying on the Node cron runner scripts alone. This keeps the "Automation
+// health" panel and Discord alerts accurate for every trigger path. Manual
+// admin-panel runs are deliberately excluded — they must never mask scheduler
+// health. A heartbeat failure must never break the main sweep run.
+
+async function reportAutomationHeartbeat(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  input: Parameters<typeof recordCrmAutomationHeartbeat>[1],
+) {
+  try {
+    await recordCrmAutomationHeartbeat(supabase, input);
+  } catch (error) {
+    console.error('[crm-automation] Route-side heartbeat failed:', error);
+  }
+}
+
 /**
  * POST /api/admin/crm/abandoned-bookings/run
  *
@@ -44,6 +65,7 @@ export async function POST(request: Request) {
   const automationSecret = process.env.CRM_SHEET_IMPORT_SECRET?.trim() ?? '';
   const token = extractToken(request);
   const isAutomation = !!automationSecret && !!token && safeTokenEqual(automationSecret, token);
+  const startedAtMs = Date.now();
 
   if (!isAutomation) {
     const auth = await requireApiRole(ADMIN_ROLES);
@@ -55,14 +77,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid sweep payload' }, { status: 400 });
   }
 
+  const supabase = getSupabaseAdminClient();
+
   try {
-    const result = await runAbandonedBookingSweep(getSupabaseAdminClient(), {
+    const result = await runAbandonedBookingSweep(supabase, {
       triggerSource: isAutomation ? 'cron' : 'admin_panel',
       dryRun: parsed.data.dryRun,
     });
 
+    if (isAutomation) {
+      await reportAutomationHeartbeat(supabase, {
+        job: 'abandoned_bookings_sweep',
+        ok: true,
+        httpStatus: 200,
+        durationMs: Date.now() - startedAtMs,
+        summary: {
+          dryRun: result.dryRun,
+          scanned: result.scanned,
+          abandonedLeads: result.abandonedLeads,
+          expiredSessions: result.expiredSessions,
+          skippedNoContact: result.skippedNoContact,
+        },
+      });
+    }
+
     return NextResponse.json({ success: true, result });
   } catch (error) {
+    const status = error instanceof CrmServiceError ? error.status : 500;
+    // A 409 means another run held the distributed lock — the cron runner
+    // scripts treat that as OK, so the heartbeat does too.
+    const lockConflict = status === 409;
+
+    if (isAutomation) {
+      await reportAutomationHeartbeat(supabase, {
+        job: 'abandoned_bookings_sweep',
+        ok: lockConflict,
+        httpStatus: status,
+        durationMs: Date.now() - startedAtMs,
+        errorMessage: lockConflict
+          ? 'Another sweep run held the lock'
+          : error instanceof Error
+            ? error.message
+            : 'Unknown sweep failure',
+        summary: lockConflict ? { acceptedConflict: true } : {},
+      });
+    }
+
     if (error instanceof CrmServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }

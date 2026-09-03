@@ -74,40 +74,11 @@ services:
       - key: BILLING_AUTOMATION_SECRET
         sync: false
 
-  # CRM — Meta leads Google-Sheet import (Phase 4a). Every 5 minutes: new Meta
-  # leads land in the CRM within ~5 minutes of hitting the sheet. Idempotent
-  # (external_lead_id) and lock-protected, so frequent runs are safe.
-  - type: cron
-    name: dofurs-crm-meta-sheet-import
-    runtime: node
-    plan: starter
-    schedule: "*/5 * * * *"
-    buildCommand: npm ci
-    startCommand: npm run ops:crm:import:run
-    envVars:
-      - key: NODE_VERSION
-        value: 20.11.1
-      - key: CRM_IMPORT_BASE_URL
-        value: https://dofurs.in
-      - key: CRM_SHEET_IMPORT_SECRET
-        sync: false
-      - key: CRM_SHEET_IMPORT_ACCEPT_CONFLICT
-        value: "true"
 
-  # CRM — abandoned-booking sweep (Phase 3). Every 5 minutes: stale booking
-  # sessions (CRM_ABANDON_AFTER_MINUTES, default 10) become hot leads roughly
-  # 10–15 minutes after a customer goes quiet mid-booking.
-  - type: cron
-    name: dofurs-crm-abandoned-bookings-sweep
-    runtime: node
-    plan: starter
-    schedule: "*/5 * * * *"
-    buildCommand: npm ci
-    startCommand: npm run ops:crm:sweep:run
-    envVars:
-      - key: NODE_VERSION
-        value: 20.11.1
-      - key: CRM_IMPORT_BASE_URL
-        value: https://dofurs.in
-      - key: CRM_SHEET_IMPORT_SECRET
-        sync: false
+  # CRM automation scheduling is NOT on Render — it lives in Supabase pg_cron
+  # (infra/supabase/migrations/101_crm_automation_pg_cron.sql: abandoned-booking
+  # sweep every minute, Meta-sheet import every 5 min as the fallback for the
+  # Google-Sheet push trigger in infra/apps-script/). The two cron services
+  # that were previously declared here were never created on Render, and
+  # database-side scheduling costs nothing extra.
+

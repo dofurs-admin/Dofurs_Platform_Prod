@@ -5,6 +5,7 @@ import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { logAdminAction } from '@/lib/admin/audit';
 import { CrmServiceError, runMetaSheetImport, type RunMetaSheetImportResult } from '@/lib/crm/service';
+import { recordCrmAutomationHeartbeat } from '@/lib/crm/automation-status';
 
 // ── Shared token helpers (mirrors app/api/admin/payments/cleanup-stale-transactions) ──
 
@@ -64,6 +65,28 @@ const runImportSchema = z.object({
   dryRun: z.boolean().default(false),
 });
 
+// ── Route-side automation heartbeat ────────────────────────────────────────────
+//
+// Scheduling moved database-side (pg_cron + pg_net, migration 101) and a
+// Google-Sheet push trigger also calls this endpoint, so the ROUTE records the
+// heartbeat for every secret-authenticated run instead of relying on the Node
+// cron runner scripts alone. This keeps the "Automation health" panel and
+// Discord alerts accurate for every trigger path (pg_cron, sheet push trigger,
+// manual script run). Manual admin-panel runs are deliberately excluded — they
+// must never mask scheduler health. A heartbeat failure must never break the
+// main import run (observability only).
+
+async function reportAutomationHeartbeat(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  input: Parameters<typeof recordCrmAutomationHeartbeat>[1],
+) {
+  try {
+    await recordCrmAutomationHeartbeat(supabase, input);
+  } catch (error) {
+    console.error('[crm-automation] Route-side heartbeat failed:', error);
+  }
+}
+
 /**
  * POST /api/admin/crm/imports/meta-sheet
  *
@@ -75,6 +98,7 @@ export async function POST(request: Request) {
   const automationSecret = process.env.CRM_SHEET_IMPORT_SECRET?.trim() ?? '';
   const token = extractToken(request);
   const isAutomation = !!automationSecret && !!token && safeTokenEqual(automationSecret, token);
+  const startedAtMs = Date.now();
 
   let actorUserId: string | undefined;
   if (!isAutomation) {
@@ -100,6 +124,24 @@ export async function POST(request: Request) {
       request,
     });
 
+    if (isAutomation) {
+      await reportAutomationHeartbeat(supabase, {
+        job: 'meta_sheet_import',
+        ok: true,
+        httpStatus: 200,
+        durationMs: Date.now() - startedAtMs,
+        summary: {
+          dryRun: result.dryRun,
+          scanned: result.rowsScanned,
+          imported: result.imported,
+          skipped: result.skippedExisting,
+          invalid: result.invalid,
+          newCustomers: result.newCustomers,
+          candidatesFound: result.candidatesFound,
+        },
+      });
+    }
+
     if (!parsed.data.dryRun && actorUserId && result.imported > 0) {
       await logAdminAction({
         adminUserId: actorUserId,
@@ -113,6 +155,26 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, result });
   } catch (error) {
+    const status = error instanceof CrmServiceError ? error.status : 500;
+    // A 409 means another run held the distributed lock — the cron runner
+    // scripts treat that as OK, so the heartbeat does too.
+    const lockConflict = status === 409;
+
+    if (isAutomation) {
+      await reportAutomationHeartbeat(supabase, {
+        job: 'meta_sheet_import',
+        ok: lockConflict,
+        httpStatus: status,
+        durationMs: Date.now() - startedAtMs,
+        errorMessage: lockConflict
+          ? 'Another import run held the lock'
+          : error instanceof Error
+            ? error.message
+            : 'Unknown import failure',
+        summary: lockConflict ? { acceptedConflict: true } : {},
+      });
+    }
+
     if (error instanceof CrmServiceError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
