@@ -31,6 +31,10 @@ services:
       # Abandoned-booking staleness window in minutes (1–60, default 10).
       - key: CRM_ABANDON_AFTER_MINUTES
         value: "10"
+      # New leads are created UNASSIGNED (owner decision 2026-09-03). The
+      # least-loaded auto-assign engine is opt-in via CRM_LEAD_AUTO_ASSIGN=true.
+      - key: CRM_LEAD_AUTO_ASSIGN
+        value: "false"
 
   - type: cron
     name: dofurs-billing-reminders-scheduler

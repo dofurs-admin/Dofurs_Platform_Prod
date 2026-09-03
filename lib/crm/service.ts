@@ -511,9 +511,15 @@ function impliesFirstContact(current: LeadEmbedRow, nextStatus: CrmLeadStatus): 
 
 // ── Salesperson assignment engine (Phase 2) ─────────────────────────────────────
 
-/** Auto-assignment is on unless explicitly disabled via CRM_LEAD_AUTO_ASSIGN=false. */
+/**
+ * Auto-assignment is OFF by default: new leads (sheet imports, website
+ * enquiries, abandoned-booking hot leads, and manual leads without an
+ * explicit assignee) are created UNASSIGNED (owner decision 2026-09-03).
+ * Opt back in explicitly via CRM_LEAD_AUTO_ASSIGN=true — only the exact
+ * value "true" (case/whitespace tolerant) enables it.
+ */
 export function isLeadAutoAssignEnabled() {
-  return (process.env.CRM_LEAD_AUTO_ASSIGN ?? 'true').trim().toLowerCase() !== 'false';
+  return (process.env.CRM_LEAD_AUTO_ASSIGN ?? 'false').trim().toLowerCase() === 'true';
 }
 
 /**
@@ -962,7 +968,8 @@ export async function createInboundLead(
     return { created: false, leadId: existingLead.id, isNewCustomer: false };
   }
 
-  // Unattended sheet leads auto-assign to the least-loaded staff member.
+  // Sheet leads stay UNASSIGNED by default (owner decision 2026-09-03);
+  // least-loaded auto-assign is opt-in via CRM_LEAD_AUTO_ASSIGN=true.
   const assignedTo = isLeadAutoAssignEnabled() ? await pickAutoAssignee(supabase) : null;
 
   const existingUserId = await findExistingCustomerForInboundLead(supabase, candidate);

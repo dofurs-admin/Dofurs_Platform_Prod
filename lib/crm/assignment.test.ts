@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { pickLeastLoadedAssignee } from './service';
+import { afterEach, describe, expect, it } from 'vitest';
+import { isLeadAutoAssignEnabled, pickLeastLoadedAssignee } from './service';
 
 describe('pickLeastLoadedAssignee', () => {
   const staff = [
@@ -46,5 +46,42 @@ describe('pickLeastLoadedAssignee', () => {
 
   it('returns null when no staff exist', () => {
     expect(pickLeastLoadedAssignee([], new Map())).toBeNull();
+  });
+});
+
+describe('isLeadAutoAssignEnabled', () => {
+  const originalValue = process.env.CRM_LEAD_AUTO_ASSIGN;
+
+  afterEach(() => {
+    if (originalValue === undefined) {
+      delete process.env.CRM_LEAD_AUTO_ASSIGN;
+    } else {
+      process.env.CRM_LEAD_AUTO_ASSIGN = originalValue;
+    }
+  });
+
+  it('is disabled by default — new leads are created unassigned (owner decision 2026-09-03)', () => {
+    delete process.env.CRM_LEAD_AUTO_ASSIGN;
+    expect(isLeadAutoAssignEnabled()).toBe(false);
+  });
+
+  it('is disabled when explicitly false', () => {
+    process.env.CRM_LEAD_AUTO_ASSIGN = 'false';
+    expect(isLeadAutoAssignEnabled()).toBe(false);
+  });
+
+  it('is enabled only by the explicit opt-in value true', () => {
+    process.env.CRM_LEAD_AUTO_ASSIGN = 'true';
+    expect(isLeadAutoAssignEnabled()).toBe(true);
+  });
+
+  it('accepts case/whitespace variants of true as opt-in', () => {
+    process.env.CRM_LEAD_AUTO_ASSIGN = ' True ';
+    expect(isLeadAutoAssignEnabled()).toBe(true);
+  });
+
+  it('treats any other value as disabled — no accidental opt-in', () => {
+    process.env.CRM_LEAD_AUTO_ASSIGN = 'yes';
+    expect(isLeadAutoAssignEnabled()).toBe(false);
   });
 });
