@@ -55,6 +55,22 @@ export function getISTDateString(date: Date = new Date()): string {
   return date.toLocaleDateString('en-CA', { timeZone: IST_TZ });
 }
 
+/**
+ * Given an IST date key (`YYYY-MM-DD`), returns the UTC ISO instant of that
+ * day's IST midnight (`00:00 +05:30`). Window filters built on this boundary
+ * align with the IST calendar day instead of the UTC one — critical for ops
+ * tooling between 00:00 and 05:30 IST, where UTC and IST disagree on "today".
+ */
+export function getISTDayBoundaryISO(dateKey: string): string {
+  const parsed = Date.parse(`${dateKey}T00:00:00.000+05:30`);
+
+  if (Number.isNaN(parsed)) {
+    throw new Error(`Invalid IST date key: ${dateKey}`);
+  }
+
+  return new Date(parsed).toISOString();
+}
+
 /** Returns current time as `HH:MM` in IST. */
 export function getISTTimeString(date: Date = new Date()): string {
   return date.toLocaleTimeString('en-GB', {

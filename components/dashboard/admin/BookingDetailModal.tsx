@@ -311,6 +311,16 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
               {serviceLabel ? ` • ${serviceLabel}` : ''}
               {booking.booking_mode ? ` • ${booking.booking_mode.replace('_', ' ')}` : ''}
             </p>
+            {booking.user_id ? (
+              <p className="text-sm">
+                <Link
+                  href={`/dashboard/admin/crm?customer=${booking.user_id}`}
+                  className="font-semibold text-coral underline decoration-coral/40 underline-offset-2 transition hover:brightness-90"
+                >
+                  Customer 360 →
+                </Link>
+              </p>
+            ) : null}
             {booking.booking_date && booking.start_time ? (
               <p className="text-sm text-neutral-600">{booking.booking_date} • {booking.start_time}{booking.end_time ? ` – ${booking.end_time}` : ''}</p>
             ) : (

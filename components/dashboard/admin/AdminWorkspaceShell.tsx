@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import BrandMark from '@/components/BrandMark';
 import { cn } from '@/lib/design-system';
+import { adminRequest } from '@/lib/api/admin-fetch';
 import type { AdminDashboardView } from './AdminDashboardShell';
 
 type AdminNavItem = {
@@ -140,6 +141,57 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
       `${item.label} ${item.description}`.toLowerCase().includes(query)
     ));
   }, [commandQuery]);
+
+  // ── C6: entity search — leads + customers alongside section navigation ──────
+  const [entityResults, setEntityResults] = useState<{
+    leads: Array<{ id: string; name: string | null; phone: string | null; status: string }>;
+    users: Array<{ id: string; name: string | null; phone: string | null }>;
+  } | null>(null);
+
+  useEffect(() => {
+    const query = commandQuery.trim();
+    if (!commandOpen || query.length < 2) {
+      setEntityResults(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      try {
+        const [leadsPayload, usersPayload] = await Promise.all([
+          adminRequest<{ leads?: Array<{ id: string; customer?: { name: string | null; phone: string | null }; status: string }> }>(
+            `/api/admin/crm/leads?limit=5&q=${encodeURIComponent(query)}`,
+          ),
+          adminRequest<{ users?: Array<{ id: string; name: string | null; phone: string | null }> }>(
+            `/api/admin/users/search?q=${encodeURIComponent(query)}&limit=5`,
+          ),
+        ]);
+
+        setEntityResults({
+          leads: (leadsPayload.leads ?? []).map((lead) => ({
+            id: lead.id,
+            name: lead.customer?.name ?? null,
+            phone: lead.customer?.phone ?? null,
+            status: lead.status,
+          })),
+          users: (usersPayload.users ?? []).map((user) => ({
+            id: user.id,
+            name: user.name,
+            phone: user.phone,
+          })),
+        });
+      } catch (error) {
+        // Entity search is a speed affordance — degrade to navigation-only, loudly.
+        console.warn('[admin] Palette entity search failed:', error);
+        setEntityResults(null);
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [commandOpen, commandQuery]);
 
   useEffect(() => {
     setMobileNavOpen(false);
@@ -569,7 +621,7 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
                 ref={commandInputRef}
                 value={commandQuery}
                 onChange={(event) => setCommandQuery(event.target.value)}
-                placeholder="Search admin sections"
+                placeholder="Search sections, leads, customers…"
                 className="h-9 flex-1 border-0 bg-transparent text-xs text-neutral-950 outline-none placeholder:text-neutral-400"
               />
               <button
@@ -600,8 +652,68 @@ export default function AdminWorkspaceShell({ activeView, children }: AdminWorks
                   </button>
                 );
               }) : (
-                <div className="px-4 py-10 text-center text-sm text-neutral-500">No admin sections found.</div>
+                <div className="px-4 py-6 text-center text-sm text-neutral-500">No admin sections found.</div>
               )}
+              {/* C6: entity results — jump straight to a lead or customer. */}
+              {entityResults ? (
+                <>
+                  {entityResults.leads.length > 0 ? (
+                    <div className="mt-1 border-t border-neutral-100 pt-1.5">
+                      <p className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Leads</p>
+                      {entityResults.leads.map((lead) => (
+                        <button
+                          key={`lead-${lead.id}`}
+                          type="button"
+                          onClick={() => {
+                            setCommandOpen(false);
+                            router.push(`/dashboard/admin/crm?lead=${lead.id}`);
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-brand-50/50"
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-coral">
+                            <Target className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-neutral-950">
+                              {lead.name ?? 'Lead'} {lead.phone ? `· ${lead.phone}` : ''}
+                            </span>
+                            <span className="block text-xs text-neutral-500 capitalize">{lead.status.replace(/_/g, ' ')}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {entityResults.users.length > 0 ? (
+                    <div className="mt-1 border-t border-neutral-100 pt-1.5">
+                      <p className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Customers</p>
+                      {entityResults.users.map((user) => (
+                        <button
+                          key={`user-${user.id}`}
+                          type="button"
+                          onClick={() => {
+                            setCommandOpen(false);
+                            router.push(`/dashboard/admin/crm?customer=${user.id}`);
+                          }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition hover:bg-brand-50/50"
+                        >
+                          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-coral">
+                            <UserRound className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-semibold text-neutral-950">
+                              {user.name ?? 'Customer'} {user.phone ? `· ${user.phone}` : ''}
+                            </span>
+                            <span className="block text-xs text-neutral-500">Customer 360</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {entityResults.leads.length === 0 && entityResults.users.length === 0 ? (
+                    <div className="px-4 py-3 text-center text-xs text-neutral-400">No matching leads or customers.</div>
+                  ) : null}
+                </>
+              ) : null}
             </div>
           </div>
         </div>

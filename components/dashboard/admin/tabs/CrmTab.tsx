@@ -15,6 +15,24 @@ import {
   RETENTION_RECOMMENDED_DAY_OPTIONS,
   type RetentionRecommendedDays,
 } from '@/lib/crm/types';
+import {
+  CRM_ACTIVITY_LABELS as ACTIVITY_LABELS,
+  CRM_LOST_REASON_OPTIONS as LOST_REASON_OPTIONS,
+  CRM_SOURCE_LABELS as SOURCE_LABELS,
+  CRM_STATUS_LABELS as STATUS_LABELS,
+  formatLeadTimestamp,
+} from '@/lib/crm/labels';
+import { isCrmLeadSource, isCrmLeadStatus } from '@/lib/crm/types';
+import type {
+  CrmAutomationJobHealth as AutomationJobHealth,
+  CrmAutomationStatus as AutomationStatusSnapshot,
+} from '@/lib/crm/automation-status';
+import type {
+  RunMetaSheetImportResult as SheetImportRunResult,
+  SheetImportRunRow as SheetImportRunRowBase,
+} from '@/lib/crm/service';
+import { adminRequest } from '@/lib/api/admin-fetch';
+import { useSearchParams } from 'next/navigation';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -38,65 +56,10 @@ type CreateLeadDraft = {
   assignedTo: string;
 };
 
-type SheetImportRunRow = {
-  id: string;
-  trigger_source: 'admin_panel' | 'cron';
-  status: 'success' | 'failed';
-  dry_run: boolean;
-  rows_scanned: number;
-  rows_imported: number;
-  rows_skipped: number;
-  rows_invalid: number;
-  error_message: string | null;
-  started_at: string;
-  finished_at: string | null;
-};
-
-type SheetImportRunResult = {
-  dryRun: boolean;
-  tabsScanned: number;
-  tabTitles: string[];
-  rowsScanned: number;
-  candidatesFound: number;
-  imported: number;
-  skippedExisting: number;
-  newCustomers: number;
-  invalid: number;
-  invalidReasons: string[];
-  warnings: string[];
-};
-
-type AutomationJobHealth = {
-  job: 'meta_sheet_import' | 'abandoned_bookings_sweep';
-  status: 'healthy' | 'stale' | 'failing' | 'not_reporting' | 'misconfigured';
-  severity: 'ok' | 'warn' | 'critical';
-  detail: string;
-  lastHeartbeatAt: string | null;
-  minutesSinceLastHeartbeat: number | null;
-  lastHeartbeatOk: boolean | null;
-  lastHeartbeatHttpStatus: number | null;
-  lastHeartbeatError: string | null;
-  lastSuccessAt: string | null;
-  consecutiveFailures: number;
-  recentHeartbeats: Array<{
-    id: string;
-    ok: boolean;
-    http_status: number | null;
-    error_message: string | null;
-    created_at: string;
-    summary: Record<string, unknown>;
-  }>;
-};
-
-type AutomationStatusSnapshot = {
-  overall: { status: AutomationJobHealth['status']; severity: 'ok' | 'warn' | 'critical'; detail: string };
-  expectedCadenceMinutes: number;
-  staleAfterMinutes: number;
-  criticalAfterMinutes: number;
-  generatedAt: string;
-  config: Array<{ key: string; label: string; ok: boolean; hint?: string }>;
-  jobs: AutomationJobHealth[];
-};
+// Shared server shapes are imported from the CRM domain modules — the client
+// must never re-declare them by convention (drift risk). See
+// lib/crm/automation-status.ts and lib/crm/service.ts.
+type SheetImportRunRow = SheetImportRunRowBase & { id: string };
 
 type CrmStaffUser = { id: string; name: string };
 
@@ -145,14 +108,7 @@ type CrmCampaignRow = {
   revenueInr: number;
 };
 
-const LOST_REASON_OPTIONS = [
-  'No response',
-  'Price too high',
-  'Booked elsewhere',
-  'Out of coverage area',
-  'Not interested',
-  'Other',
-] as const;
+// Lost-reason vocabulary: lib/crm/labels.ts (CRM_LOST_REASON_OPTIONS).
 
 const EMPTY_CREATE_DRAFT: CreateLeadDraft = {
   name: '',
@@ -166,6 +122,49 @@ const EMPTY_CREATE_DRAFT: CreateLeadDraft = {
   assignedTo: '',
 };
 
+/** Humanizes a minutes count as "45m", "3h 20m", or "2d" for response-health display. */
+function formatDurationFromMinutes(minutes: number): string {
+  if (minutes < 60) return `${Math.round(minutes)}m`;
+  if (minutes < 60 * 24) {
+    const hours = Math.floor(minutes / 60);
+    const rest = Math.round(minutes % 60);
+    return rest > 0 ? `${hours}h ${rest}m` : `${hours}h`;
+  }
+  return `${Math.round(minutes / (60 * 24))}d`;
+}
+
+/** WhatsApp deep link (wa.me) for an Indian phone number — null when unusable. */
+function buildWhatsAppHref(phone: string | null | undefined): string | null {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (digits.length === 10) return `https://wa.me/91${digits}`;
+  if (digits.length === 12 && digits.startsWith('91')) return `https://wa.me/${digits}`;
+  return null;
+}
+
+/** Follow-up quick presets (C4) — computed in the viewer's local time (staff are IST). */
+function buildFollowupPresets(): Array<{ label: string; value: string }> {
+  const toInputValue = (date: Date) => {
+    const pad = (value: number) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(10, 0, 0, 0);
+
+  const threeDays = new Date(tomorrow);
+  threeDays.setDate(threeDays.getDate() + 2);
+
+  const oneWeek = new Date(tomorrow);
+  oneWeek.setDate(oneWeek.getDate() + 6);
+
+  return [
+    { label: 'Tomorrow 10:00', value: toInputValue(tomorrow) },
+    { label: '+3 days 10:00', value: toInputValue(threeDays) },
+    { label: '+1 week 10:00', value: toInputValue(oneWeek) },
+  ];
+}
+
 const EMPTY_SUMMARY: CrmLeadSummary = {
   total: 0,
   new: 0,
@@ -178,19 +177,15 @@ const EMPTY_SUMMARY: CrmLeadSummary = {
   hot: 0,
   overdue_followups: 0,
   lostReasons: [],
+  truncated: false,
+  avgFirstResponseMinutes: null,
+  medianFirstResponseMinutes: null,
+  newUncontactedOver24h: 0,
 };
 
 // ── Display helpers ────────────────────────────────────────────────────────────
 
-const STATUS_LABELS: Record<CrmLeadStatus, string> = {
-  new: 'New',
-  contacted: 'Contacted',
-  interested: 'Interested',
-  follow_up: 'Follow-up',
-  converted: 'Converted',
-  lost: 'Lost',
-  cancelled: 'Cancelled',
-};
+// Status labels: lib/crm/labels.ts (CRM_STATUS_LABELS).
 
 const STATUS_BADGE_VARIANTS: Record<CrmLeadStatus, 'default' | 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
   new: 'info',
@@ -202,30 +197,9 @@ const STATUS_BADGE_VARIANTS: Record<CrmLeadStatus, 'default' | 'success' | 'warn
   cancelled: 'neutral',
 };
 
-const SOURCE_LABELS: Record<CrmLeadSource, string> = {
-  meta_lead_form: 'Meta Lead Form',
-  google_ads: 'Google Ads',
-  website_enquiry: 'Website Enquiry',
-  website_booking: 'Website Booking',
-  website_abandoned_booking: 'Abandoned Booking',
-  whatsapp: 'WhatsApp',
-  direct: 'Direct',
-  referral: 'Referral',
-  manual: 'Manual',
-};
+// Source labels: lib/crm/labels.ts (CRM_SOURCE_LABELS).
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  created: 'Created',
-  note: 'Note',
-  call: 'Call',
-  whatsapp: 'WhatsApp',
-  email: 'Email',
-  status_change: 'Status',
-  assignment: 'Assignment',
-  followup_scheduled: 'Follow-up',
-  converted: 'Converted',
-  lost: 'Lost',
-};
+// Activity labels: lib/crm/labels.ts (CRM_ACTIVITY_LABELS).
 
 const ATTRIBUTION_LABELS: Array<{ key: string; label: string }> = [
   { key: 'campaign', label: 'Campaign' },
@@ -280,17 +254,7 @@ function buildAttributionEntries(sourceDetails: Record<string, unknown> | null |
   return entries;
 }
 
-function formatLeadTimestamp(value: string | null | undefined) {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString('en-IN', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+// formatLeadTimestamp: lib/crm/labels.ts (IST-explicit).
 
 // ── Automation health panel (cron import + sweep observability) ────────────────
 
@@ -348,10 +312,30 @@ export default function CrmTab() {
   const [summary, setSummary] = useState<CrmLeadSummary>(EMPTY_SUMMARY);
   const [staffUsers, setStaffUsers] = useState<CrmStaffUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | CrmLeadStatus | 'due'>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  // C2: filters live in the URL — refresh-stable views, back/forward, and deep
+  // links (Gaze lead bubbles link here with ?area=…&status=open).
+  const searchParams = useSearchParams();
+
+  const [statusFilter, setStatusFilter] = useState<'all' | CrmLeadStatus | 'due'>(() => {
+    const value = searchParams.get('status');
+    return value === 'due' || (value !== null && isCrmLeadStatus(value)) ? value : 'all';
+  });
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') ?? '');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [page, setPage] = useState(0);
+  const [page, setPage] = useState(() => {
+    const value = Number(searchParams.get('page'));
+    return Number.isSafeInteger(value) && value >= 1 ? value - 1 : 0;
+  });
+  const [assignedFilter, setAssignedFilter] = useState<string>(() => searchParams.get('assigned') ?? 'all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | CrmLeadSource>(() => {
+    const value = searchParams.get('source');
+    return value !== null && isCrmLeadSource(value) ? value : 'all';
+  });
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'hot'>(() =>
+    searchParams.get('priority') === 'hot' ? 'hot' : 'all',
+  );
+  const [areaFilter, setAreaFilter] = useState<string | null>(() => searchParams.get('area'));
+  const [areaFilterName, setAreaFilterName] = useState<string | null>(() => searchParams.get('areaName'));
   const [totalLeads, setTotalLeads] = useState(0);
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -388,27 +372,39 @@ export default function CrmTab() {
   const [retentionPage, setRetentionPage] = useState(0);
   const [isRetentionExpanded, setIsRetentionExpanded] = useState(false);
   const [isRetentionLoading, setIsRetentionLoading] = useState(false);
+  const [campaignWindow, setCampaignWindow] = useState<'30' | '90' | 'all'>('all');
   const [campaignRows, setCampaignRows] = useState<CrmCampaignRow[]>([]);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [isBulkBusy, setIsBulkBusy] = useState(false);
+  const [bulkStatusDraft, setBulkStatusDraft] = useState<'' | CrmLeadStatus>('');
+  const [bulkLostReason, setBulkLostReason] = useState<string>('No response');
   const [isRetentionBusy, setIsRetentionBusy] = useState(false);
 
   const [lastImportRun, setLastImportRun] = useState<SheetImportRunRow | null>(null);
   const [isImportRunning, setIsImportRunning] = useState(false);
   const [importDryRunResult, setImportDryRunResult] = useState<string | null>(null);
   const [automationStatus, setAutomationStatus] = useState<AutomationStatusSnapshot | null>(null);
+  const [retentionError, setRetentionError] = useState<string | null>(null);
+  const [campaignsError, setCampaignsError] = useState<string | null>(null);
+  const [automationError, setAutomationError] = useState<string | null>(null);
+  const [importHistoryError, setImportHistoryError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
       try {
-        const response = await fetch('/api/admin/crm/imports/meta-sheet', { cache: 'no-store' });
-        if (!response.ok) return;
-        const payload = (await response.json().catch(() => null)) as { runs?: SheetImportRunRow[] } | null;
+        const payload = await adminRequest<{ runs?: SheetImportRunRow[] }>('/api/admin/crm/imports/meta-sheet');
         if (!cancelled) {
-          setLastImportRun(payload?.runs?.[0] ?? null);
+          setLastImportRun(payload.runs?.[0] ?? null);
+          setImportHistoryError(null);
         }
-      } catch {
-        // History is optional context — silently ignore.
+      } catch (error) {
+        // Loud, never silent — the panel otherwise implies "no import runs recorded".
+        console.warn('[crm] Import run history failed to load:', error);
+        if (!cancelled) {
+          setImportHistoryError('Import run history failed to load.');
+        }
       }
     })();
 
@@ -419,14 +415,13 @@ export default function CrmTab() {
 
   const fetchAutomationStatus = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/crm/automation/status', { cache: 'no-store' });
-      if (!response.ok) return;
-      const payload = (await response.json().catch(() => null)) as AutomationStatusSnapshot | null;
-      if (payload) {
-        setAutomationStatus(payload);
-      }
-    } catch {
-      // The health panel is optional context — silently ignore.
+      const payload = await adminRequest<AutomationStatusSnapshot>('/api/admin/crm/automation/status');
+      setAutomationStatus(payload);
+      setAutomationError(null);
+    } catch (error) {
+      // Loud, never silent — a stuck "loading…" health panel hides cron outages.
+      console.warn('[crm] Automation status failed to load:', error);
+      setAutomationError('Automation status failed to load.');
     }
   }, []);
 
@@ -446,6 +441,24 @@ export default function CrmTab() {
     return () => window.clearTimeout(timeout);
   }, [searchQuery]);
 
+  // Mirror the active filters into the URL via the native history API — no
+  // navigation round-trip (no server refetch), refresh restores the view.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (debouncedSearch) params.set('q', debouncedSearch);
+    if (assignedFilter !== 'all') params.set('assigned', assignedFilter);
+    if (sourceFilter !== 'all') params.set('source', sourceFilter);
+    if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+    if (areaFilter) {
+      params.set('area', areaFilter);
+      if (areaFilterName) params.set('areaName', areaFilterName);
+    }
+    if (page > 0) params.set('page', String(page + 1));
+    const query = params.toString();
+    window.history.replaceState(null, '', query ? `?${query}` : window.location.pathname);
+  }, [areaFilter, areaFilterName, assignedFilter, debouncedSearch, page, priorityFilter, sourceFilter, statusFilter]);
+
   const fetchLeads = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -458,21 +471,19 @@ export default function CrmTab() {
         params.set('status', statusFilter);
       }
       if (debouncedSearch) params.set('q', debouncedSearch);
+      if (assignedFilter !== 'all') params.set('assignedTo', assignedFilter);
+      if (sourceFilter !== 'all') params.set('source', sourceFilter);
+      if (priorityFilter !== 'all') params.set('priority', priorityFilter);
+      if (areaFilter) params.set('area', areaFilter);
 
-      const response = await fetch(`/api/admin/crm/leads?${params.toString()}`, { cache: 'no-store' });
-      const payload = (await response.json().catch(() => null)) as
-        | {
-            leads?: CrmLeadWithCustomer[];
-            summary?: CrmLeadSummary;
-            staffUsers?: CrmStaffUser[];
-            pagination?: { limit: number; offset: number; total: number | null };
-            error?: string;
-          }
-        | null;
-
-      if (!response.ok) throw new Error(payload?.error ?? 'Unable to load leads.');
-      const fetchedLeads = payload?.leads ?? [];
-      const total = payload?.pagination?.total;
+      const payload = await adminRequest<{
+        leads?: CrmLeadWithCustomer[];
+        summary?: CrmLeadSummary;
+        staffUsers?: CrmStaffUser[];
+        pagination?: { limit: number; offset: number; total: number | null };
+      }>(`/api/admin/crm/leads?${params.toString()}`);
+      const fetchedLeads = payload.leads ?? [];
+      const total = payload.pagination?.total;
 
       // If the active page is past the last one (e.g. the result set shrank after
       // leads changed state), snap back to the final page instead of showing a blank table.
@@ -485,9 +496,9 @@ export default function CrmTab() {
       }
 
       setLeads(fetchedLeads);
-      setSummary(payload?.summary ?? EMPTY_SUMMARY);
+      setSummary(payload.summary ?? EMPTY_SUMMARY);
       setTotalLeads(typeof total === 'number' ? total : fetchedLeads.length);
-      if (payload?.staffUsers) {
+      if (payload.staffUsers) {
         setStaffUsers(payload.staffUsers);
       }
     } catch (error) {
@@ -497,7 +508,7 @@ export default function CrmTab() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, debouncedSearch, page, showToast]);
+  }, [areaFilter, assignedFilter, debouncedSearch, page, priorityFilter, sourceFilter, statusFilter, showToast]);
 
   useEffect(() => {
     void fetchLeads();
@@ -509,9 +520,7 @@ export default function CrmTab() {
     setActivityDraft('');
     setFollowupDraft('');
     try {
-      const response = await fetch(`/api/admin/crm/leads/${leadId}`, { cache: 'no-store' });
-      const payload = (await response.json().catch(() => null)) as CrmLeadDetailPayload & { error?: string } | null;
-      if (!response.ok || !payload) throw new Error(payload?.error ?? 'Unable to load lead.');
+      const payload = await adminRequest<CrmLeadDetailPayload>(`/api/admin/crm/leads/${leadId}`);
       setLeadDetail(payload);
       setLocationDraft({
         pincode: payload.lead.pincode ?? '',
@@ -536,13 +545,11 @@ export default function CrmTab() {
   async function patchLead(leadId: string, body: Record<string, unknown>, successMessage: string) {
     setIsLeadBusy(true);
     try {
-      const response = await fetch(`/api/admin/crm/leads/${leadId}`, {
+      await adminRequest<{ success: boolean }>(`/api/admin/crm/leads/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? 'Unable to update lead.');
 
       showToast(successMessage, 'success');
       await Promise.all([fetchLeads(), openLeadDetail(leadId)]);
@@ -558,9 +565,7 @@ export default function CrmTab() {
     setIsCustomer360Loading(true);
     setCustomer360Data(null);
     try {
-      const response = await fetch(`/api/admin/crm/customers/${userId}`, { cache: 'no-store' });
-      const payload = (await response.json().catch(() => null)) as CrmCustomer360Data & { error?: string } | null;
-      if (!response.ok || !payload) throw new Error(payload?.error ?? 'Unable to load customer.');
+      const payload = await adminRequest<CrmCustomer360Data>(`/api/admin/crm/customers/${userId}`);
       setCustomer360Data(payload);
     } catch (error) {
       setCustomer360UserId(null);
@@ -570,14 +575,34 @@ export default function CrmTab() {
     }
   }, [showToast]);
 
+  // B8 deep-link entry: /dashboard/admin/crm?customer=<userId> opens Customer 360
+  // directly (linked from UsersTab rows, BookingDetailModal, and the palette).
+  useEffect(() => {
+    const customerParam = searchParams.get('customer');
+    if (customerParam) {
+      void openCustomer360(customerParam);
+    }
+    // Deliberately once per mount — modal state changes must not re-trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // C6 deep-link entry: /dashboard/admin/crm?lead=<leadId> opens the lead detail
+  // modal directly (linked from the command palette's entity search).
+  useEffect(() => {
+    const leadParam = searchParams.get('lead');
+    if (leadParam) {
+      void openLeadDetail(leadParam);
+    }
+    // Deliberately once per mount — modal state changes must not re-trigger it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Conversion is guarded service-side (requires a booking id belonging to the
   // same customer), so the UI collects the booking before patching the status.
   const openConvertForm = useCallback(async (userId: string) => {
     setConvertForm({ open: true, bookings: [], bookingId: '', isLoadingBookings: true });
     try {
-      const response = await fetch(`/api/admin/crm/customers/${userId}`, { cache: 'no-store' });
-      const payload = (await response.json().catch(() => null)) as CrmCustomer360Data & { error?: string } | null;
-      if (!response.ok || !payload) throw new Error(payload?.error ?? 'Unable to load customer bookings.');
+      const payload = await adminRequest<CrmCustomer360Data>(`/api/admin/crm/customers/${userId}`);
       setConvertForm({ open: true, bookings: payload.bookings, bookingId: '', isLoadingBookings: false });
     } catch (error) {
       setConvertForm({ open: false, bookings: [], bookingId: '', isLoadingBookings: false });
@@ -592,13 +617,11 @@ export default function CrmTab() {
       params.set('days', String(retentionDays));
       params.set('limit', String(RETENTION_PAGE_SIZE));
       params.set('offset', String(retentionPage * RETENTION_PAGE_SIZE));
-      const response = await fetch(`/api/admin/crm/retention?${params.toString()}`, { cache: 'no-store' });
-      if (!response.ok) return;
-      const payload = (await response.json().catch(() => null)) as
-        | { candidates?: CrmRetentionCandidate[]; total?: number }
-        | null;
-      const candidates = payload?.candidates ?? [];
-      const total = payload?.total;
+      const payload = await adminRequest<{ candidates?: CrmRetentionCandidate[]; total?: number }>(
+        `/api/admin/crm/retention?${params.toString()}`,
+      );
+      const candidates = payload.candidates ?? [];
+      const total = payload.total;
 
       // If the active page emptied (e.g. a follow-up lead removed the customer
       // from the list), snap back to the final page instead of a blank list.
@@ -612,8 +635,11 @@ export default function CrmTab() {
 
       setRetentionCandidates(candidates);
       setRetentionTotal(typeof total === 'number' ? total : candidates.length);
-    } catch {
-      // Retention panel is supplementary — silent skip.
+      setRetentionError(null);
+    } catch (error) {
+      // Loud, never silent — a dead retention panel must not read as "no follow-ups due".
+      console.warn('[crm] Retention panel failed to load:', error);
+      setRetentionError('Retention panel failed to load.');
     } finally {
       setIsRetentionLoading(false);
     }
@@ -621,16 +647,21 @@ export default function CrmTab() {
 
   const loadCampaigns = useCallback(async () => {
     try {
-      const response = await fetch('/api/admin/crm/analytics/campaigns', { cache: 'no-store' });
-      if (!response.ok) return;
-      const payload = (await response.json().catch(() => null)) as
-        | { campaigns?: CrmCampaignRow[] }
-        | null;
-      setCampaignRows(payload?.campaigns ?? []);
-    } catch {
-      // Campaign panel is supplementary — silent skip.
+      // B6: optional window — 30d / 90d chips (default all-time).
+      const params = new URLSearchParams();
+      if (campaignWindow !== 'all') params.set('days', campaignWindow);
+      const query = params.toString();
+      const payload = await adminRequest<{ campaigns?: CrmCampaignRow[] }>(
+        `/api/admin/crm/analytics/campaigns${query ? `?${query}` : ''}`,
+      );
+      setCampaignRows(payload.campaigns ?? []);
+      setCampaignsError(null);
+    } catch (error) {
+      // Loud, never silent — campaign analytics silently disappearing is undiagnosable.
+      console.warn('[crm] Campaign panel failed to load:', error);
+      setCampaignsError('Campaign panel failed to load.');
     }
-  }, []);
+  }, [campaignWindow]);
 
   useEffect(() => {
     void loadRetention();
@@ -643,7 +674,7 @@ export default function CrmTab() {
   async function createRetentionLead(candidate: CrmRetentionCandidate) {
     setIsRetentionBusy(true);
     try {
-      const response = await fetch('/api/admin/crm/leads', {
+      await adminRequest('/api/admin/crm/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -654,9 +685,6 @@ export default function CrmTab() {
           note: `Retention follow-up: last grooming ${candidate.lastGroomingDate} (${candidate.daysSinceLastGrooming} days ago), next recommended ${candidate.nextRecommendedDate}. Completed bookings: ${candidate.completedBookings}. Lifetime value ₹${candidate.totalSpentInr}.`,
         }),
       });
-
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? 'Unable to create follow-up lead.');
 
       showToast('Retention follow-up lead created.', 'success');
       await Promise.all([fetchLeads(), loadRetention()]);
@@ -669,7 +697,30 @@ export default function CrmTab() {
 
   async function exportLeadsCsv() {
     try {
-      const response = await fetch('/api/admin/crm/leads/export', { cache: 'no-store' });
+      // Export what you're looking at: mirror the active list filters.
+      const params = new URLSearchParams();
+      if (statusFilter === 'due') {
+        params.set('due', 'true');
+      } else if (statusFilter !== 'all') {
+        params.set('status', statusFilter);
+      }
+      if (debouncedSearch) {
+        params.set('q', debouncedSearch);
+      }
+      if (assignedFilter !== 'all') {
+        params.set('assignedTo', assignedFilter);
+      }
+      if (sourceFilter !== 'all') {
+        params.set('source', sourceFilter);
+      }
+      if (priorityFilter !== 'all') {
+        params.set('priority', priorityFilter);
+      }
+      if (areaFilter) {
+        params.set('area', areaFilter);
+      }
+      const query = params.toString();
+      const response = await fetch(`/api/admin/crm/leads/export${query ? `?${query}` : ''}`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Export failed.');
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -683,6 +734,38 @@ export default function CrmTab() {
       showToast('Leads CSV downloaded.', 'success');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Export failed.', 'error');
+    }
+  }
+
+  // ── Bulk actions (B3) — assign / status across the selected worklist ────────
+  async function runBulkUpdate(
+    action: { type: 'assign'; assignedTo: string } | { type: 'status'; status: CrmLeadStatus; lostReason?: string },
+  ) {
+    if (selectedLeadIds.size === 0 || isBulkBusy) return;
+    setIsBulkBusy(true);
+    try {
+      const payload = await adminRequest<{
+        result?: { requested: number; updated: number; skipped: Array<{ leadId: string; reason: string }> };
+      }>('/api/admin/crm/leads/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadIds: Array.from(selectedLeadIds), action }),
+      });
+      const result = payload.result;
+      showToast(
+        result
+          ? `Updated ${result.updated}/${result.requested} lead(s)${result.skipped.length > 0 ? ` · ${result.skipped.length} skipped (guards held)` : ''}.`
+          : 'Bulk update done.',
+        result && result.skipped.length > 0 ? 'error' : 'success',
+      );
+      setSelectedLeadIds(new Set());
+      setBulkStatusDraft('');
+      setBulkLostReason('No response');
+      await fetchLeads();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Bulk update failed.', 'error');
+    } finally {
+      setIsBulkBusy(false);
     }
   }
 
@@ -723,7 +806,7 @@ export default function CrmTab() {
 
     setIsLeadBusy(true);
     try {
-      const response = await fetch(`/api/admin/crm/leads/${selectedLeadId}/activities`, {
+      await adminRequest(`/api/admin/crm/leads/${selectedLeadId}/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -732,8 +815,6 @@ export default function CrmTab() {
           ...(followupIso ? { nextFollowupAt: followupIso } : {}),
         }),
       });
-      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error ?? 'Unable to add activity.');
 
       setActivityDraft('');
       setFollowupDraft('');
@@ -889,6 +970,52 @@ export default function CrmTab() {
         ))}
       </div>
 
+      {/* Response health — speed-to-lead, aging, and scan-cap honesty */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-neutral-200 bg-white px-4 py-2.5 text-xs text-neutral-600">
+        <span className="font-semibold text-neutral-900">Response health</span>
+        {summary.avgFirstResponseMinutes != null ? (
+          <span>
+            Avg first response{' '}
+            <span className="font-semibold text-neutral-900">
+              {formatDurationFromMinutes(summary.avgFirstResponseMinutes)}
+            </span>
+            {' · median '}
+            <span className="font-semibold text-neutral-900">
+              {formatDurationFromMinutes(summary.medianFirstResponseMinutes ?? summary.avgFirstResponseMinutes)}
+            </span>
+          </span>
+        ) : (
+          <span className="text-neutral-500">Speed-to-lead appears once leads have a first contact.</span>
+        )}
+        {summary.newUncontactedOver24h > 0 ? (
+          <span className="rounded-full bg-red-50 px-2.5 py-1 font-semibold text-red-700">
+            {summary.newUncontactedOver24h} new lead(s) uncontacted over 24h
+          </span>
+        ) : (
+          <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+            No new leads aging past 24h
+          </span>
+        )}
+        {/* B7: promote the retention worklist — one click jumps to it. */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsRetentionExpanded(true);
+            requestAnimationFrame(() => {
+              document.getElementById('crm-retention')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+          }}
+          className="rounded-full bg-[#fff7f0] px-2.5 py-1 font-semibold text-ink transition hover:bg-[#ffefe0]"
+        >
+          Repeat grooming due ({retentionTotal})
+        </button>
+        {summary.truncated ? (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
+            Summary scans the latest 5,000 leads — counts are a lower bound
+          </span>
+        ) : null}
+      </div>
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex flex-wrap gap-1.5">
@@ -915,6 +1042,84 @@ export default function CrmTab() {
           ))}
         </div>
 
+        {/* Refine row — assignee / source / priority (B1) + triage preset + area chip (B4) */}
+        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto">
+          <select
+            aria-label="Filter by assignee"
+            value={assignedFilter}
+            onChange={(event) => {
+              setAssignedFilter(event.target.value);
+              setPage(0);
+            }}
+            className="min-h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
+          >
+            <option value="all">All assignees</option>
+            <option value="me">Assigned to me</option>
+            <option value="unassigned">Unassigned</option>
+            {staffUsers.map((staff) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter by source"
+            value={sourceFilter}
+            onChange={(event) => {
+              setSourceFilter(event.target.value as 'all' | CrmLeadSource);
+              setPage(0);
+            }}
+            className="min-h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
+          >
+            <option value="all">All sources</option>
+            {(Object.keys(SOURCE_LABELS) as CrmLeadSource[]).map((source) => (
+              <option key={source} value={source}>
+                {SOURCE_LABELS[source]}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Filter by priority"
+            value={priorityFilter}
+            onChange={(event) => {
+              setPriorityFilter(event.target.value as 'all' | 'hot');
+              setPage(0);
+            }}
+            className="min-h-9 rounded-lg border border-neutral-200 bg-white px-2.5 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
+          >
+            <option value="all">Any priority</option>
+            <option value="hot">Hot only</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => {
+              setAssignedFilter('unassigned');
+              setStatusFilter('new');
+              setPage(0);
+            }}
+            className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100"
+          >
+            Needs triage
+          </button>
+          {areaFilter ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#f2dfcf] bg-[#fff7f0] px-3 py-1.5 text-xs font-semibold text-ink">
+              Area: {areaFilterName ?? areaFilter}
+              <button
+                type="button"
+                aria-label="Clear area filter"
+                onClick={() => {
+                  setAreaFilter(null);
+                  setAreaFilterName(null);
+                  setPage(0);
+                }}
+                className="text-neutral-500 transition hover:text-neutral-800"
+              >
+                ✕
+              </button>
+            </span>
+          ) : null}
+        </div>
+
         <div className="ml-auto flex w-full max-w-xs items-center gap-2 sm:w-auto">
           <Input
             type="search"
@@ -939,6 +1144,88 @@ export default function CrmTab() {
         </div>
       </div>
 
+      {/* Bulk actions bar (B3) — appears only when leads are selected */}
+      {selectedLeadIds.size > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-neutral-900 px-4 py-2.5 text-xs text-white">
+          <span className="font-semibold">{selectedLeadIds.size} selected</span>
+          <select
+            aria-label="Bulk assign to"
+            defaultValue=""
+            disabled={isBulkBusy}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value) void runBulkUpdate({ type: 'assign', assignedTo: value });
+              event.target.value = '';
+            }}
+            className="min-h-8 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+          >
+            <option value="" disabled className="text-neutral-900">
+              Assign to…
+            </option>
+            {staffUsers.map((staff) => (
+              <option key={staff.id} value={staff.id} className="text-neutral-900">
+                {staff.name}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Bulk set status"
+            value={bulkStatusDraft}
+            disabled={isBulkBusy}
+            onChange={(event) => setBulkStatusDraft(event.target.value as '' | CrmLeadStatus)}
+            className="min-h-8 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+          >
+            <option value="" className="text-neutral-900">
+              Set status…
+            </option>
+            {(['contacted', 'interested', 'follow_up', 'lost', 'cancelled'] as const).map((status) => (
+              <option key={status} value={status} className="text-neutral-900">
+                {STATUS_LABELS[status]}
+              </option>
+            ))}
+          </select>
+          {bulkStatusDraft === 'lost' ? (
+            <select
+              aria-label="Bulk lost reason"
+              value={bulkLostReason}
+              disabled={isBulkBusy}
+              onChange={(event) => setBulkLostReason(event.target.value)}
+              className="min-h-8 rounded-lg border border-white/20 bg-white/10 px-2 py-1 text-xs font-semibold text-white focus:outline-none focus:ring-2 focus:ring-white/30"
+            >
+              {LOST_REASON_OPTIONS.map((reason) => (
+                <option key={reason} value={reason} className="text-neutral-900">
+                  {reason}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {bulkStatusDraft !== '' ? (
+            <button
+              type="button"
+              disabled={isBulkBusy}
+              onClick={() =>
+                void runBulkUpdate({
+                  type: 'status',
+                  status: bulkStatusDraft,
+                  ...(bulkStatusDraft === 'lost' ? { lostReason: bulkLostReason } : {}),
+                })
+              }
+              className="min-h-8 rounded-lg bg-coral px-3 py-1 font-semibold text-white transition hover:brightness-95 disabled:opacity-60"
+            >
+              {isBulkBusy ? 'Applying…' : `Apply ${STATUS_LABELS[bulkStatusDraft]}`}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={isBulkBusy}
+            onClick={() => setSelectedLeadIds(new Set())}
+            className="ml-auto min-h-8 rounded-lg border border-white/20 px-3 py-1 font-semibold text-white/80 transition hover:text-white disabled:opacity-60"
+          >
+            Clear selection
+          </button>
+        </div>
+      ) : null}
+
       {/* Lost reasons (when any exist) */}
       {summary.lostReasons.length > 0 ? (
         <div className="rounded-2xl border border-neutral-200 bg-white px-4 py-3">
@@ -956,7 +1243,7 @@ export default function CrmTab() {
       ) : null}
 
       {/* Retention — repeat grooming due (Phase 6); minimized by default, expandable */}
-      <div className="rounded-2xl border border-neutral-200 bg-white p-4">
+      <div id="crm-retention" className="rounded-2xl border border-neutral-200 bg-white p-4 scroll-mt-24">
         <button
           type="button"
           onClick={() => setIsRetentionExpanded((open) => !open)}
@@ -977,6 +1264,15 @@ export default function CrmTab() {
             {isRetentionExpanded ? 'Hide ▲' : 'Show ▼'}
           </span>
         </button>
+
+        {retentionError ? (
+          <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {retentionError}{' '}
+            <button type="button" onClick={() => void loadRetention()} className="underline underline-offset-2">
+              Retry
+            </button>
+          </p>
+        ) : null}
 
         {isRetentionExpanded ? (
           <>
@@ -1015,6 +1311,11 @@ export default function CrmTab() {
                         Last grooming {candidate.lastGroomingDate} ({candidate.daysSinceLastGrooming}d ago) · next rec.{' '}
                         {candidate.nextRecommendedDate} · {candidate.completedBookings} completed · ₹{candidate.totalSpentInr} lifetime
                       </p>
+                      {candidate.daysSinceLastGrooming > retentionDays * 1.5 ? (
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
+                          At risk
+                        </span>
+                      ) : null}
                     </div>
                     <button
                       type="button"
@@ -1069,14 +1370,38 @@ export default function CrmTab() {
       {/* Campaign performance (Phase 7) */}
       <div className="rounded-2xl border border-neutral-200 bg-white p-4">
         <p className="text-sm font-semibold text-neutral-900">Campaign performance</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {(['30', '90', 'all'] as const).map((window) => (
+            <button
+              key={window}
+              type="button"
+              onClick={() => setCampaignWindow(window)}
+              className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition ${
+                campaignWindow === window
+                  ? 'border-neutral-900 bg-neutral-900 text-white'
+                  : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:text-neutral-900'
+              }`}
+            >
+              {window === 'all' ? 'All time' : `Last ${window} days`}
+            </button>
+          ))}
+        </div>
         <p className="mt-0.5 text-xs text-neutral-500">
           Leads → conversion → revenue per campaign (converted leads linked to booking value).
         </p>
+        {campaignsError ? (
+          <p className="mt-2 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {campaignsError}{' '}
+            <button type="button" onClick={() => void loadCampaigns()} className="underline underline-offset-2">
+              Retry
+            </button>
+          </p>
+        ) : null}
         {campaignRows.length > 0 ? (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wide text-neutral-400">
+                <tr className="text-[11px] uppercase tracking-wide text-neutral-400">
                   <th className="pb-2 pr-3 font-semibold">Campaign</th>
                   <th className="pb-2 pr-3 font-semibold">Leads</th>
                   <th className="pb-2 pr-3 font-semibold">Open</th>
@@ -1128,6 +1453,19 @@ export default function CrmTab() {
               : 'Cron import + sweep monitoring'}
           </p>
         </div>
+
+        {automationError ? (
+          <p className="mt-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {automationError}{' '}
+            <button
+              type="button"
+              onClick={() => void fetchAutomationStatus()}
+              className="underline underline-offset-2"
+            >
+              Retry
+            </button>
+          </p>
+        ) : null}
 
         {automationStatus ? (
           <>
@@ -1210,6 +1548,9 @@ export default function CrmTab() {
             {importDryRunResult ? (
               <p className="mt-1.5 rounded-xl bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700">{importDryRunResult}</p>
             ) : null}
+            {importHistoryError ? (
+              <p className="mt-1.5 rounded-xl bg-red-50 px-3 py-2 text-xs font-medium text-red-700">{importHistoryError}</p>
+            ) : null}
           </div>
           <div className="flex shrink-0 gap-2">
             <button
@@ -1237,6 +1578,23 @@ export default function CrmTab() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-neutral-100 bg-neutral-50/60">
             <tr className="text-[11px] uppercase tracking-wide text-neutral-500">
+              <th className="w-10 px-4 py-3">
+                <input
+                  type="checkbox"
+                  aria-label="Select all leads on this page"
+                  checked={leads.length > 0 && leads.every((lead) => selectedLeadIds.has(lead.id))}
+                  onChange={(event) => {
+                    setSelectedLeadIds((current) => {
+                      const next = new Set(current);
+                      for (const lead of leads) {
+                        if (event.target.checked) next.add(lead.id);
+                        else next.delete(lead.id);
+                      }
+                      return next;
+                    });
+                  }}
+                />
+              </th>
               <th className="px-4 py-3 font-semibold">Created</th>
               <th className="px-4 py-3 font-semibold">Customer</th>
               <th className="px-4 py-3 font-semibold">Source</th>
@@ -1249,19 +1607,34 @@ export default function CrmTab() {
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-500">
                   Loading leads…
                 </td>
               </tr>
             ) : leads.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-neutral-500">
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-neutral-500">
                   No leads found. Capture enquiries with the New lead button.
                 </td>
               </tr>
             ) : (
               leads.map((lead) => (
                 <tr key={lead.id} className="border-b border-neutral-50 last:border-0 hover:bg-neutral-50/50">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${lead.customer.name ?? 'lead'} for bulk actions`}
+                      checked={selectedLeadIds.has(lead.id)}
+                      onChange={(event) => {
+                        setSelectedLeadIds((current) => {
+                          const next = new Set(current);
+                          if (event.target.checked) next.add(lead.id);
+                          else next.delete(lead.id);
+                          return next;
+                        });
+                      }}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-xs text-neutral-500">{formatLeadTimestamp(lead.created_at)}</td>
                   <td className="px-4 py-3">
                     <button
@@ -1273,7 +1646,15 @@ export default function CrmTab() {
                       <p className="text-sm font-semibold text-neutral-900 hover:text-coral">
                         {lead.customer.name ?? 'Pet Owner'}
                       </p>
-                      <p className="text-xs text-neutral-500">{lead.customer.phone ?? '—'}</p>
+                      <p className="text-xs text-neutral-500">
+                      {lead.customer.phone ? (
+                        <a href={`tel:${lead.customer.phone}`} className="transition hover:text-coral">
+                          {lead.customer.phone}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </p>
                     </button>
                   </td>
                   <td className="px-4 py-3">
@@ -1377,7 +1758,7 @@ export default function CrmTab() {
                 id="crm-lead-source"
                 value={createDraft.source}
                 onChange={(event) => setCreateDraft((draft) => ({ ...draft, source: event.target.value as CreateLeadDraft['source'] }))}
-                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
               >
                 <option value="manual">Manual</option>
                 <option value="whatsapp">WhatsApp</option>
@@ -1391,7 +1772,7 @@ export default function CrmTab() {
                 id="crm-lead-priority"
                 value={createDraft.priority}
                 onChange={(event) => setCreateDraft((draft) => ({ ...draft, priority: event.target.value as 'normal' | 'hot' }))}
-                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
               >
                 <option value="normal">Normal</option>
                 <option value="hot">Hot</option>
@@ -1407,7 +1788,7 @@ export default function CrmTab() {
                 id="crm-lead-assignee"
                 value={createDraft.assignedTo}
                 onChange={(event) => setCreateDraft((draft) => ({ ...draft, assignedTo: event.target.value }))}
-                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none"
+                className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-neutral-900 focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
               >
                 <option value="">Auto-assign</option>
                 {staffUsers.map((member) => (
@@ -1466,8 +1847,27 @@ export default function CrmTab() {
                       <Badge variant="error" size="sm" className="ml-2">Hot</Badge>
                     ) : null}
                   </p>
-                  <p className="text-xs text-neutral-500">
-                    {leadDetail.lead.customer.phone ?? '—'}
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
+                    {leadDetail.lead.customer.phone ? (
+                      <>
+                        <a
+                          href={`tel:${leadDetail.lead.customer.phone}`}
+                          className="font-semibold text-neutral-700 underline decoration-neutral-300 underline-offset-2 transition hover:text-coral"
+                        >
+                          {leadDetail.lead.customer.phone}
+                        </a>
+                        <a
+                          href={buildWhatsAppHref(leadDetail.lead.customer.phone) ?? '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          WhatsApp
+                        </a>
+                      </>
+                    ) : (
+                      '—'
+                    )}
                     {leadDetail.lead.customer.email ? ` · ${leadDetail.lead.customer.email}` : ''}
                   </p>
                 </div>
@@ -1557,7 +1957,7 @@ export default function CrmTab() {
                     }
                     void patchLead(selectedLeadId, { status: next }, `Lead moved to ${STATUS_LABELS[next]}.`);
                   }}
-                  className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none"
+                  className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                 >
                   <option value="">Move status…</option>
                   <option value="contacted">Contacted</option>
@@ -1593,7 +1993,7 @@ export default function CrmTab() {
                     aria-label="Reassign lead"
                     value={reassignDraft}
                     onChange={(event) => setReassignDraft(event.target.value)}
-                    className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none"
+                    className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                   >
                     <option value="">Reassign to…</option>
                     {staffUsers.map((member) => (
@@ -1646,7 +2046,7 @@ export default function CrmTab() {
                     aria-label="Lost reason"
                     value={lostForm.reason}
                     onChange={(event) => setLostForm((draft) => ({ ...draft, reason: event.target.value }))}
-                    className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none"
+                    className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                   >
                     {LOST_REASON_OPTIONS.map((reason) => (
                       <option key={reason} value={reason}>
@@ -1717,7 +2117,7 @@ export default function CrmTab() {
                         onChange={(event) =>
                           setConvertForm((draft) => ({ ...draft, bookingId: event.target.value }))
                         }
-                        className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none"
+                        className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs font-semibold text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                       >
                         <option value="">Select booking…</option>
                         {convertForm.bookings.map((booking) => (
@@ -1828,12 +2228,25 @@ export default function CrmTab() {
                 onChange={(event) => setActivityDraft(event.target.value)}
               />
               <div className="flex flex-wrap items-center gap-2">
+                {/* Quick presets (C4) — one click beats datetime-local archaeology. */}
+                <div className="flex flex-wrap gap-1.5">
+                  {buildFollowupPresets().map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setFollowupDraft(preset.value)}
+                      className="rounded-full border border-neutral-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-neutral-600 transition hover:border-neutral-300 hover:text-neutral-900"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="datetime-local"
                   aria-label="Next follow-up (optional)"
                   value={followupDraft}
                   onChange={(event) => setFollowupDraft(event.target.value)}
-                  className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-700 focus:outline-none"
+                  className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-xs text-neutral-700 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                 />
                 <button
                   type="button"
@@ -1890,8 +2303,27 @@ export default function CrmTab() {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="text-base font-semibold text-neutral-900">{customer360Data.user.name ?? 'Pet Owner'}</p>
-                  <p className="text-xs text-neutral-500">
-                    {customer360Data.user.phone ?? '—'}
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-neutral-500">
+                    {customer360Data.user.phone ? (
+                      <>
+                        <a
+                          href={`tel:${customer360Data.user.phone}`}
+                          className="font-semibold text-neutral-700 underline decoration-neutral-300 underline-offset-2 transition hover:text-coral"
+                        >
+                          {customer360Data.user.phone}
+                        </a>
+                        <a
+                          href={buildWhatsAppHref(customer360Data.user.phone) ?? '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                        >
+                          WhatsApp
+                        </a>
+                      </>
+                    ) : (
+                      '—'
+                    )}
                     {customer360Data.user.email ? ` · ${customer360Data.user.email}` : ''}
                   </p>
                 </div>

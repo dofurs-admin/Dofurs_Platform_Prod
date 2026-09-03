@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
-import { CrmServiceError, runAbandonedBookingSweep } from '@/lib/crm/service';
+import { CrmServiceError, maybeSendLeadSlaAlert, runAbandonedBookingSweep } from '@/lib/crm/service';
 import { recordCrmAutomationHeartbeat } from '@/lib/crm/automation-status';
 
 function safeTokenEqual(expected: string, provided: string) {
@@ -99,6 +99,12 @@ export async function POST(request: Request) {
           skippedNoContact: result.skippedNoContact,
         },
       });
+    }
+
+    // Lead SLA alert piggybacks on the sweep cron cadence (every minute) with
+    // its own 6h cooldown — it never throws and never blocks the sweep result.
+    if (isAutomation && !parsed.data.dryRun) {
+      await maybeSendLeadSlaAlert(supabase);
     }
 
     return NextResponse.json({ success: true, result });

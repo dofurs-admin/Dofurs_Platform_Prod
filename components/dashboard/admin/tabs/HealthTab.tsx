@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition } from 'react';
 import AdminHealthView from '@/components/dashboard/admin/views/AdminHealthView';
+import AutomationHealthCard from '@/components/dashboard/admin/automation/AutomationHealthCard';
 import { useToast } from '@/components/ui/ToastProvider';
 
 type SchemaSyncCheck = {
@@ -339,20 +340,24 @@ export default function HealthTab() {
   }
 
   return (
-    <AdminHealthView
-      schemaSyncHealth={schemaSyncHealth}
-      schemaSyncDurationMs={schemaSyncDurationMs}
-      isSchemaSyncChecking={isSchemaSyncChecking}
-      functionalHealthChecks={functionalHealthChecks}
-      isFunctionalHealthChecking={isFunctionalHealthChecking}
-      financeIntegrityHealth={financeIntegrityHealth}
-      financeIntegrityDurationMs={financeIntegrityDurationMs}
-      isFinanceIntegrityChecking={isFinanceIntegrityChecking}
-      isPending={isPending}
-      onRunSchemaSyncHealthCheck={runSchemaSyncHealthCheck}
-      onRunFunctionalHealthChecks={runFunctionalHealthChecks}
-      onRunFinanceIntegrityCheck={runFinanceIntegrityCheck}
-      onDownloadSchemaHealthReport={downloadSchemaHealthReport}
-    />
+    <div className="space-y-6">
+      <AdminHealthView
+        schemaSyncHealth={schemaSyncHealth}
+        schemaSyncDurationMs={schemaSyncDurationMs}
+        isSchemaSyncChecking={isSchemaSyncChecking}
+        functionalHealthChecks={functionalHealthChecks}
+        isFunctionalHealthChecking={isFunctionalHealthChecking}
+        financeIntegrityHealth={financeIntegrityHealth}
+        financeIntegrityDurationMs={financeIntegrityDurationMs}
+        isFinanceIntegrityChecking={isFinanceIntegrityChecking}
+        isPending={isPending}
+        onRunSchemaSyncHealthCheck={runSchemaSyncHealthCheck}
+        onRunFunctionalHealthChecks={runFunctionalHealthChecks}
+        onRunFinanceIntegrityCheck={runFinanceIntegrityCheck}
+        onDownloadSchemaHealthReport={downloadSchemaHealthReport}
+      />
+      {/* B11: one surface for every scheduled system — CRM heartbeats + billing crons. */}
+      <AutomationHealthCard />
+    </div>
   );
 }

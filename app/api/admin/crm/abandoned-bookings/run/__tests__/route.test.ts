@@ -20,6 +20,7 @@ vi.mock('@/lib/crm/service', () => ({
     }
   },
   runAbandonedBookingSweep: vi.fn(),
+  maybeSendLeadSlaAlert: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/crm/automation-status', () => ({
@@ -28,7 +29,7 @@ vi.mock('@/lib/crm/automation-status', () => ({
 
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { requireApiRole } from '@/lib/auth/api-auth';
-import { runAbandonedBookingSweep, CrmServiceError } from '@/lib/crm/service';
+import { runAbandonedBookingSweep, maybeSendLeadSlaAlert, CrmServiceError } from '@/lib/crm/service';
 import { recordCrmAutomationHeartbeat } from '@/lib/crm/automation-status';
 import { POST } from '@/app/api/admin/crm/abandoned-bookings/run/route';
 
@@ -75,6 +76,8 @@ describe('POST /api/admin/crm/abandoned-bookings/run (route-side heartbeats)', (
 
     expect(response.status).toBe(200);
     expect(requireApiRole).not.toHaveBeenCalled();
+    // The lead-SLA alert piggybacks on secret-authenticated (cron) runs.
+    expect(maybeSendLeadSlaAlert).toHaveBeenCalledWith(supabase);
     expect(recordCrmAutomationHeartbeat).toHaveBeenCalledWith(
       supabase,
       expect.objectContaining({
@@ -138,6 +141,8 @@ describe('POST /api/admin/crm/abandoned-bookings/run (route-side heartbeats)', (
 
     expect(response.status).toBe(200);
     expect(recordCrmAutomationHeartbeat).not.toHaveBeenCalled();
+    // Manual admin-panel runs must not trigger the cron-driven SLA alert.
+    expect(maybeSendLeadSlaAlert).not.toHaveBeenCalled();
   });
 
   it('never fails the main run when heartbeat recording throws', async () => {

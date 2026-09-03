@@ -1,6 +1,7 @@
 import type { BookingStatus } from '@/lib/bookings/types';
 import { serviceCoveragePincodeMatches } from '@/lib/service-coverage';
-import type { GazeLeadAreaStat, GazeLeadKpis, GazeLeadPoint } from './leads';
+import { getISTDateString } from '@/lib/utils/date';
+import type { GazeLeadAreaStat, GazeLeadDataQuality, GazeLeadKpis, GazeLeadPoint } from './leads';
 
 // ── Shared response types ─────────────────────────────────────────────────────
 //
@@ -88,6 +89,8 @@ export type GazeOverviewResponse = {
   /** CRM leads aggregated per matched Bengaluru area, sorted by lead count. */
   leadAreas: GazeLeadAreaStat[];
   leadKpis: GazeLeadKpis;
+  /** Standing lead-data quality snapshot for the window (mapping share etc.). */
+  leadDataQuality: GazeLeadDataQuality;
   /**
    * All-time pincode centroids (booking-derived). The lead layer uses them as
    * a fallback so lead areas plot even when the selected window has no
@@ -101,6 +104,8 @@ export type GazeOverviewResponse = {
     toDate: string | null;
   };
   bookingsTruncated: boolean;
+  /** True when the lead layer hit its window cap (KPIs/bubbles undercount). */
+  leadsTruncated: boolean;
   generatedAt: string;
 };
 
@@ -199,19 +204,15 @@ export function resolveGazeDateKey(booking: {
     return null;
   }
 
-  const slicedDate = normalizedBookingStart.slice(0, 10);
-
-  if (/^\d{4}-\d{2}-\d{2}$/.test(slicedDate)) {
-    return slicedDate;
-  }
-
+  // Resolve timestamps onto the IST calendar day — a UTC slice would push
+  // bookings between 00:00 and 05:30 IST onto the previous day.
   const parsedDate = new Date(normalizedBookingStart);
 
   if (Number.isNaN(parsedDate.getTime())) {
     return null;
   }
 
-  return parsedDate.toISOString().slice(0, 10);
+  return getISTDateString(parsedDate);
 }
 
 // ── Aggregations ───────────────────────────────────────────────────────────────

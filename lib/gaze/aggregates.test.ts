@@ -70,6 +70,8 @@ describe('resolveGazeDateKey', () => {
 
   it('falls back to the booking_start timestamp', () => {
     expect(resolveGazeDateKey({ bookingDate: null, bookingStart: '2026-09-02T10:00:00Z' })).toBe('2026-09-02');
+    // IST boundary: 19:30 UTC on Sep 2 is 01:00 IST on Sep 3 — resolves to the IST day.
+    expect(resolveGazeDateKey({ bookingDate: null, bookingStart: '2026-09-02T19:30:00.000Z' })).toBe('2026-09-03');
   });
 
   it('returns null when no date can be resolved', () => {

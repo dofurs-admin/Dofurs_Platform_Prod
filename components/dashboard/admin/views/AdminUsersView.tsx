@@ -2,6 +2,7 @@
 
 import { Card, Input, Button } from '@/components/ui';
 import { cn } from '@/lib/design-system';
+import Link from 'next/link';
 import AdminSectionGuide from '@/components/dashboard/admin/AdminSectionGuide';
 import { exportToCsv } from '@/lib/utils/export';
 
@@ -130,7 +131,14 @@ export default function AdminUsersView({
                           {user.gender ?? '—'} • {user.age != null ? `${user.age} yrs` : 'Age unknown'} • Joined {new Date(user.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={`/dashboard/admin/crm?customer=${user.id}`}
+                          className="rounded-lg border border-neutral-300 px-2.5 py-1 text-xs font-semibold text-neutral-700 transition hover:border-neutral-400 hover:text-neutral-950"
+                          title="Open this customer's leads, bookings, payments, and grooming cadence in the CRM"
+                        >
+                          CRM 360
+                        </Link>
                         {user.profile_type === 'customer' ? (
                           <span className="rounded-full border border-neutral-200 bg-neutral-50 px-2 py-0.5 text-xs font-medium text-neutral-700">
                             Pets: {user.pets.length}

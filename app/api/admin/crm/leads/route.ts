@@ -36,6 +36,8 @@ export async function GET(request: Request) {
   const sourceParam = url.searchParams.get('source');
   const statusFilter = statusParam ? (isCrmLeadStatus(statusParam) ? statusParam : null) : undefined;
   const sourceFilter = sourceParam ? (isCrmLeadSource(sourceParam) ? sourceParam : null) : undefined;
+  const areaParam = url.searchParams.get('area');
+  const areaFilter = areaParam && /^[a-z0-9-]{1,80}$/.test(areaParam) ? areaParam : undefined;
 
   if (statusFilter === null) {
     return NextResponse.json({ error: 'Invalid status filter' }, { status: 400 });
@@ -58,6 +60,7 @@ export async function GET(request: Request) {
         assignedTo: assignedTo ?? undefined,
         search: search || undefined,
         dueOnly,
+        area: areaFilter,
         limit,
         offset,
         includeTotal: true,

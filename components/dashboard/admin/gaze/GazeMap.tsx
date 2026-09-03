@@ -2,6 +2,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import { Fragment, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { Circle, CircleMarker, MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { Maximize2 } from 'lucide-react';
@@ -332,6 +333,15 @@ export default function GazeMap({
                           <p className="text-xs text-neutral-600">
                             {stat.bookingCount} booking(s) of demand without an enabled provider service.
                           </p>
+                          {/* B4: the "act" half of see-demand → act. */}
+                          <p className="pt-1">
+                            <Link
+                              href="/dashboard/admin/providers"
+                              className="text-xs font-semibold text-coral underline decoration-coral/40 underline-offset-2 transition hover:brightness-90"
+                            >
+                              Onboard a groomer covering {stat.pincode} →
+                            </Link>
+                          </p>
                         </div>
                       </Popup>
                     </Circle>
@@ -408,6 +418,16 @@ export default function GazeMap({
                       </p>
                       <p className="text-xs font-medium text-neutral-500">
                         Colour: {LEAD_DISPLAY_PHASE_LABELS[displayPhase]}
+                      </p>
+                      {/* B4: close the "see demand → act" loop — deep-link into the
+                          CRM list pre-filtered to this area's open leads. */}
+                      <p className="pt-1">
+                        <Link
+                          href={`/dashboard/admin/crm?area=${area.areaSlug}&areaName=${encodeURIComponent(area.areaName)}&status=open`}
+                          className="text-xs font-semibold text-coral underline decoration-coral/40 underline-offset-2 transition hover:brightness-90"
+                        >
+                          Open {area.openCount} open lead(s) in CRM →
+                        </Link>
                       </p>
                     </div>
                   </Popup>
@@ -517,7 +537,7 @@ export default function GazeMap({
       <div className="pointer-events-none absolute bottom-3 left-3 z-[600] flex max-w-[calc(100%-1.5rem)] flex-col gap-1.5 rounded-xl border border-neutral-200/80 bg-white/95 px-3 py-2.5 shadow-soft-md backdrop-blur-sm">
         {showHeatLayer ? (
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Demand</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Demand</span>
             <span className="flex items-center gap-1">
               {GAZE_HEAT_BUBBLE_TIERS.map((tier) => (
                 <span
@@ -526,7 +546,7 @@ export default function GazeMap({
                   style={{ backgroundColor: tier.fillColor }}
                 />
               ))}
-              <span className="text-[10px] text-neutral-500">low → high</span>
+              <span className="text-[11px] text-neutral-500">low → high</span>
             </span>
           </div>
         ) : null}
@@ -536,7 +556,7 @@ export default function GazeMap({
               className="h-2.5 w-2.5 rounded-full border-2 bg-white"
               style={{ borderColor: GROOMER_ACTIVE_COLOR }}
             />
-            <span className="text-[10px] text-neutral-600">Groomer / clinic base</span>
+            <span className="text-[11px] text-neutral-600">Groomer / clinic base</span>
           </div>
         ) : null}
         {showCoverage && showGroomers ? (
@@ -545,7 +565,7 @@ export default function GazeMap({
               className="h-2.5 w-2.5 rounded-full border"
               style={{ backgroundColor: 'rgba(15, 118, 110, 0.1)', borderColor: GROOMER_ACTIVE_COLOR }}
             />
-            <span className="text-[10px] text-neutral-600">Coverage radius</span>
+            <span className="text-[11px] text-neutral-600">Coverage radius</span>
           </div>
         ) : null}
         {showCoverageGaps ? (
@@ -554,12 +574,12 @@ export default function GazeMap({
               className="h-2.5 w-2.5 rounded-full border-2 border-dashed bg-transparent"
               style={{ borderColor: COVERAGE_GAP_COLOR }}
             />
-            <span className="text-[10px] text-neutral-600">Demand without coverage</span>
+            <span className="text-[11px] text-neutral-600">Demand without coverage</span>
           </div>
         ) : null}
         {showLeadAreas ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
               Lead areas
             </span>
             {(Object.keys(LEAD_PHASE_COLORS) as GazeLeadDisplayPhase[]).map((phase) => (
@@ -568,15 +588,15 @@ export default function GazeMap({
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: LEAD_PHASE_COLORS[phase] }}
                 />
-                <span className="text-[10px] text-neutral-600">{LEAD_DISPLAY_PHASE_LABELS[phase]}</span>
+                <span className="text-[11px] text-neutral-600">{LEAD_DISPLAY_PHASE_LABELS[phase]}</span>
               </span>
             ))}
-            <span className="text-[10px] text-neutral-400">bigger circle = more leads, click for details</span>
+            <span className="text-[11px] text-neutral-400">bigger circle = more leads, click for details</span>
           </div>
         ) : null}
         {showBookingPins ? (
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Status</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</span>
             <span className="flex flex-wrap items-center gap-1.5">
               {(Object.keys(GAZE_BOOKING_STATUS_COLORS) as BookingStatus[]).map((status) => (
                 <span key={status} className="flex items-center gap-1">
@@ -584,7 +604,7 @@ export default function GazeMap({
                     className="h-2 w-2 rounded-full"
                     style={{ backgroundColor: GAZE_BOOKING_STATUS_COLORS[status] }}
                   />
-                  <span className="text-[10px] text-neutral-600">{BOOKING_STATUS_LABELS[status]}</span>
+                  <span className="text-[11px] text-neutral-600">{BOOKING_STATUS_LABELS[status]}</span>
                 </span>
               ))}
             </span>

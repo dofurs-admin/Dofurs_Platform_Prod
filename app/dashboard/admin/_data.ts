@@ -5,8 +5,35 @@ import {
   listAdminProviderModerationItems,
   listPlatformDiscounts,
 } from '@/lib/provider-management/service';
+import type { PlatformDiscountAnalyticsSummary } from '@/lib/provider-management/types';
 import { listServiceProviderApplications } from '@/lib/provider-applications/service';
 import { loadAdminDashboardBusinessStats } from '@/lib/admin/dashboard-stats';
+
+/**
+ * D2: views that render self-fetching tabs (CRM, Gaze, Health, Audit, Users,
+ * Payments, Subscriptions, Billing, Access, Blog) need none of the shared
+ * dashboard dataset — they spread these empty props instead of paying for
+ * ~10 queries on every admin navigation.
+ */
+export const EMPTY_ADMIN_DASHBOARD_DATA = {
+  initialBookings: [],
+  providers: [],
+  moderationProviders: [],
+  initialProviderApplications: [],
+  initialServiceSummary: [],
+  initialDiscounts: [],
+  initialDiscountAnalytics: {
+    total_discounts: 0,
+    total_active_discounts: 0,
+    total_redemptions: 0,
+    total_discount_amount: 0,
+    total_bookings: 0,
+    booking_redemption_rate: 0,
+    top_discounts: [],
+  } satisfies PlatformDiscountAnalyticsSummary,
+  initialServiceCategories: [],
+  initialCatalogServices: [],
+};
 
 type LoadAdminDashboardDataOptions = {
   includeBusinessStats?: boolean;

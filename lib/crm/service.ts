@@ -5,6 +5,7 @@ import {
   type CustomerIntakeResult,
 } from '@/lib/bookings/customer-intake';
 import { acquireDistributedLock, releaseDistributedLock } from '@/lib/api/distributed-lock';
+import { isRateLimited } from '@/lib/api/rate-limit';
 import { createNotification } from '@/lib/notifications/service';
 import { toIndianE164 } from '@/lib/utils/india-phone';
 import { assertLeadStateTransition } from './lead-transition-guard';
@@ -15,6 +16,7 @@ import {
   mapMetaSheetRowsToCandidates,
   type MetaSheetLeadCandidate,
 } from './sources/meta-sheet';
+import { resolveLeadAreaSlug } from '@/lib/gaze/leads';
 import {
   CRM_LEAD_OPEN_STATUSES,
   RETENTION_DEFAULT_RECOMMENDED_DAYS,
@@ -99,8 +101,11 @@ export type ListCrmLeadsOptions = {
   status?: CrmLeadStatus;
   source?: CrmLeadSource;
   priority?: 'normal' | 'hot';
-  assignedTo?: string;
+  /** Staff user id, or the literal 'unassigned' for leads with no assignee. */
+  assignedTo?: string | 'unassigned';
   search?: string;
+  /** Bengaluru area slug (gazetteer) — matches lead area text or manual pincode. */
+  area?: string;
   /** Open leads whose next follow-up is due now or overdue. */
   dueOnly?: boolean;
   limit?: number;
@@ -164,7 +169,9 @@ export async function listCrmLeads(
     if (options.priority) {
       query = query.eq('priority', options.priority);
     }
-    if (options.assignedTo) {
+    if (options.assignedTo === 'unassigned') {
+      query = query.is('assigned_to', null);
+    } else if (options.assignedTo) {
       query = query.eq('assigned_to', options.assignedTo);
     }
     if (options.dueOnly) {
@@ -179,6 +186,25 @@ export async function listCrmLeads(
     }
     return query;
   };
+
+  // Area filter (B4 deep links): the gazetteer match cannot run in SQL, so
+  // fetch the full filtered set (bounded), match server-side with the same
+  // chain the Gaze lead layer uses, then paginate in memory.
+  if (options.area) {
+    const { data: areaRows, error: areaError } = await buildFilteredQuery(LEAD_SELECT, false)
+      .order('created_at', { ascending: false })
+      .limit(5000)
+      .returns<LeadEmbedRow[]>();
+
+    if (areaError) {
+      throw new CrmServiceError(areaError.message);
+    }
+
+    const matched = (areaRows ?? []).filter((row) => resolveLeadAreaSlug(row) === options.area);
+    const pageRows = matched.slice(offset, offset + limit).map(toLeadWithCustomer);
+
+    return { leads: pageRows, total: options.includeTotal ? matched.length : null };
+  }
 
   const { data, error } = await buildFilteredQuery(LEAD_SELECT, false)
     .order('created_at', { ascending: false })
@@ -206,7 +232,7 @@ export async function listCrmLeads(
 export async function getCrmLeadSummary(supabase: SupabaseClient): Promise<CrmLeadSummary> {
   const { data, error } = await supabase
     .from('crm_leads')
-    .select('status, priority, next_followup_at, lost_reason')
+    .select('status, priority, next_followup_at, lost_reason, created_at, first_contacted_at')
     .order('created_at', { ascending: false })
     .limit(SUMMARY_SCAN_LIMIT);
 
@@ -227,9 +253,14 @@ export async function getCrmLeadSummary(supabase: SupabaseClient): Promise<CrmLe
     hot: 0,
     overdue_followups: 0,
     lostReasons: [],
+    truncated: false,
+    avgFirstResponseMinutes: null,
+    medianFirstResponseMinutes: null,
+    newUncontactedOver24h: 0,
   };
 
   const lostReasonCounts = new Map<string, number>();
+  const firstResponseMinutes: number[] = [];
 
   for (const row of data ?? []) {
     if (row.status === 'new') summary.new += 1;
@@ -257,7 +288,38 @@ export async function getCrmLeadSummary(supabase: SupabaseClient): Promise<CrmLe
     ) {
       summary.overdue_followups += 1;
     }
+
+    // Speed-to-lead: minutes from lead creation to first contact.
+    const createdAtMs = Date.parse(row.created_at ?? '');
+    const firstContactedMs = Date.parse(row.first_contacted_at ?? '');
+
+    if (Number.isFinite(createdAtMs) && Number.isFinite(firstContactedMs)) {
+      const elapsedMinutes = (firstContactedMs - createdAtMs) / 60_000;
+      if (elapsedMinutes >= 0) {
+        firstResponseMinutes.push(elapsedMinutes);
+      }
+    }
+
+    // Aging: new leads waiting over 24h without any first contact.
+    if (
+      row.status === 'new' &&
+      !row.first_contacted_at &&
+      Number.isFinite(createdAtMs) &&
+      Date.parse(nowIso) - createdAtMs > 24 * 3_600_000
+    ) {
+      summary.newUncontactedOver24h += 1;
+    }
   }
+
+  if (firstResponseMinutes.length > 0) {
+    const totalMinutes = firstResponseMinutes.reduce((accumulator, value) => accumulator + value, 0);
+    summary.avgFirstResponseMinutes = Math.round(totalMinutes / firstResponseMinutes.length);
+    const sorted = [...firstResponseMinutes].sort((left, right) => left - right);
+    summary.medianFirstResponseMinutes = Math.round(sorted[Math.floor(sorted.length / 2)] ?? 0);
+  }
+
+  // Honesty at the scan cap: past SUMMARY_SCAN_LIMIT every count is a lower bound.
+  summary.truncated = (data?.length ?? 0) >= SUMMARY_SCAN_LIMIT;
 
   summary.lostReasons = Array.from(lostReasonCounts.entries())
     .map(([reason, count]) => ({ reason, count }))
@@ -265,6 +327,49 @@ export async function getCrmLeadSummary(supabase: SupabaseClient): Promise<CrmLe
     .slice(0, 5);
 
   return summary;
+}
+
+// ── Lead SLA alert (speed-to-lead + overdue follow-ups) ────────────────────────
+
+const LEAD_SLA_ALERT_COOLDOWN = { windowMs: 6 * 60 * 60_000, maxRequests: 1 } as const;
+
+/**
+ * Out-of-band lead-SLA alert driven by the abandoned-booking sweep cron (runs
+ * every minute): pings Discord when follow-ups are overdue or new leads have
+ * aged past 24h without contact. The shared rate-limit RPC acts as a cooldown
+ * (at most one alert per 6h), consumed only when there is something to report.
+ * Never throws — alerting must never break the sweep run.
+ */
+export async function maybeSendLeadSlaAlert(supabase: SupabaseClient): Promise<void> {
+  try {
+    const summary = await getCrmLeadSummary(supabase);
+    const parts: string[] = [];
+
+    if (summary.overdue_followups > 0) {
+      parts.push(`${summary.overdue_followups} overdue follow-up(s)`);
+    }
+
+    if (summary.newUncontactedOver24h > 0) {
+      parts.push(`${summary.newUncontactedOver24h} new lead(s) uncontacted over 24h`);
+    }
+
+    if (parts.length === 0) {
+      return;
+    }
+
+    const cooldown = await isRateLimited(supabase, 'crm:alert:lead_sla', LEAD_SLA_ALERT_COOLDOWN);
+    if (cooldown.limited) {
+      return;
+    }
+
+    await sendCrmOpsAlert({
+      level: 'warning',
+      title: 'Lead SLA attention',
+      message: `${parts.join(' · ')} — open the CRM to work the queue.`,
+    });
+  } catch (error) {
+    console.error('[crm] Lead SLA alert failed:', error instanceof Error ? error.message : error);
+  }
 }
 
 // ── Detail ─────────────────────────────────────────────────────────────────────
@@ -820,6 +925,63 @@ export async function updateCrmLead(
   return toLeadWithCustomer(updated);
 }
 
+// ── Bulk updates (B3) ──────────────────────────────────────────────────────────
+
+export type BulkUpdateCrmLeadsAction =
+  | { type: 'assign'; assignedTo: string }
+  | { type: 'status'; status: CrmLeadStatus; lostReason?: string };
+
+export type BulkUpdateCrmLeadsResult = {
+  requested: number;
+  updated: number;
+  skipped: Array<{ leadId: string; reason: string }>;
+};
+
+/**
+ * Bulk assign / bulk status for the leads worklist. Runs each lead through the
+ * SAME updateCrmLead path as the per-lead modal — transition guards, activity
+ * logging, assignee notifications, and hot-lead alerts all apply identically,
+ * and per-lead failures are reported instead of aborting the batch.
+ */
+export async function bulkUpdateCrmLeads(
+  supabase: SupabaseClient,
+  input: { actorUserId: string; leadIds: string[]; action: BulkUpdateCrmLeadsAction },
+): Promise<BulkUpdateCrmLeadsResult> {
+  if (input.leadIds.length === 0) {
+    throw new CrmServiceError('Select at least one lead.', 400);
+  }
+
+  if (input.leadIds.length > 100) {
+    throw new CrmServiceError('Bulk updates are capped at 100 leads per run.', 400);
+  }
+
+  const result: BulkUpdateCrmLeadsResult = {
+    requested: input.leadIds.length,
+    updated: 0,
+    skipped: [],
+  };
+
+  for (const leadId of input.leadIds) {
+    try {
+      await updateCrmLead(supabase, leadId, {
+        actorUserId: input.actorUserId,
+        ...(input.action.type === 'assign' ? { assignedTo: input.action.assignedTo } : {}),
+        ...(input.action.type === 'status'
+          ? { status: input.action.status, lostReason: input.action.lostReason }
+          : {}),
+      });
+      result.updated += 1;
+    } catch (error) {
+      result.skipped.push({
+        leadId,
+        reason: error instanceof CrmServiceError ? error.message : 'Update failed.',
+      });
+    }
+  }
+
+  return result;
+}
+
 // ── Activities ─────────────────────────────────────────────────────────────────
 
 export type AddLeadActivityInput = {
@@ -1214,7 +1376,7 @@ export type RunMetaSheetImportResult = {
   preview: Array<{ name: string; phone: string | null; email: string | null; campaign: string | null; externalLeadId: string }>;
 };
 
-type SheetImportRunRow = {
+export type SheetImportRunRow = {
   trigger_source: 'admin_panel' | 'cron';
   status: 'success' | 'failed';
   dry_run: boolean;
@@ -2031,10 +2193,13 @@ export type CrmCampaignPerformance = {
   revenueInr: number;
 };
 
-export async function listCampaignPerformance(supabase: SupabaseClient): Promise<CrmCampaignPerformance[]> {
+export async function listCampaignPerformance(
+  supabase: SupabaseClient,
+  options: { sinceIso?: string } = {},
+): Promise<CrmCampaignPerformance[]> {
   const { data: leadRows, error } = await supabase
     .from('crm_leads')
-    .select('source, status, source_details, converted_booking_id')
+    .select('source, status, source_details, converted_booking_id, created_at')
     .order('created_at', { ascending: false })
     .limit(5000)
     .returns<
@@ -2043,6 +2208,7 @@ export async function listCampaignPerformance(supabase: SupabaseClient): Promise
         status: string;
         source_details: Record<string, unknown> | null;
         converted_booking_id: number | null;
+        created_at: string;
       }>
     >();
 
@@ -2050,10 +2216,15 @@ export async function listCampaignPerformance(supabase: SupabaseClient): Promise
     throw new CrmServiceError(`Unable to load campaign analytics: ${error.message}`);
   }
 
+  // B6: optional date window — campaigns are no longer all-time only.
+  const windowedRows = options.sinceIso
+    ? (leadRows ?? []).filter((row) => row.created_at >= (options.sinceIso ?? ''))
+    : (leadRows ?? []);
+
   // Revenue: final prices of the bookings behind converted leads.
   const convertedBookingIds = Array.from(
     new Set(
-      (leadRows ?? [])
+      windowedRows
         .map((row) => row.converted_booking_id)
         .filter((id): id is number => id != null),
     ),
@@ -2079,7 +2250,7 @@ export async function listCampaignPerformance(supabase: SupabaseClient): Promise
     CrmCampaignPerformance & { campaignKey: string }
   >();
 
-  for (const row of leadRows ?? []) {
+  for (const row of windowedRows) {
     const details = row.source_details ?? {};
     const campaignName =
       typeof details.campaign === 'string' && details.campaign.trim()

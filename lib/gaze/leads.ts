@@ -194,18 +194,39 @@ function leadAreaText(sourceDetails: Record<string, unknown> | null | undefined)
   return null;
 }
 
+/**
+ * Area match for a raw lead row (shared by the Gaze layer and the CRM list's
+ * area filter): area text match first, then manual-pincode reverse lookup.
+ */
+export function matchLeadAreaForRow(row: {
+  source_details?: Record<string, unknown> | null;
+  pincode?: string | null;
+}): GazeLeadAreaMatch | null {
+  const area = leadAreaText(row.source_details);
+  const explicitPincode = row.pincode?.trim() || null;
+
+  // Location resolution order: manual pincode (reverse-lookup area) → area
+  // text match (gazetteer) → unmapped. An explicit pincode always wins for
+  // the plotted pincode (coordinate accuracy) even when text matched too.
+  const textMatch = matchLeadArea(area);
+  const pincodeMatch = textMatch ? null : matchLeadAreaByPincode(explicitPincode);
+  return textMatch ?? pincodeMatch;
+}
+
+/** Convenience: just the matched area slug for a raw lead row (null = unmapped). */
+export function resolveLeadAreaSlug(row: {
+  source_details?: Record<string, unknown> | null;
+  pincode?: string | null;
+}): string | null {
+  return matchLeadAreaForRow(row)?.slug ?? null;
+}
+
 export function buildGazeLeadPoints(rows: readonly GazeLeadSourceRow[]): GazeLeadPoint[] {
   return rows.map((row) => {
     const customerRow = Array.isArray(row.users) ? row.users[0] : row.users;
     const area = leadAreaText(row.source_details);
     const explicitPincode = row.pincode?.trim() || null;
-
-    // Location resolution order: manual pincode (reverse-lookup area) → area
-    // text match (gazetteer) → unmapped. An explicit pincode always wins for
-    // the plotted pincode (coordinate accuracy) even when text matched too.
-    const textMatch = matchLeadArea(area);
-    const pincodeMatch = textMatch ? null : matchLeadAreaByPincode(explicitPincode);
-    const match = textMatch ?? pincodeMatch;
+    const match = matchLeadAreaForRow(row);
 
     return {
       id: row.id,
@@ -299,6 +320,41 @@ export function buildGazeLeadKpis(points: readonly GazeLeadPoint[]): GazeLeadKpi
     convertedLeads,
     mappedLeads,
   };
+}
+
+// ── Lead data quality (standing watch) ────────────────────────────────────────
+
+export type GazeLeadDataQuality = {
+  totalLeads: number;
+  /** Leads with a manually entered pincode (the strongest location signal). */
+  withManualPincode: number;
+  /** Leads matched to a gazetteer area (area text or pincode reverse-lookup). */
+  areaMatched: number;
+  /** Leads with non-empty area text that matched nothing — includes junk answers. */
+  unmatchedWithAreaText: number;
+};
+
+export function buildLeadDataQuality(rows: readonly GazeLeadSourceRow[]): GazeLeadDataQuality {
+  const quality: GazeLeadDataQuality = {
+    totalLeads: rows.length,
+    withManualPincode: 0,
+    areaMatched: 0,
+    unmatchedWithAreaText: 0,
+  };
+
+  for (const row of rows) {
+    if (row.pincode && row.pincode.trim()) {
+      quality.withManualPincode += 1;
+    }
+
+    if (matchLeadAreaForRow(row)) {
+      quality.areaMatched += 1;
+    } else if (leadAreaText(row.source_details)) {
+      quality.unmatchedWithAreaText += 1;
+    }
+  }
+
+  return quality;
 }
 
 // ── Status colour coding ──────────────────────────────────────────────────────

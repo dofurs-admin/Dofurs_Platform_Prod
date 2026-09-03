@@ -5,21 +5,15 @@ import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Flame, MapPin, Radar, RefreshCw, Scissors, Target, TriangleAlert, type LucideIcon } from 'lucide-react';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useSearchParams } from 'next/navigation';
 import { BOOKING_MODES, BOOKING_STATUSES, type BookingMode, type BookingStatus } from '@/lib/bookings/types';
 import type { GazeOverviewResponse, GazeWindowKey } from '@/lib/gaze/aggregates';
+import { CRM_SOURCE_LABELS } from '@/lib/crm/labels';
 import { aggregateLeadsByArea, buildGazeLeadKpis, type GazeLeadPoint } from '@/lib/gaze/leads';
 
-const LEAD_SOURCE_LABELS: Record<string, string> = {
-  meta_lead_form: 'Meta lead form',
-  google_ads: 'Google Ads',
-  website_enquiry: 'Website enquiry',
-  website_booking: 'Website booking',
-  website_abandoned_booking: 'Abandoned booking',
-  whatsapp: 'WhatsApp',
-  direct: 'Direct',
-  referral: 'Referral',
-  manual: 'Manual',
-};
+// Shared CRM source vocabulary (lib/crm/labels.ts) — widened because
+// GazeLeadPoint.source is a plain string, not the CrmLeadSource union.
+const LEAD_SOURCE_LABELS = CRM_SOURCE_LABELS as Record<string, string>;
 
 type GazeLeadStatusFilter = 'all' | 'open' | 'hot' | 'converted' | 'lost' | 'cancelled';
 
@@ -126,12 +120,28 @@ function buildGazeFitSignature(params: {
 export default function GazeTab() {
   const { showToast } = useToast();
 
-  const [windowKey, setWindowKey] = useState<GazeWindowKey>('30d');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>('all');
-  const [modeFilter, setModeFilter] = useState<'all' | BookingMode>('all');
-  const [providerFilter, setProviderFilter] = useState<'all' | number>('all');
+  // C2: the active window + filters live in the URL — refresh-stable views and
+  // shareable links (e.g. /dashboard/admin/gaze?window=7d&status=completed).
+  const searchParams = useSearchParams();
+
+  const [windowKey, setWindowKey] = useState<GazeWindowKey>(() => {
+    const value = searchParams.get('window');
+    return WINDOW_OPTIONS.some((option) => option.key === value) ? (value as GazeWindowKey) : '30d';
+  });
+  const [fromDate, setFromDate] = useState(() => (windowKey === 'custom' ? (searchParams.get('fromDate') ?? '') : ''));
+  const [toDate, setToDate] = useState(() => (windowKey === 'custom' ? (searchParams.get('toDate') ?? '') : ''));
+  const [statusFilter, setStatusFilter] = useState<'all' | BookingStatus>(() => {
+    const value = searchParams.get('status');
+    return value !== null && BOOKING_STATUSES.includes(value as BookingStatus) ? (value as BookingStatus) : 'all';
+  });
+  const [modeFilter, setModeFilter] = useState<'all' | BookingMode>(() => {
+    const value = searchParams.get('mode');
+    return value !== null && BOOKING_MODES.includes(value as BookingMode) ? (value as BookingMode) : 'all';
+  });
+  const [providerFilter, setProviderFilter] = useState<'all' | number>(() => {
+    const value = Number(searchParams.get('providerId'));
+    return Number.isInteger(value) && value > 0 ? value : 'all';
+  });
   const [enabledLayers, setEnabledLayers] = useState<Record<GazeLayerKey, boolean>>({
     heat: true,
     pins: false,
@@ -234,6 +244,21 @@ export default function GazeTab() {
     return () => clearInterval(interval);
   }, [loadOverview]);
 
+  // Mirror the active window + filters into the URL via the native history API
+  // (no navigation round-trip; refresh restores the view).
+  useEffect(() => {
+    const params = new URLSearchParams();
+    params.set('window', windowKey);
+    if (windowKey === 'custom') {
+      if (fromDate) params.set('fromDate', fromDate);
+      if (toDate) params.set('toDate', toDate);
+    }
+    if (statusFilter !== 'all') params.set('status', statusFilter);
+    if (modeFilter !== 'all') params.set('mode', modeFilter);
+    if (providerFilter !== 'all') params.set('providerId', String(providerFilter));
+    window.history.replaceState(null, '', `/dashboard/admin/gaze?${params.toString()}`);
+  }, [fromDate, modeFilter, providerFilter, statusFilter, toDate, windowKey]);
+
   // Auto-fit the map once per filter context (first load or filter change).
   // Background refreshes reuse the same signature, so they never reset the
   // operator's zoom or pan; the map's "Fit view" button re-fits on demand.
@@ -292,7 +317,7 @@ export default function GazeTab() {
       <div className="rounded-2xl border border-neutral-200/80 bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-end gap-2.5">
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Window</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Window</span>
             <select
               value={windowKey}
               onChange={(event) => setWindowKey(event.target.value as GazeWindowKey)}
@@ -309,7 +334,7 @@ export default function GazeTab() {
           {windowKey === 'custom' ? (
             <>
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">From</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">From</span>
                 <input
                   type="date"
                   value={fromDate}
@@ -318,7 +343,7 @@ export default function GazeTab() {
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">To</span>
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">To</span>
                 <input
                   type="date"
                   value={toDate}
@@ -330,7 +355,7 @@ export default function GazeTab() {
           ) : null}
 
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Status</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Status</span>
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value as 'all' | BookingStatus)}
@@ -346,7 +371,7 @@ export default function GazeTab() {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Mode</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Mode</span>
             <select
               value={modeFilter}
               onChange={(event) => setModeFilter(event.target.value as 'all' | BookingMode)}
@@ -362,7 +387,7 @@ export default function GazeTab() {
           </label>
 
           <label className="flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">Groomer</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Groomer</span>
             <select
               value={providerFilter === 'all' ? 'all' : String(providerFilter)}
               onChange={(event) =>
@@ -413,14 +438,14 @@ export default function GazeTab() {
             );
           })}
           {enabledLayers.pins ? (
-            <span className="text-[10px] font-medium text-neutral-400">Exact customer locations are visible</span>
+            <span className="text-[11px] font-medium text-neutral-400">Exact customer locations are visible</span>
           ) : null}
         </div>
 
         {enabledLayers.leads ? (
           <div className="mt-2 flex flex-wrap items-end gap-2 rounded-xl border border-neutral-200/70 bg-neutral-50/60 px-3 py-2.5">
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
                 Lead status
               </span>
               <select
@@ -438,7 +463,7 @@ export default function GazeTab() {
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
                 Lead source
               </span>
               <select
@@ -455,7 +480,7 @@ export default function GazeTab() {
               </select>
             </label>
 
-            <span className="text-[10px] font-medium text-neutral-400">
+            <span className="text-[11px] font-medium text-neutral-400">
               {formatCount(visibleLeadKpis.totalLeads)} lead(s) match · {formatCount(visibleLeadKpis.mappedLeads)} mapped to areas
             </span>
 
@@ -524,6 +549,13 @@ export default function GazeTab() {
                   </span>
                 </div>
               ) : null}
+              {overview.leadsTruncated ? (
+                <div className="pointer-events-none absolute inset-x-0 bottom-14 z-[600] flex justify-center">
+                  <span className="rounded-full border border-amber-200 bg-amber-50/95 px-3 py-1.5 text-[11px] font-medium text-amber-700 shadow-sm backdrop-blur-sm">
+                    Showing the {formatCount(overview.leads.length)} most recent leads in this window.
+                  </span>
+                </div>
+              ) : null}
             </>
           ) : (
             <div className="h-[62vh] min-h-[420px] w-full animate-pulse bg-neutral-100" />
@@ -560,7 +592,7 @@ export default function GazeTab() {
               <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-neutral-950">Top areas</h3>
-                  <span className="text-[10px] font-medium text-neutral-400">
+                  <span className="text-[11px] font-medium text-neutral-400">
                     {formatWindowRange(overview.window)}
                   </span>
                 </div>
@@ -583,7 +615,7 @@ export default function GazeTab() {
               <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-neutral-950">Top lead areas</h3>
-                  <span className="text-[10px] font-medium text-neutral-400">
+                  <span className="text-[11px] font-medium text-neutral-400">
                     {formatCount(visibleLeadKpis.mappedLeads)} mapped
                   </span>
                 </div>
@@ -591,7 +623,13 @@ export default function GazeTab() {
                   <ul className="mt-3 space-y-2">
                     {visibleLeadAreas.slice(0, 6).map((area) => (
                       <li key={area.areaSlug} className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-neutral-800">{area.areaName}</span>
+                        <Link
+                          href={`/dashboard/admin/crm?area=${area.areaSlug}&areaName=${encodeURIComponent(area.areaName)}&status=open`}
+                          className="font-semibold text-neutral-800 underline decoration-transparent underline-offset-2 transition hover:text-coral hover:decoration-coral/40"
+                          title="Open this area's open leads in the CRM"
+                        >
+                          {area.areaName}
+                        </Link>
                         <span className="text-neutral-500">
                           {formatCount(area.leadCount)} lead(s) · {formatCount(area.openCount)} open ·{' '}
                           {Math.round(area.conversionRate * 100)}% conv
@@ -609,13 +647,41 @@ export default function GazeTab() {
               </div>
 
               <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-neutral-950">Lead data health</h3>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-neutral-400">Area matched</p>
+                    <p className="mt-0.5 font-semibold text-neutral-800">
+                      {formatCount(overview.leadDataQuality.areaMatched)}
+                      <span className="font-normal text-neutral-400">
+                        {' / '}
+                        {formatCount(overview.leadDataQuality.totalLeads)}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-neutral-400">With pincode</p>
+                    <p className="mt-0.5 font-semibold text-neutral-800">
+                      {formatCount(overview.leadDataQuality.withManualPincode)}
+                    </p>
+                  </div>
+                </div>
+                {overview.leadDataQuality.unmatchedWithAreaText > 0 ? (
+                  <p className="mt-2 text-[11px] text-amber-700">
+                    {formatCount(overview.leadDataQuality.unmatchedWithAreaText)} lead(s) have unrecognized area answers
+                    (incl. junk) — they do not plot on the map.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
                 <h3 className="text-sm font-semibold text-neutral-950">Demand without coverage</h3>
                 {topCoverageGaps.length > 0 ? (
                   <ul className="mt-3 space-y-2">
                     {topCoverageGaps.map((gap) => (
                       <li key={gap.pincode} className="flex items-center justify-between gap-2 text-xs">
                         <span className="font-semibold text-neutral-800">{gap.pincode}</span>
-                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+                        <span className="rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700">
                           {formatCount(gap.bookingCount)} booking(s) uncovered
                         </span>
                       </li>
@@ -624,13 +690,13 @@ export default function GazeTab() {
                 ) : (
                   <p className="mt-3 text-xs text-neutral-500">Every demand pincode has enabled provider coverage.</p>
                 )}
-                <p className="mt-3 text-[10px] leading-relaxed text-neutral-400">
+                <p className="mt-3 text-[11px] leading-relaxed text-neutral-400">
                   Gaps are pincodes with booking demand but no active provider service coverage.
                 </p>
               </div>
 
               <div className="rounded-2xl border border-neutral-200/80 bg-white p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-2 text-[10px] text-neutral-400">
+                <div className="flex items-center justify-between gap-2 text-[11px] text-neutral-400">
                   <span>Updated {formatUpdatedAt(overview.generatedAt)} · auto-refreshes every 60s</span>
                   <Link
                     href="/dashboard/admin/bookings"
@@ -667,9 +733,9 @@ function KpiCard({
         tone === 'warning' ? 'border-red-100 bg-red-50/60' : 'border-neutral-200/80 bg-white'
       }`}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">{label}</p>
       <p className={`mt-1 text-lg font-bold ${tone === 'warning' ? 'text-red-700' : 'text-neutral-950'}`}>{value}</p>
-      {hint ? <p className="mt-0.5 text-[10px] font-medium text-neutral-400">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-[11px] font-medium text-neutral-400">{hint}</p> : null}
     </div>
   );
 }

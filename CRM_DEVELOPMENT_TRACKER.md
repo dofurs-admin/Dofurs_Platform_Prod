@@ -303,4 +303,49 @@ Closes the visibility gap exposed by the 2026-09-03 middleware incident (automat
 - The sheet becomes critical infrastructure for lead capture until Phase 4b (direct webhook)
 - Lead volume caps: import scans ≤ 2000 rows, gaze lead layer ≤ 2000 — revisit if Meta volume grows 5×
 
+## Console Improvements Release (2026-09-03) — gap-analysis Batches A/B/C
+
+Owner-requested implementation of the `ADMIN_OPS_CONSOLE_GAP_ANALYSIS.md` §9 items touching CRM + the admin shell. State: **BUILT + locally validated (build/tests/typecheck/lint)** — production deploy pending. One migration awaits owner apply.
+
+- [x] **A6 — summary scan-cap honesty**: `CrmLeadSummary.truncated` + "lower bound" hint in the UI past `SUMMARY_SCAN_LIMIT`.
+- [x] **A7 — observability retention**: migration **102** (`infra/supabase/migrations/102_crm_automation_retention.sql`) prunes heartbeats > 30d + import runs > 90d daily at 03:00 IST via pg_cron. **NOT YET APPLIED — owner applies via the usual migration flow.**
+- [x] **B1 — worklist filters**: Assigned (All/Me/Unassigned/per-staff) + Source + Priority (hot) selects, "Needs triage" preset (unassigned+new), and the dismissible area chip. Service supports `assignedTo: 'unassigned'`.
+- [x] **B2 + B10 — speed-to-lead + SLA alert**: avg/median first-response + new-lead >24h aging in `getCrmLeadSummary` and a "Response health" strip; `maybeSendLeadSlaAlert` (6h cooldown via the rate-limit RPC, never throws) piggybacks on the sweep cron and pings Discord for overdue follow-ups / aging leads.
+- [x] **B3 — bulk actions**: `POST /api/admin/crm/leads/bulk` (assign / status, ≤100 per run) runs each lead through the SAME `updateCrmLead` path — guards, activities, notifications, hot alerts identical; per-lead skips reported. Checkbox column + bulk bar in the worklist.
+- [x] **B4 — area deep-links in**: `/dashboard/admin/crm?area=<slug>&areaName=<name>&status=open` (from Gaze) + `?customer=<userId>` (Customer 360) + `?lead=<id>` (lead detail) all open directly.
+- [x] **B5 — export honors filters**: the export route accepts the list filters; the UI mirrors the active view (default remains all).
+- [x] **B6 — campaign window**: 30d/90d/all-time chips; service + route accept a date window.
+- [x] **B7-lite — retention promotion**: "Repeat grooming due (N)" jump chip in the response-health strip + at-risk badge (>1.5× cadence). Automated outbound still awaits the sender decision.
+- [x] **B8 — Customer 360 entry points + actions**: CRM 360 links from UsersTab rows + BookingDetailModal; tel: links on every phone; WhatsApp deep links in lead detail + Customer 360.
+- [x] **C2 — URL/filter state**: all worklist filters + page sync to the URL (native history API); refresh/back restore the view.
+- [x] **C4 — follow-up presets**: Tomorrow 10:00 / +3 days / +1 week chips beside the datetime input.
+- [x] **C6 — palette entity search**: ⌘K now searches leads + customers (debounced) alongside sections; results deep-link into the CRM.
+- [x] **D5 — shared fetch + types**: `lib/api/admin-fetch.ts` (`adminRequest`) adopted across CrmTab loaders; Automation/SheetImport types imported from the domain modules instead of re-declared.
+- [x] **D6 — loud panels**: retention/campaigns/automation/import-history failures now console.warn + inline error + Retry (the silent-catch pattern is gone).
+- [x] **D2 — slim pages**: the 10 self-fetching admin views (crm/gaze/users/blog/payments/subscriptions/billing/access/health/audit) spread `EMPTY_ADMIN_DASHBOARD_DATA` instead of running the ~10-query dataset load per navigation.
+- [x] **D7′ — release gate**: `release:gate` now also runs eslint + a render.yaml service-set check (js-yaml devDependency added).
+- [x] **B11-lite — unified automation card**: `AutomationHealthCard` in Health tab shows CRM jobs (heartbeat-backed) + links billing cron run history.
+- [x] **C8** — shared label vocabulary (`lib/crm/labels.ts`, IST-explicit `formatLeadTimestamp`).
+- Deferred (solo-scope, per gap analysis §9.4/§9.6): D8 component tests (needs testing-library setup), C1 CrmTab IA split, B9 funnel analytics, B7 outbound automation — remain backlog.
+
+### Validation Log additions
+
+| Date | Command | Result |
+|---|---|---|
+| 2026-09-03 | `npx vitest run` | **467 passed / 0 failed** (1 skipped) — sweep-route test extended for the SLA alert (cron-only, never on manual runs) |
+| 2026-09-03 | `npx tsc --noEmit` | 0 new errors (9 pre-existing test-file baseline unchanged) |
+| 2026-09-03 | `npx eslint` (all changed files) | clean |
+| 2026-09-03 | `rm -rf .next && npm run build` | **production build PASSED** |
+
+### Decision Log additions
+
+| Date | Decision | Reason |
+|---|---|---|
+| 2026-09-03 | Bulk updates reuse `updateCrmLead` per lead (≤100/run) | guards/activities/notifications identical to the per-lead modal; per-lead skips reported instead of aborting the batch — no second code path to drift |
+| 2026-09-03 | SLA alert cooldown via the shared `check_rate_limit` RPC | 6h alert cadence without a new table; consumed only when there is something to report |
+| 2026-09-03 | `assignedTo=unassigned` as a service-level literal | SQL `is null` cannot ride the existing uuid param; the literal keeps one filter contract across list + export + bulk |
+| 2026-09-03 | Area filter matched server-side in `listCrmLeads` (bounded 5,000) | gazetteer matching cannot run in SQL; same matcher chain as the Gaze lead layer keeps one definition of "area" |
+| 2026-09-03 | `?customer` / `?lead` params open modals once on mount | deep-link entry from UsersTab, BookingDetailModal, and the palette; consumed once so modal state never re-triggers |
+| 2026-09-03 | Migration 102 written but NOT auto-applied | new pg_cron jobs on prod are owner-applied per the house migration flow |
+
 

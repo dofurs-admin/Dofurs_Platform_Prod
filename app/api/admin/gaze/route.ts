@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ADMIN_ROLES, requireApiRole } from '@/lib/auth/api-auth';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
+import { getISTDateString, getISTDayBoundaryISO } from '@/lib/utils/date';
 import { BOOKING_MODES, BOOKING_STATUSES, type BookingMode, type BookingStatus } from '@/lib/bookings/types';
 import {
   aggregateBookingsByPincode,
@@ -22,6 +23,7 @@ import {
   aggregateLeadsByArea,
   buildGazeLeadKpis,
   buildGazeLeadPoints,
+  buildLeadDataQuality,
   type GazeLeadSourceRow,
 } from '@/lib/gaze/leads';
 
@@ -37,6 +39,7 @@ const querySchema = z.object({
 });
 
 const BOOKING_POINT_LIMIT = 1000;
+const LEAD_POINT_LIMIT = 2000;
 
 type GazeBookingSourceRow = {
   id: number;
@@ -113,7 +116,8 @@ function addDaysToDateKey(dateKey: string, days: number): string {
 }
 
 function resolveTodayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  // IST "today" — a UTC slice would resolve to the previous day between 00:00 and 05:30 IST.
+  return getISTDateString();
 }
 
 type GazeAllTimeBookingRow = {
@@ -128,10 +132,30 @@ type GazeAllTimeBookingRow = {
  * layer as a coordinate fallback so lead areas plot even when the selected
  * window has no bookings in that pincode.
  */
+const PINCODE_CENTROID_CACHE_TTL_MS = 10 * 60_000;
+
+let pincodeCentroidCache: {
+  at: number;
+  centroids: Array<{ pincode: string; lat: number; lng: number }>;
+} | null = null;
+
+const COVERAGE_CACHE_TTL_MS = 10 * 60_000;
+
+let coverageCache: { at: number; coverage: GazeCoverageEntry[] } | null = null;
+
 async function computeAllTimePincodeCentroids(adminSupabase: ReturnType<typeof getSupabaseAdminClient>) {
+  // Centroids change only when bookings land — a short per-instance cache keeps
+  // the 60s auto-refresh from re-running the all-time aggregation every tick.
+  if (pincodeCentroidCache && Date.now() - pincodeCentroidCache.at < PINCODE_CENTROID_CACHE_TTL_MS) {
+    return pincodeCentroidCache.centroids;
+  }
+
   const { data: bookingRows, error } = await adminSupabase
     .from('bookings')
     .select('user_id, latitude, longitude')
+    // Newest-first so the sample is deterministic and newly booked pincodes
+    // keep their centroids as total booking volume grows past the limit.
+    .order('booking_start', { ascending: false })
     .limit(2000)
     .returns<GazeAllTimeBookingRow[]>();
 
@@ -150,6 +174,7 @@ async function computeAllTimePincodeCentroids(adminSupabase: ReturnType<typeof g
   );
 
   if (userIds.length === 0) {
+    pincodeCentroidCache = { at: Date.now(), centroids: [] };
     return [] as Array<{ pincode: string; lat: number; lng: number }>;
   }
 
@@ -192,7 +217,7 @@ async function computeAllTimePincodeCentroids(adminSupabase: ReturnType<typeof g
     sumsByPincode.set(pincode, sums);
   }
 
-  return Array.from(sumsByPincode.entries())
+  const centroids = Array.from(sumsByPincode.entries())
     .filter(([, sums]) => sums.count > 0)
     .map(([pincode, sums]) => ({
       pincode,
@@ -200,6 +225,9 @@ async function computeAllTimePincodeCentroids(adminSupabase: ReturnType<typeof g
       lng: sums.lngSum / sums.count,
     }))
     .sort((left, right) => left.pincode.localeCompare(right.pincode));
+
+  pincodeCentroidCache = { at: Date.now(), centroids };
+  return centroids;
 }
 
 function resolveWindowRange(windowKey: GazeWindowKey, fromDate?: string, toDate?: string) {
@@ -279,11 +307,11 @@ export async function GET(request: Request) {
     // (timezone safety). "All time" queries without a range so the whole
     // booking history is considered, newest first.
     if (range.fromDate !== null) {
-      bookingsQuery.gte('booking_start', `${addDaysToDateKey(range.fromDate, -1)}T00:00:00.000Z`);
+      bookingsQuery.gte('booking_start', getISTDayBoundaryISO(addDaysToDateKey(range.fromDate, -1)));
     }
 
     if (range.toDate !== null) {
-      bookingsQuery.lte('booking_start', `${addDaysToDateKey(range.toDate, 1)}T23:59:59.999Z`);
+      bookingsQuery.lte('booking_start', getISTDayBoundaryISO(addDaysToDateKey(range.toDate, 1)));
     }
 
     const [bookingsResult, providersResult, clinicDetailsResult, providerServicesResult, coverageResult, leadsResult] =
@@ -305,17 +333,23 @@ export async function GET(request: Request) {
           .select('provider_id, pincode, city, latitude, longitude')
           .limit(2000)
           .returns<GazeClinicDetailRow[]>(),
-        adminSupabase
-          .from('provider_services')
-          .select('id, provider_id')
-          .eq('is_active', true)
-          .limit(3000)
-          .returns<GazeProviderServiceRow[]>(),
-        adminSupabase
-          .from('provider_service_pincodes')
-          .select('provider_service_id, pincode, is_enabled')
-          .limit(10000)
-          .returns<GazeCoverageRow[]>(),
+        // Provider-service coverage changes rarely (D3): serve it from a short
+        // per-instance cache so the 60s auto-refresh skips these two queries.
+        coverageCache && Date.now() - coverageCache.at < COVERAGE_CACHE_TTL_MS
+          ? Promise.resolve({ data: [] as GazeProviderServiceRow[], error: null })
+          : adminSupabase
+              .from('provider_services')
+              .select('id, provider_id')
+              .eq('is_active', true)
+              .limit(3000)
+              .returns<GazeProviderServiceRow[]>(),
+        coverageCache && Date.now() - coverageCache.at < COVERAGE_CACHE_TTL_MS
+          ? Promise.resolve({ data: [] as GazeCoverageRow[], error: null })
+          : adminSupabase
+              .from('provider_service_pincodes')
+              .select('provider_service_id, pincode, is_enabled')
+              .limit(10000)
+              .returns<GazeCoverageRow[]>(),
         // CRM leads layer: same window semantics as bookings, but keyed on
         // lead creation. Booking status/mode/provider filters intentionally do
         // not apply — leads are pre-booking demand. The users embed MUST use
@@ -325,14 +359,14 @@ export async function GET(request: Request) {
             .from('crm_leads')
             .select('id, status, priority, source, source_details, pincode, created_at, users!crm_leads_user_id_fkey(name)')
             .order('created_at', { ascending: false })
-            .limit(2000);
+            .limit(LEAD_POINT_LIMIT);
 
           if (range.fromDate !== null) {
-            leadQuery = leadQuery.gte('created_at', `${range.fromDate}T00:00:00.000Z`);
+            leadQuery = leadQuery.gte('created_at', getISTDayBoundaryISO(range.fromDate));
           }
 
           if (range.toDate !== null) {
-            leadQuery = leadQuery.lte('created_at', `${addDaysToDateKey(range.toDate, 1)}T00:00:00.000Z`);
+            leadQuery = leadQuery.lte('created_at', getISTDayBoundaryISO(addDaysToDateKey(range.toDate, 1)));
           }
 
           return leadQuery.returns<GazeLeadSourceRow[]>();
@@ -524,52 +558,61 @@ export async function GET(request: Request) {
     });
 
     // Coverage: enabled pincodes mapped through active provider services only.
-    const providerIdByServiceId = new Map<string, number>();
+    // Served from the D3 short-TTL cache when fresh (see the Promise.all gate).
+    let coverage: GazeCoverageEntry[];
 
-    for (const row of providerServicesResult.data ?? []) {
-      if (row.id != null && Number.isFinite(row.provider_id)) {
-        providerIdByServiceId.set(String(row.id).trim(), Number(row.provider_id));
+    if (coverageCache && Date.now() - coverageCache.at < COVERAGE_CACHE_TTL_MS) {
+      coverage = coverageCache.coverage;
+    } else {
+      const providerIdByServiceId = new Map<string, number>();
+
+      for (const row of providerServicesResult.data ?? []) {
+        if (row.id != null && Number.isFinite(row.provider_id)) {
+          providerIdByServiceId.set(String(row.id).trim(), Number(row.provider_id));
+        }
       }
+
+      const coveragePincodesByProvider = new Map<number, Set<string>>();
+
+      for (const row of coverageResult.data ?? []) {
+        if (row.is_enabled !== true) {
+          continue;
+        }
+
+        const serviceKey = row.provider_service_id == null ? null : String(row.provider_service_id).trim();
+        const providerId = serviceKey ? providerIdByServiceId.get(serviceKey) : undefined;
+
+        if (providerId == null) {
+          continue;
+        }
+
+        // Coverage from suspended, banned, or unapproved providers is excluded so
+        // it cannot mask demand gaps on the active coverage view.
+        if (!providerNameById.has(providerId)) {
+          continue;
+        }
+
+        const pincode = normalizeGazePincode(row.pincode);
+
+        if (!pincode) {
+          continue;
+        }
+
+        const pincodes = coveragePincodesByProvider.get(providerId) ?? new Set<string>();
+        pincodes.add(pincode);
+        coveragePincodesByProvider.set(providerId, pincodes);
+      }
+
+      coverage = Array.from(coveragePincodesByProvider.entries())
+        .map(([providerId, pincodes]) => ({
+          providerId,
+          providerName: providerNameById.get(providerId) ?? `Provider #${providerId}`,
+          pincodes: Array.from(pincodes).sort(),
+        }))
+        .sort((left, right) => left.providerName.localeCompare(right.providerName));
+
+      coverageCache = { at: Date.now(), coverage };
     }
-
-    const coveragePincodesByProvider = new Map<number, Set<string>>();
-
-    for (const row of coverageResult.data ?? []) {
-      if (row.is_enabled !== true) {
-        continue;
-      }
-
-      const serviceKey = row.provider_service_id == null ? null : String(row.provider_service_id).trim();
-      const providerId = serviceKey ? providerIdByServiceId.get(serviceKey) : undefined;
-
-      if (providerId == null) {
-        continue;
-      }
-
-      // Coverage from suspended, banned, or unapproved providers is excluded so
-      // it cannot mask demand gaps on the active coverage view.
-      if (!providerNameById.has(providerId)) {
-        continue;
-      }
-
-      const pincode = normalizeGazePincode(row.pincode);
-
-      if (!pincode) {
-        continue;
-      }
-
-      const pincodes = coveragePincodesByProvider.get(providerId) ?? new Set<string>();
-      pincodes.add(pincode);
-      coveragePincodesByProvider.set(providerId, pincodes);
-    }
-
-    const coverage: GazeCoverageEntry[] = Array.from(coveragePincodesByProvider.entries())
-      .map(([providerId, pincodes]) => ({
-        providerId,
-        providerName: providerNameById.get(providerId) ?? `Provider #${providerId}`,
-        pincodes: Array.from(pincodes).sort(),
-      }))
-      .sort((left, right) => left.providerName.localeCompare(right.providerName));
 
     const pincodeStats = aggregateBookingsByPincode(bookingPoints);
     const coverageGaps = computeCoverageGaps(pincodeStats, coverage);
@@ -584,6 +627,7 @@ export async function GET(request: Request) {
     const leadPoints = buildGazeLeadPoints(leadRows);
     const leadAreas = aggregateLeadsByArea(leadPoints);
     const leadKpis = buildGazeLeadKpis(leadPoints);
+    const leadDataQuality = buildLeadDataQuality(leadRows);
 
     // All-time pincode centroids (booking-derived) — fallback coordinates for
     // lead areas whose pincode has no bookings in the selected window.
@@ -599,6 +643,7 @@ export async function GET(request: Request) {
       leads: leadPoints,
       leadAreas,
       leadKpis,
+      leadDataQuality,
       pincodeCentroids,
       window: {
         key: windowKey,
@@ -606,6 +651,7 @@ export async function GET(request: Request) {
         toDate: range.toDate,
       },
       bookingsTruncated: bookingRows.length >= BOOKING_POINT_LIMIT,
+      leadsTruncated: leadRows.length >= LEAD_POINT_LIMIT,
       generatedAt: new Date().toISOString(),
     };
 

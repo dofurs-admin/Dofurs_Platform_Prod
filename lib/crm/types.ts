@@ -111,6 +111,14 @@ export type CrmLeadSummary = {
   hot: number;
   overdue_followups: number;
   lostReasons: Array<{ reason: string; count: number }>;
+  /** True when the scan hit SUMMARY_SCAN_LIMIT — every count is then a lower bound. */
+  truncated: boolean;
+  /** Average minutes from lead creation to first contact (null before the first contact). */
+  avgFirstResponseMinutes: number | null;
+  /** Median minutes from lead creation to first contact (null before the first contact). */
+  medianFirstResponseMinutes: number | null;
+  /** New leads older than 24h that still have no first contact. */
+  newUncontactedOver24h: number;
 };
 
 export function isCrmLeadStatus(value: unknown): value is CrmLeadStatus {

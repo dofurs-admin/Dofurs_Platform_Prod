@@ -102,4 +102,38 @@ Matching chain: manual pincode (`crm_leads.pincode`, highest priority — revers
 - Lead-area coordinate quality depends on booking-derived centroids (customer address pincodes); the first booking in a new pincode may shift an area bubble
 - Uncommitted: the whole lead layer exists only in the working tree until `feature/crm-tool-development` is committed + deployed
 
+## Console Improvements Release (2026-09-03) — gap-analysis Batches A/B/C
+
+Owner-requested implementation of the `ADMIN_OPS_CONSOLE_GAP_ANALYSIS.md` §9 items touching Gaze. State: **BUILT + locally validated (build/tests/typecheck/lint)** — production deploy pending. Note: the "Uncommitted" risk above is stale — the lead layer is committed on main as of `80faa4f`.
+
+- [x] **A1 — IST day keys**: `resolveTodayKey` + all window boundaries now IST (`getISTDayBoundaryISO`, `lib/utils/date.ts`); `resolveGazeDateKey`'s timestamp fallback resolves onto the IST day. "Today"/lead windows are correct between 00:00–05:30 IST. Boundary tests: `lib/utils/date.ist.test.ts`, `lib/gaze/aggregates.test.ts`.
+- [x] **A2 — all-time centroids**: ordered `booking_start desc` (deterministic newest-2,000 — new pincodes keep centroids as volume grows) + 10-min per-instance cache.
+- [x] **A3 — `leadsTruncated`** flag + banner, mirroring the bookings pattern.
+- [x] **D3 — coverage cache**: provider_services + coverage-pincodes queries skipped when the 10-min cache is fresh; bookings/leads stay uncached for freshness.
+- [x] **A5 — lead data health**: `leadDataQuality` in the response (`buildLeadDataQuality`, `lib/gaze/leads.ts`) + "Lead data health" card in the aside (area matched / with pincode / unrecognized answers incl. junk).
+- [x] **A8 — matcher fixture test**: real lead answers vs the gazetteer pinned in `lib/gaze/lead-area-answers.fixture.test.ts` (incl. junk "Yes"/"Grooming" staying unmapped).
+- [x] **B4 — deep links**: lead-bubble popups + "Top lead areas" rows → `/dashboard/admin/crm?area=<slug>&areaName=<name>&status=open`; coverage-gap popups → Providers view. Legend unchanged (no new map symbols).
+- [x] **C2 (gaze)** — window + filters URL-synced via the native history API; refresh restores the view.
+- [x] **C3** — 10px→11px type bump across GazeTab/GazeMap; **C8** — source labels shared via `lib/crm/labels.ts`.
+- Deferred (solo-scope, per gap analysis §9.4/§9.6): C5 map clustering + area jump (new dependency + pin-layer rewrite), B9 funnel analytics, C1 CRM IA split, D8 component tests — remain backlog.
+
+### Validation Log additions
+
+| Date | Command | Result |
+|---|---|---|
+| 2026-09-03 | `npx vitest run` | **467 passed / 0 failed** (1 skipped) — +27 vs the 440 baseline (IST windows, matcher fixture, sweep SLA-alert route test) |
+| 2026-09-03 | `npx tsc --noEmit` | 0 new errors (9 pre-existing test-file baseline unchanged) |
+| 2026-09-03 | `npx eslint` (all changed files) | clean (after removing one unused helper) |
+| 2026-09-03 | `rm -rf .next && npm run build` | **production build PASSED** — all admin routes compile; URL-state client components verified under dynamic rendering |
+
+### Decision Log additions
+
+| Date | Decision | Reason |
+|---|---|---|
+| 2026-09-03 | IST boundaries via `+05:30` offset parsing (`getISTDayBoundaryISO`) | UTC-midnight boundaries were silently wrong 00:00–05:30 IST daily; timestamptz comparisons are instants, so IST-midnight instants are exact |
+| 2026-09-03 | Centroids ordered newest-first + 10-min cache | the unordered `.limit(2000)` silently dropped newer pincodes as volume grew; the cache removes the per-refresh aggregation cost |
+| 2026-09-03 | Coverage served from a 10-min per-instance cache | provider-service coverage changes rarely; demand layers stay fresh |
+| 2026-09-03 | URL state via native `history.replaceState` | `router.replace` would re-run server components on every filter click; the native API has no round-trip and refresh still restores the view |
+| 2026-09-03 | Area deep-links matched server-side in `listCrmLeads` | the gazetteer match cannot run in SQL; bounded 5,000-row fetch + the SAME matcher chain as the lead layer, paginated in memory |
+
 
