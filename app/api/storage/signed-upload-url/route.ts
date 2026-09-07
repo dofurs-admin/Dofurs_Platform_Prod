@@ -8,10 +8,14 @@ const ALLOWED_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif'
 const MAX_FILE_SIZE_MB = 10;
 
 const uploadSchema = z.object({
-  bucket: z.enum(['user-photos', 'pet-photos', 'service-images', 'blog-images']),
+  bucket: z.enum(['user-photos', 'pet-photos', 'service-images', 'blog-images', 'sop-photos']),
   fileName: z.string().min(1),
   contentType: z.string().optional(),
   fileSizeMB: z.number().max(MAX_FILE_SIZE_MB, `File size must be under ${MAX_FILE_SIZE_MB}MB`).optional(),
+  // Optional SOP context: organises evidence under booking/sop folders while the
+  // leading segment stays the uploading user's id (enforced by storage RLS).
+  contextBookingId: z.number().int().positive().optional(),
+  contextSopSubmissionId: z.string().uuid().optional(),
 });
 
 export async function POST(request: Request) {
@@ -71,7 +75,14 @@ export async function POST(request: Request) {
   }
 
   const sanitizedName = parsed.data.fileName.replace(/[^a-zA-Z0-9_.-]/g, '_');
-  const objectPath = `${authUser.id}/${Date.now()}-${sanitizedName}`;
+  const contextSegments: string[] = [];
+  if (parsed.data.contextBookingId) {
+    contextSegments.push(`booking-${parsed.data.contextBookingId}`);
+  }
+  if (parsed.data.contextSopSubmissionId) {
+    contextSegments.push(`sop-${parsed.data.contextSopSubmissionId}`);
+  }
+  const objectPath = [authUser.id, ...contextSegments, `${Date.now()}-${sanitizedName}`].join('/');
 
   const { data, error } = await adminSupabase.storage.from(parsed.data.bucket).createSignedUploadUrl(objectPath);
 

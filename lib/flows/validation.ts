@@ -142,6 +142,12 @@ export const bookingStatusUpdateSchema = z.object({
     .max(2000)
     .refine((v) => !v || noHtmlChars(v), { message: 'Notes must not contain HTML or script characters' })
     .optional(),
+  sopBypassReason: z
+    .string()
+    .trim()
+    .max(2000)
+    .refine((v) => !v || noHtmlChars(v), { message: 'SOP bypass reason must not contain HTML or script characters' })
+    .optional(),
   cancellationReason: z
     .string()
     .trim()

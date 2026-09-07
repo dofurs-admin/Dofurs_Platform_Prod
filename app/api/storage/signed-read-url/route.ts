@@ -5,12 +5,15 @@ import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import { listAccessiblePetsForUser } from '@/lib/pets/share-access';
 
 const readSchema = z.object({
-  bucket: z.enum(['user-photos', 'pet-photos', 'service-images']),
+  bucket: z.enum(['user-photos', 'pet-photos', 'service-images', 'sop-photos']),
   path: z.string().min(1),
   expiresIn: z.number().int().min(60).max(3600).optional(),
 });
 
-function normalizeStoragePathCandidate(value: string | null | undefined, bucket: 'user-photos' | 'pet-photos' | 'service-images') {
+function normalizeStoragePathCandidate(
+  value: string | null | undefined,
+  bucket: 'user-photos' | 'pet-photos' | 'service-images' | 'sop-photos',
+) {
   if (typeof value !== 'string') {
     return null;
   }
@@ -102,7 +105,8 @@ export async function POST(request: Request) {
     .replace(/^\/+/, '')
     .replace(/^user-photos\//, '')
     .replace(/^pet-photos\//, '')
-    .replace(/^service-images\//, '');
+    .replace(/^service-images\//, '')
+    .replace(/^sop-photos\//, '');
   const ownerPrefix = `${authUser.id}/`;
   let canAccess = normalizedPath.startsWith(ownerPrefix);
 

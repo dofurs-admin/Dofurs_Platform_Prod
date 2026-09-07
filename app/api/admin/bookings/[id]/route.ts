@@ -4,6 +4,11 @@ import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
 import { loadBookingAddonRowsByBookingIds } from '@/lib/bookings/addon-items';
 import { getSupabaseAdminClient } from '@/lib/supabase/admin-client';
 import {
+  ensureBookingSopSubmissions,
+  getBookingSopPhotosForSubmissions,
+  getBookingSopSubmissionsForBookings,
+} from '@/lib/bookings/sop-assignments';
+import {
   extractBundledPetIdsFromNotes,
   extractProviderServiceIdsFromNotes,
   resolveIncludedServicesForBooking,
@@ -391,7 +396,87 @@ async function loadProviderServiceMapsForBooking(
   };
 }
 
+type BookingSopChecklist = {
+  sop_completion_waived: boolean;
+  sop_waiver_reason: string | null;
+  sop_waived_at: string | null;
+  submissions: Array<
+    import('@/lib/bookings/sop-assignments').BookingSopSubmissionRow & {
+      photos: Array<{ id: string; signed_url: string | null; created_at: string }>;
+    }
+  >;
+};
+
+/** Loads the SOP checklist for the admin booking modal. Non-fatal on failure. */
+async function loadBookingSopChecklist(
+  adminSupabase: ReturnType<typeof getSupabaseAdminClient>,
+  bookingId: number,
+): Promise<BookingSopChecklist> {
+  const empty: BookingSopChecklist = {
+    sop_completion_waived: false,
+    sop_waiver_reason: null,
+    sop_waived_at: null,
+    submissions: [],
+  };
+
+  try {
+    await ensureBookingSopSubmissions(adminSupabase, [bookingId]);
+
+    const submissionMap = await getBookingSopSubmissionsForBookings(adminSupabase, [bookingId]);
+    const submissions = submissionMap.get(bookingId) ?? [];
+    const photosBySubmission = await getBookingSopPhotosForSubmissions(
+      adminSupabase,
+      submissions.map((submission) => submission.id),
+    );
+
+    const photoPathSet = new Set<string>();
+    for (const photos of photosBySubmission.values()) {
+      for (const photo of photos) {
+        photoPathSet.add(photo.storage_path);
+      }
+    }
+
+    const signedUrlByPath = new Map<string, string>();
+    await Promise.all(
+      Array.from(photoPathSet).map(async (path) => {
+        const { data } = await adminSupabase.storage.from('sop-photos').createSignedUrl(path, 3600);
+        if (data?.signedUrl) {
+          signedUrlByPath.set(path, data.signedUrl);
+        }
+      }),
+    );
+
+    const { data: bookingWaiver } = await adminSupabase
+      .from('bookings')
+      .select('sop_completion_waived, sop_waiver_reason, sop_waived_at')
+      .eq('id', bookingId)
+      .maybeSingle<{
+        sop_completion_waived: boolean | null;
+        sop_waiver_reason: string | null;
+        sop_waived_at: string | null;
+      }>();
+
+    return {
+      sop_completion_waived: bookingWaiver?.sop_completion_waived === true,
+      sop_waiver_reason: bookingWaiver?.sop_waiver_reason ?? null,
+      sop_waived_at: bookingWaiver?.sop_waived_at ?? null,
+      submissions: submissions.map((submission) => ({
+        ...submission,
+        photos: (photosBySubmission.get(submission.id) ?? []).map((photo) => ({
+          id: photo.id,
+          signed_url: signedUrlByPath.get(photo.storage_path) ?? null,
+          created_at: photo.created_at,
+        })),
+      })),
+    };
+  } catch (error) {
+    console.warn('Unable to load booking SOP checklist for admin modal', { bookingId, error });
+    return empty;
+  }
+}
+
 export async function GET(_request: Request, context: RouteContext) {
+
   const auth = await requireApiRole(ADMIN_ROLES);
   if (auth.response) return auth.response;
 
@@ -502,6 +587,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const normalizedBooking = normalizeBookingForAdminModal(booking as Record<string, unknown>);
 
+  const sopChecklist = await loadBookingSopChecklist(adminSupabase, bookingId);
+
   return NextResponse.json({
     booking: {
       ...normalizedBooking,
@@ -512,5 +599,6 @@ export async function GET(_request: Request, context: RouteContext) {
     },
     invoices: invoices ?? [],
     addonItems: normalizedAddonItems,
+    sopChecklist,
   });
 }

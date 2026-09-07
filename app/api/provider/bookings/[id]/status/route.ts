@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireApiRole } from '@/lib/auth/api-auth';
 import { cancelBookingAsProvider, confirmBooking, completeBooking, markNoShow } from '@/lib/bookings/service';
 import { completeProviderBookingCompletionTask } from '@/lib/bookings/completion-tasks';
+import { SopRequirementsPendingError } from '@/lib/bookings/sop-assignments';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getRateLimitKey, isRateLimited } from '@/lib/api/rate-limit';
@@ -135,6 +136,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     return NextResponse.json({ success: true, booking });
   } catch (error) {
+    if (error instanceof SopRequirementsPendingError) {
+      return NextResponse.json(
+        {
+          error: `Complete these SOPs before marking this booking complete: ${error.missingSops
+            .map((sop) => sop.title)
+            .join(', ')}`,
+          missingSops: error.missingSops,
+        },
+        { status: 400 },
+      );
+    }
+
     const mapped = toFriendlyApiError(error, 'Unable to update booking status');
     const message = error instanceof Error ? error.message : String(error);
 

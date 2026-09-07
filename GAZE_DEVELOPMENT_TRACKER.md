@@ -136,4 +136,26 @@ Owner-requested implementation of the `ADMIN_OPS_CONSOLE_GAP_ANALYSIS.md` §9 it
 | 2026-09-03 | URL state via native `history.replaceState` | `router.replace` would re-run server components on every filter click; the native API has no round-trip and refresh still restores the view |
 | 2026-09-03 | Area deep-links matched server-side in `listCrmLeads` | the gazetteer match cannot run in SQL; bounded 5,000-row fetch + the SAME matcher chain as the lead layer, paginated in memory |
 
+## Reliability Investigation — Gaze shows fewer confirmed bookings than the Bookings tab (2026-09-04)
+
+Owner report: 3 active confirmed bookings in the admin Bookings tab, but Gaze shows only 2. Root cause **verified against the prod DB** with the read-only diagnostic `node scripts/gaze-booking-reliability-diagnostic.mjs` (new script, added this session):
+
+- **Not a data bug.** The DB has exactly 3 effectively-confirmed bookings (#431, #433, #439); all have valid `booking_status='confirmed'`, mappable coordinates, and parseable `booking_date`/`booking_start`. No 1000-row fetch-limit crowding (only 34 rows match the 30d DB range).
+- **Window semantics gap.** Every Gaze preset window (today / 7d / 30d / 90d) is backward-looking and ends at **today's IST date** (`resolveWindowRange` → `toDate: todayKey`). Booking **#433** is scheduled for **2026-09-05 (tomorrow)**, so it is excluded at BOTH pipeline stages: the padded DB range (`booking_start` ≤ IST midnight of `toDate+1`) never fetches it, and the precise date-key filter (`resolveGazeDateKey` > `toDate`) would drop it anyway. It is visible only under **All time** (3 visible, 3 pins) or a custom range ending 2026-09-05+.
+- **Why the Bookings tab disagrees.** `/api/admin/bookings` + `BookingsTab.tsx` apply no date bounds by default, so the "confirmed" filter shows past AND future bookings — an operator comparing active (by definition mostly upcoming) bookings against Gaze's retrospective windows will always see future jobs missing.
+
+Open follow-up (backlog, owner decision needed): choose how Gaze surfaces forward-looking demand — e.g. an "Upcoming / Next 7 days" window, extending preset windows' `toDate` into the future, or labeling windows as retrospective plus an "upcoming bookings" KPI so the count difference is self-explanatory. No Gaze layer/aggregation code was changed in this session.
+
+### Validation Log additions
+
+| Date | Command | Result |
+|---|---|---|
+| 2026-09-04 | `node scripts/gaze-booking-reliability-diagnostic.mjs` | 3 confirmed bookings in DB; today/7d/30d/90d → **2 visible**; alltime → **3 visible**; booking #433 hidden solely due to future service date 2026-09-05 (excluded by both DB range and precise date-key filter) |
+
+### Decision Log additions
+
+| Date | Decision | Reason |
+|---|---|---|
+| 2026-09-04 | Added read-only diagnostic `scripts/gaze-booking-reliability-diagnostic.mjs` (mirrors the exact Gaze pipeline: padded `booking_start` DB range, `resolveGazeDateKey` precise filter, status normalization, mappable-coordinate rules) | lets any future "Gaze undercounts" report be answered from data in one command instead of re-deriving the pipeline by hand |
+
 

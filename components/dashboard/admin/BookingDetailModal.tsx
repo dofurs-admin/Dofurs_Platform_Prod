@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Modal from '@/components/ui/Modal';
 import { Button, Alert } from '@/components/ui';
 import BookingAddonManager from '@/components/dashboard/shared/BookingAddonManager';
@@ -94,6 +95,37 @@ type BookingDetail = {
   booking_status_transition_events: StatusEvent[] | null;
 };
 
+type SopChecklistSubmission = {
+  id: string;
+  title_snapshot: string;
+  instructions_snapshot: string | null;
+  requires_photo_snapshot: boolean;
+  min_photo_count_snapshot: number;
+  max_photo_count_snapshot: number;
+  mandatory_snapshot: boolean;
+  sop_version: number;
+  status: 'pending' | 'submitted' | 'approved' | 'rejected' | 'waived';
+  submitted_at: string | null;
+  review_note: string | null;
+  waive_reason: string | null;
+  photos: Array<{ id: string; signed_url: string | null; created_at: string }>;
+};
+
+type SopChecklist = {
+  sop_completion_waived: boolean;
+  sop_waiver_reason: string | null;
+  sop_waived_at: string | null;
+  submissions: SopChecklistSubmission[];
+};
+
+const SOP_STATUS_META: Record<SopChecklistSubmission['status'], { label: string; className: string }> = {
+  pending: { label: 'Pending', className: 'bg-amber-100 text-amber-800 border-amber-200' },
+  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-800 border-blue-200' },
+  approved: { label: 'Approved', className: 'bg-green-100 text-green-800 border-green-200' },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700 border-red-200' },
+  waived: { label: 'Waived', className: 'bg-neutral-100 text-neutral-600 border-neutral-200' },
+};
+
 const CURRENCY_FORMATTER = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 });
 const DATE_TIME_FORMATTER = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
 
@@ -132,6 +164,13 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
   const [loadError, setLoadError] = useState<string | null>(null);
   const [noteError, setNoteError] = useState<string | null>(null);
   const [customerFeedbackError, setCustomerFeedbackError] = useState<string | null>(null);
+  const [sopChecklist, setSopChecklist] = useState<SopChecklist | null>(null);
+  const [sopAction, setSopAction] = useState<{ submissionId: string; action: 'reject' | 'waive' } | null>(null);
+  const [sopActionInput, setSopActionInput] = useState('');
+  const [sopBusyId, setSopBusyId] = useState<string | null>(null);
+  const [sopActionError, setSopActionError] = useState<string | null>(null);
+  const [waiveAllOpen, setWaiveAllOpen] = useState(false);
+  const [waiveAllReason, setWaiveAllReason] = useState('');
   const [isLoading, startLoad] = useTransition();
   const [isSavingNote, startSave] = useTransition();
 
@@ -147,6 +186,7 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
     setBooking(detail.booking ?? null);
     setInvoices(detail.invoices ?? []);
     setAddonItems(detail.addonItems ?? []);
+    setSopChecklist(detail.sopChecklist ?? null);
   }, []);
 
   useEffect(() => {
@@ -161,6 +201,12 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
     setCustomerFeedbackError(null);
     setCustomerFeedbackInput('');
     setCustomerRatingInput(5);
+    setSopChecklist(null);
+    setSopAction(null);
+    setSopActionInput('');
+    setSopActionError(null);
+    setWaiveAllOpen(false);
+    setWaiveAllReason('');
 
     startLoad(async () => {
       try {
@@ -204,6 +250,58 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
       setNotes((prev) => [data.note, ...prev]);
       setNoteInput('');
     });
+  }
+
+  async function submitSopAction(
+    submissionId: string,
+    action: 'approve' | 'reject' | 'waive',
+    options?: { note?: string; reason?: string },
+  ) {
+    if (bookingId == null) return;
+    setSopActionError(null);
+    setSopBusyId(submissionId);
+    try {
+      const res = await fetch(`/api/admin/bookings/${bookingId}/sops/${submissionId}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action, note: options?.note, reason: options?.reason }),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? 'Unable to update this SOP.');
+      }
+      setSopAction(null);
+      setSopActionInput('');
+      await refreshBookingCore(bookingId);
+    } catch (error) {
+      setSopActionError(error instanceof Error ? error.message : 'Unable to update this SOP.');
+    } finally {
+      setSopBusyId(null);
+    }
+  }
+
+  async function waiveAllSops() {
+    if (bookingId == null) return;
+    setSopActionError(null);
+    setSopBusyId('waive-all');
+    try {
+      const res = await fetch(`/api/admin/bookings/${bookingId}/sops/waive`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ reason: waiveAllReason.trim() }),
+      });
+      if (!res.ok) {
+        const payload = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? 'Unable to waive SOP requirements.');
+      }
+      setWaiveAllOpen(false);
+      setWaiveAllReason('');
+      await refreshBookingCore(bookingId);
+    } catch (error) {
+      setSopActionError(error instanceof Error ? error.message : 'Unable to waive SOP requirements.');
+    } finally {
+      setSopBusyId(null);
+    }
   }
 
   function handleSaveCustomerFeedback() {
@@ -363,6 +461,198 @@ export default function BookingDetailModal({ bookingId, isOpen, onClose }: Props
                     </p>
                   </div>
                 ))}
+              </div>
+            </div>
+          ) : null}
+
+          {/* SOP Checklist */}
+          {sopChecklist && sopChecklist.submissions.length > 0 ? (
+            <div className="space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                  SOP Checklist (
+                  {sopChecklist.submissions.filter((s) => s.status !== 'pending' && s.status !== 'rejected').length}/
+                  {sopChecklist.submissions.length} fulfilled)
+                </p>
+                {!sopChecklist.sop_completion_waived ? (
+                  <Button size="sm" variant="secondary" onClick={() => setWaiveAllOpen((open) => !open)}>
+                    {waiveAllOpen ? 'Cancel waive' : 'Waive SOP requirements'}
+                  </Button>
+                ) : null}
+              </div>
+
+              {sopChecklist.sop_completion_waived ? (
+                <Alert variant="warning" className="!text-xs">
+                  SOP requirements waived.
+                  {sopChecklist.sop_waiver_reason ? ` Reason: ${sopChecklist.sop_waiver_reason}` : ''}
+                  {sopChecklist.sop_waived_at ? ` (${fmtDt(sopChecklist.sop_waived_at)})` : ''}
+                </Alert>
+              ) : null}
+
+              {waiveAllOpen ? (
+                <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-xs font-semibold text-amber-800">
+                    Waive all pending SOP requirements for this booking?
+                  </p>
+                  <textarea
+                    value={waiveAllReason}
+                    onChange={(event) => setWaiveAllReason(event.target.value)}
+                    placeholder="Reason (required, recorded in the audit log) — e.g. customer declined photos"
+                    maxLength={2000}
+                    className="input-field min-h-[60px] w-full resize-y text-sm"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={sopBusyId !== null || waiveAllReason.trim().length < 3}
+                      onClick={() => void waiveAllSops()}
+                    >
+                      {sopBusyId === 'waive-all' ? 'Waiving…' : 'Waive all SOPs'}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              {sopActionError ? <Alert variant="error" className="!text-xs">{sopActionError}</Alert> : null}
+
+              <div className="space-y-2">
+                {sopChecklist.submissions.map((submission) => {
+                  const meta = SOP_STATUS_META[submission.status] ?? SOP_STATUS_META.pending;
+
+                  return (
+                    <div key={submission.id} className="rounded-lg border border-neutral-200 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-neutral-900">
+                            {submission.title_snapshot}
+                            {submission.mandatory_snapshot ? (
+                              <span className="ml-1.5 rounded bg-coral/10 px-1.5 py-0.5 text-[10px] font-bold text-coral">
+                                Mandatory
+                              </span>
+                            ) : (
+                              <span className="ml-1.5 rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-bold text-neutral-500">
+                                Optional
+                              </span>
+                            )}
+                            <span className="ml-1.5 text-[10px] text-neutral-400">v{submission.sop_version}</span>
+                          </p>
+                          {submission.instructions_snapshot ? (
+                            <p className="mt-0.5 text-xs text-neutral-500">{submission.instructions_snapshot}</p>
+                          ) : null}
+                          {submission.status === 'rejected' && submission.review_note ? (
+                            <p className="mt-1 text-[11px] text-red-700">Rejected — {submission.review_note}</p>
+                          ) : null}
+                          {submission.status === 'waived' && submission.waive_reason ? (
+                            <p className="mt-1 text-[11px] text-neutral-500">Waived — {submission.waive_reason}</p>
+                          ) : null}
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${meta.className}`}>
+                          {meta.label}
+                        </span>
+                      </div>
+
+                      {submission.photos.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {submission.photos.map((photo) =>
+                            photo.signed_url ? (
+                              <a key={photo.id} href={photo.signed_url} target="_blank" rel="noopener noreferrer">
+                                <Image
+                                  src={photo.signed_url}
+                                  alt={`${submission.title_snapshot} evidence`}
+                                  width={64}
+                                  height={64}
+                                  unoptimized
+                                  className="h-16 w-16 rounded-lg border border-neutral-200 object-cover transition hover:opacity-80"
+                                />
+                              </a>
+                            ) : null,
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-[11px] text-neutral-400">No photos submitted.</p>
+                      )}
+
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {submission.status === 'submitted' ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={sopBusyId !== null}
+                            onClick={() => void submitSopAction(submission.id, 'approve')}
+                          >
+                            {sopBusyId === submission.id ? 'Working…' : 'Approve'}
+                          </Button>
+                        ) : null}
+                        {submission.status === 'submitted' || submission.status === 'approved' ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={sopBusyId !== null}
+                            onClick={() => {
+                              setSopAction({ submissionId: submission.id, action: 'reject' });
+                              setSopActionInput('');
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        ) : null}
+                        {submission.status !== 'waived' ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            disabled={sopBusyId !== null}
+                            onClick={() => {
+                              setSopAction({ submissionId: submission.id, action: 'waive' });
+                              setSopActionInput('');
+                            }}
+                          >
+                            Waive
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      {sopAction?.submissionId === submission.id ? (
+                        <div className="mt-2 space-y-2 rounded-lg border border-neutral-200 bg-neutral-50 p-2">
+                          <p className="text-[11px] font-semibold text-neutral-600">
+                            {sopAction.action === 'reject'
+                              ? 'Rejection note (required — the provider sees it and can resubmit):'
+                              : 'Waive reason (required for the audit trail):'}
+                          </p>
+                          <textarea
+                            value={sopActionInput}
+                            onChange={(event) => setSopActionInput(event.target.value)}
+                            maxLength={2000}
+                            className="input-field min-h-[56px] w-full resize-y text-xs"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" variant="secondary" onClick={() => setSopAction(null)}>
+                              Cancel
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={sopAction.action === 'reject' ? 'danger' : 'primary'}
+                              disabled={sopBusyId !== null || sopActionInput.trim().length < 3}
+                              onClick={() => {
+                                if (sopAction.action === 'reject') {
+                                  void submitSopAction(submission.id, 'reject', { note: sopActionInput.trim() });
+                                } else {
+                                  void submitSopAction(submission.id, 'waive', { reason: sopActionInput.trim() });
+                                }
+                              }}
+                            >
+                              {sopBusyId === submission.id
+                                ? 'Working…'
+                                : sopAction.action === 'reject'
+                                  ? 'Reject SOP'
+                                  : 'Waive SOP'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}

@@ -9,6 +9,8 @@ import {
   resolveAvailableSlotsMultiDay,
 } from './engines/slotEngine';
 import { assertBookingStateTransition } from './state-transition-guard';
+import { assertBookingSopRequirementsSatisfied } from './sop-assignments';
+
 import { reserveCreditForBooking, consumeOrRestoreCreditForBookingTransition } from '@/lib/subscriptions/creditTracking';
 import { createServiceInvoice } from '@/lib/payments/invoiceService';
 import { buildServiceInvoiceLineItemsForBooking } from '@/lib/payments/serviceInvoiceItems';
@@ -1033,6 +1035,14 @@ async function applyBookingStatusTransition(
   const isAdminTransitionOverride = input.actorRole === 'admin' || input.actorRole === 'staff';
   if (!isAdminTransitionOverride) {
     assertBookingStateTransition(currentStatus, input.nextStatus);
+  }
+
+  // SOP completion gate — providers must fulfil mandatory SOPs before completing
+  // a booking. Admin/staff transitions intentionally bypass this (isAdminTransitionOverride
+  // above) so operations can always manage bookings; bypasses are recorded by the
+  // admin status routes via the booking-level SOP waiver columns.
+  if (input.nextStatus === 'completed' && input.actorRole === 'provider') {
+    await assertBookingSopRequirementsSatisfied(supabase, bookingId);
   }
 
   const updatePayload: {

@@ -19,6 +19,11 @@ import { notifyBookingStatusChanged } from '@/lib/notifications/service';
 import { restoreCredits } from '@/lib/credits/wallet';
 import { processReferrerRewardOnFirstBooking } from '@/lib/referrals/service';
 import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
+import {
+  getUnfulfilledMandatorySopSubmissions,
+  isBookingSopEnforcementWaived,
+} from '@/lib/bookings/sop-assignments';
+import { logAdminAction } from '@/lib/admin/audit';
 
 const RATE_LIMIT = {
   windowMs: 60_000,
@@ -181,6 +186,52 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
             { error: 'Pending payable amount must be collected or paid online before completing this booking.' },
             { status: 400 },
           );
+        }
+
+        // SOP bypass control: admins may always complete a booking, but when
+        // mandatory SOPs are unfulfilled they must supply a reason. The waiver
+        // is stamped on the booking and audited before the transition runs.
+        const [missingSops, sopAlreadyWaived] = await Promise.all([
+          getUnfulfilledMandatorySopSubmissions(writeSupabase, bookingId),
+          isBookingSopEnforcementWaived(writeSupabase, bookingId),
+        ]);
+
+        if (missingSops.length > 0 && !sopAlreadyWaived) {
+          const bypassReason = parsed.data.sopBypassReason?.trim();
+
+          if (!bypassReason) {
+            return NextResponse.json(
+              {
+                error: 'This booking has unfulfilled mandatory SOPs. Provide a bypass reason to complete it anyway.',
+                missingSops,
+              },
+              { status: 400 },
+            );
+          }
+
+          const { error: waiverError } = await writeSupabase
+            .from('bookings')
+            .update({
+              sop_completion_waived: true,
+              sop_waiver_reason: bypassReason,
+              sop_waived_by: user.id,
+              sop_waived_at: new Date().toISOString(),
+            })
+            .eq('id', bookingId);
+
+          if (waiverError && waiverError.code !== '42703') {
+            throw waiverError;
+          }
+
+          void logAdminAction({
+            adminUserId: user.id,
+            action: 'booking.sop_bypass',
+            entityType: 'booking',
+            entityId: String(bookingId),
+            newValue: { sop_completion_waived: true },
+            metadata: { reason: bypassReason, missingSops, source: 'api/bookings/[id]/status' },
+            request,
+          });
         }
       }
 
