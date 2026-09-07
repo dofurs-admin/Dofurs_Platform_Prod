@@ -128,6 +128,14 @@ function mapKnownMessageToStatus(message: string) {
     };
   }
 
+  // SOP enforcement errors
+  if (normalized.includes('sop_requirements_pending')) {
+    return {
+      status: 400,
+      message: 'Required service SOPs are still pending. Complete them before marking this booking complete.',
+    };
+  }
+
   // Authorization errors
   if (normalized.includes('forbidden') || normalized.includes('role_transition_forbidden')) {
     return { status: 403, message: 'You do not have permission to perform this action.' };

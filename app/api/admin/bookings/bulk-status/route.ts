@@ -10,6 +10,10 @@ import { notifyBookingStatusChanged } from '@/lib/notifications/service';
 import { restoreCredits } from '@/lib/credits/wallet';
 import { processReferrerRewardOnFirstBooking } from '@/lib/referrals/service';
 import { getBookingOutstandingSummary } from '@/lib/payments/bookingPayable';
+import {
+  getUnfulfilledMandatorySopSubmissions,
+  isBookingSopEnforcementWaived,
+} from '@/lib/bookings/sop-assignments';
 import type { BookingStatus } from '@/lib/bookings/types';
 
 const payloadSchema = z.object({
@@ -68,6 +72,42 @@ export async function PATCH(request: Request) {
 
         if (payableSummary.outstandingInr > 0) {
           throw new Error('Pending payable amount must be collected or paid online before completing this booking.');
+        }
+
+        // Admins may always complete bookings in bulk. When mandatory SOPs are
+        // unfulfilled, the bypass is recorded as a booking-level waiver + audit
+        // entry so the completion history stays reviewable.
+        const [missingSops, sopAlreadyWaived] = await Promise.all([
+          getUnfulfilledMandatorySopSubmissions(writeSupabase, bookingId),
+          isBookingSopEnforcementWaived(writeSupabase, bookingId),
+        ]);
+
+        if (missingSops.length > 0 && !sopAlreadyWaived) {
+          const bypassReason = 'Bulk completion by admin — SOP requirements bypassed';
+
+          const { error: waiverError } = await writeSupabase
+            .from('bookings')
+            .update({
+              sop_completion_waived: true,
+              sop_waiver_reason: bypassReason,
+              sop_waived_by: user.id,
+              sop_waived_at: new Date().toISOString(),
+            })
+            .eq('id', bookingId);
+
+          if (waiverError && waiverError.code !== '42703') {
+            throw waiverError;
+          }
+
+          void logAdminAction({
+            adminUserId: user.id,
+            action: 'booking.sop_bypass',
+            entityType: 'booking',
+            entityId: String(bookingId),
+            newValue: { sop_completion_waived: true },
+            metadata: { reason: bypassReason, missingSops, source: 'bulk-status' },
+            request,
+          });
         }
       }
 

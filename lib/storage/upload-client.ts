@@ -3,7 +3,13 @@
 import { compressImageBeforeUpload } from './image-compression';
 import { getSupabaseBrowserClient } from '@/lib/supabase/browser-client';
 
-type BucketName = 'user-photos' | 'pet-photos' | 'service-images' | 'blog-images';
+type BucketName = 'user-photos' | 'pet-photos' | 'service-images' | 'blog-images' | 'sop-photos';
+
+/** Optional folder context for SOP evidence uploads (booking + submission ids). */
+export type SopPhotoUploadContext = {
+  bookingId?: number;
+  sopSubmissionId?: string;
+};
 
 function formatUploadError(raw: unknown) {
   const fallback = 'Image upload failed. Please try again.';
@@ -30,7 +36,7 @@ function formatUploadError(raw: unknown) {
   return message;
 }
 
-export async function uploadCompressedImage(file: File, bucket: BucketName) {
+export async function uploadCompressedImage(file: File, bucket: BucketName, context?: SopPhotoUploadContext) {
   try {
     if (!file) {
       throw new Error('No file selected for upload.');
@@ -61,7 +67,12 @@ export async function uploadCompressedImage(file: File, bucket: BucketName) {
       method: 'POST',
       credentials: 'include',
       headers: requestHeaders,
-      body: JSON.stringify({ bucket, fileName: compressed.name }),
+      body: JSON.stringify({
+        bucket,
+        fileName: compressed.name,
+        contextBookingId: context?.bookingId,
+        contextSopSubmissionId: context?.sopSubmissionId,
+      }),
     });
 
     if (!signedUploadResponse.ok) {

@@ -6,6 +6,13 @@ import {
   ensureProviderCompletionTasks,
   getCompletionTaskMapForBookings,
 } from '@/lib/bookings/completion-tasks';
+import {
+  ensureBookingSopSubmissions,
+  getBookingSopPhotoCountsForSubmissions,
+  getBookingSopSubmissionsForBookings,
+  summarizeBookingSopState,
+  toBookingSopSummaryItem,
+} from '@/lib/bookings/sop-assignments';
 import { toFriendlyApiError } from '@/lib/api/errors';
 import { logSecurityEvent } from '@/lib/monitoring/security-log';
 import { getProviderIdByUserId } from '@/lib/provider-management/api';
@@ -166,8 +173,24 @@ export async function GET(request: Request) {
       bookings.map((booking) => booking.id),
     );
 
+    // SOP checklist enrichment: lazily assigns active SOPs (idempotent) and
+    // attaches compact summaries the provider dashboard can render inline.
+    await ensureBookingSopSubmissions(
+      supabase,
+      bookings.map((booking) => booking.id),
+    );
+    const sopSubmissionMap = await getBookingSopSubmissionsForBookings(
+      supabase,
+      bookings.map((booking) => booking.id),
+    );
+    const sopSubmissionIds = Array.from(sopSubmissionMap.values()).flatMap((rows) => rows.map((row) => row.id));
+    const sopPhotoCountBySubmissionId = await getBookingSopPhotoCountsForSubmissions(supabase, sopSubmissionIds);
+
     const bookingsWithTasks = bookings.map((booking) => {
       const task = taskMap.get(booking.id);
+      const sopItems = (sopSubmissionMap.get(booking.id) ?? []).map((row) =>
+        toBookingSopSummaryItem(row, sopPhotoCountBySubmissionId.get(row.id) ?? 0),
+      );
 
       return {
         ...booking,
@@ -176,6 +199,8 @@ export async function GET(request: Request) {
         completion_completed_at: task?.completed_at ?? null,
         completion_feedback_text: task?.feedback_text ?? null,
         requires_completion_feedback: booking.booking_status === 'confirmed' && task?.task_status === 'pending',
+        sop_submissions: sopItems,
+        sop_state: summarizeBookingSopState(sopItems),
       };
     });
 

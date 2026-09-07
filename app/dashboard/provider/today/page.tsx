@@ -10,6 +10,12 @@ import {
   extractProviderServiceIdsFromNotes,
   resolveIncludedServicesForBooking,
 } from '@/lib/bookings/included-services';
+import {
+  ensureBookingSopSubmissions,
+  getBookingSopPhotoCountsForSubmissions,
+  getBookingSopSubmissionsForBookings,
+  toBookingSopSummaryItem,
+} from '@/lib/bookings/sop-assignments';
 
 function normalizeStoragePathCandidate(
   value: string | null | undefined,
@@ -98,6 +104,19 @@ export default async function ProviderTodayPage() {
     .order('start_time', { ascending: true });
 
   const rawBookings = bookingsResult.data ?? [];
+
+  // SOP checklist: lazily assign active SOPs to today's bookings and load
+  // compact summaries for the complete-order flow.
+  await ensureBookingSopSubmissions(
+    supabase,
+    rawBookings.map((row) => row.id),
+  );
+  const sopSubmissionMap = await getBookingSopSubmissionsForBookings(
+    supabase,
+    rawBookings.map((row) => row.id),
+  );
+  const sopSubmissionIds = Array.from(sopSubmissionMap.values()).flatMap((rows) => rows.map((row) => row.id));
+  const sopPhotoCountBySubmissionId = await getBookingSopPhotoCountsForSubmissions(supabase, sopSubmissionIds);
   const userIds = Array.from(new Set(rawBookings.map((row) => row.user_id).filter(Boolean)));
   const petIdsByBookingId = new Map<number, number[]>();
   const petIds = new Set<number>();
@@ -251,6 +270,9 @@ export default async function ProviderTodayPage() {
       owner_name: ownerNameFromProfile || owner?.name || null,
       owner_phone: owner?.phone ?? null,
       owner_photo_url: ownerPhotoPath ? ownerSignedUrlByPath.get(ownerPhotoPath) ?? ownerPhotoRaw : ownerPhotoRaw,
+      sop_submissions: (sopSubmissionMap.get(row.id) ?? []).map((sopRow) =>
+        toBookingSopSummaryItem(sopRow, sopPhotoCountBySubmissionId.get(sopRow.id) ?? 0),
+      ),
     };
   });
 

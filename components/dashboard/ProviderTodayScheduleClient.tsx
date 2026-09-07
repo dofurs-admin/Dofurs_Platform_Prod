@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { normalizeDisplayImageUrl } from '@/components/dashboard/user/petUtils';
+import { uploadCompressedImage } from '@/lib/storage/upload-client';
 import {
   buildIncludedServicesLabel,
   resolveIncludedServicesForBooking,
@@ -13,6 +14,20 @@ import {
   BOOKING_CHIP_CLASS,
   BOOKING_PET_AVATAR_CLASS,
 } from '@/components/dashboard/provider/bookingCardTokens';
+
+export type TodayBookingSopSubmission = {
+  id: string;
+  title: string;
+  instructions: string | null;
+  requires_photo: boolean;
+  min_photo_count: number;
+  max_photo_count: number;
+  mandatory: boolean;
+  status: 'pending' | 'submitted' | 'approved' | 'rejected' | 'waived';
+  photo_count: number;
+  submitted_at: string | null;
+  review_note: string | null;
+};
 
 export type TodayBooking = {
   id: number;
@@ -38,6 +53,7 @@ export type TodayBooking = {
   owner_name: string | null;
   owner_phone: string | null;
   owner_photo_url?: string | null;
+  sop_submissions?: TodayBookingSopSubmission[];
 };
 
 type Props = {
@@ -73,33 +89,246 @@ function formatTime(timeStr: string) {
   return parsed.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-// ─── Feedback Modal ───────────────────────────────────────────────────────────
-function CompletionFeedbackModal({
+// ─── Complete Order Modal (SOP checklist + feedback) ──────────────────────────
+
+type SopChecklistPhoto = {
+  id: string;
+  storage_path: string;
+  signed_url: string | null;
+  created_at: string;
+};
+
+type SopChecklistSubmission = TodayBookingSopSubmission & {
+  photos: SopChecklistPhoto[];
+};
+
+type SopChecklistDetail = {
+  bookingId: number;
+  sop_completion_waived: boolean;
+  submissions: SopChecklistSubmission[];
+};
+
+const SOP_FULFILLED_STATUSES = new Set(['submitted', 'approved', 'waived']);
+
+const SOP_STATUS_CHIP: Record<string, { label: string; className: string }> = {
+  pending: { label: 'Pending', className: 'bg-amber-100 text-amber-800' },
+  submitted: { label: 'Submitted', className: 'bg-blue-100 text-blue-800' },
+  approved: { label: 'Approved', className: 'bg-green-100 text-green-800' },
+  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-700' },
+  waived: { label: 'Waived', className: 'bg-neutral-100 text-neutral-600' },
+};
+
+function CompleteOrderModal({
+  bookingId,
   onConfirm,
   onCancel,
   isLoading,
 }: {
+  bookingId: number;
   onConfirm: (feedback: string) => void;
   onCancel: () => void;
   isLoading: boolean;
 }) {
-  const [text, setText] = useState('');
+  const [detail, setDetail] = useState<SopChecklistDetail | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState('');
+  const [busySubmissionId, setBusySubmissionId] = useState<string | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  const refreshChecklist = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/provider/bookings/${bookingId}/sops`, { cache: 'no-store' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error ?? 'Unable to load the SOP checklist.');
+      }
+      setDetail((await res.json()) as SopChecklistDetail);
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : 'Unable to load the SOP checklist.');
+    }
+  }, [bookingId]);
+
+  useEffect(() => {
+    void refreshChecklist();
+  }, [refreshChecklist]);
+
+  const submissions = detail?.submissions ?? [];
+  const pendingMandatory = submissions.filter(
+    (submission) => submission.mandatory && !SOP_FULFILLED_STATUSES.has(submission.status),
+  );
+  const allMandatoryDone = detail ? pendingMandatory.length === 0 : false;
+  const fulfilledCount = submissions.filter((submission) => SOP_FULFILLED_STATUSES.has(submission.status)).length;
+
+  const submitSop = useCallback(
+    async (submission: SopChecklistSubmission, files: File[] | null) => {
+      setBusySubmissionId(submission.id);
+      setSubmissionError(null);
+      try {
+        const photoPaths: string[] = [];
+        for (const file of files ?? []) {
+          const uploaded = await uploadCompressedImage(file, 'sop-photos', {
+            bookingId,
+            sopSubmissionId: submission.id,
+          });
+          photoPaths.push(uploaded.path);
+        }
+
+        const res = await fetch(`/api/provider/bookings/${bookingId}/sops/${submission.id}/photos`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ photoPaths }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error((data as { error?: string }).error ?? 'Unable to submit this SOP.');
+        }
+
+        await refreshChecklist();
+      } catch (error) {
+        setSubmissionError(error instanceof Error ? error.message : 'Unable to submit this SOP.');
+      } finally {
+        setBusySubmissionId(null);
+      }
+    },
+    [bookingId, refreshChecklist],
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center">
-      <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl">
-        <h3 className="mb-1 text-base font-bold text-neutral-950">Complete Booking</h3>
-        <p className="mb-4 text-sm text-neutral-600">
-          Add a brief note about the session before marking it complete.
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl">
+        <h3 className="mb-1 text-base font-bold text-neutral-950">Complete Order</h3>
+        <p className="mb-3 text-sm text-neutral-600">
+          {detail
+            ? `SOPs completed: ${fulfilledCount}/${submissions.length}${pendingMandatory.length > 0 ? ` · ${pendingMandatory.length} required pending` : ''}`
+            : 'Loading the SOP checklist…'}
         </p>
+
+        {loadError && (
+          <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {loadError}
+          </div>
+        )}
+        {submissionError && (
+          <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+            {submissionError}
+          </div>
+        )}
+
+        <div className="mb-4 space-y-3">
+          {submissions.map((submission) => {
+            const chip = SOP_STATUS_CHIP[submission.status] ?? SOP_STATUS_CHIP.pending;
+            const canSubmit = submission.status === 'pending' || submission.status === 'rejected';
+
+            return (
+              <div key={submission.id} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
+                <div className="mb-1 flex items-start justify-between gap-2">
+                  <p className="text-sm font-semibold text-neutral-900">
+                    {submission.title}
+                    {submission.mandatory ? (
+                      <span className="ml-1.5 rounded bg-coral/10 px-1.5 py-0.5 text-[10px] font-bold text-coral">
+                        Required
+                      </span>
+                    ) : (
+                      <span className="ml-1.5 rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-bold text-neutral-500">
+                        Optional
+                      </span>
+                    )}
+                  </p>
+                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${chip.className}`}>
+                    {chip.label}
+                  </span>
+                </div>
+                {submission.instructions && (
+                  <p className="mb-2 text-xs leading-4 text-neutral-600">{submission.instructions}</p>
+                )}
+                {submission.status === 'rejected' && submission.review_note && (
+                  <p className="mb-2 rounded-lg bg-red-50 px-2 py-1 text-[11px] text-red-700">
+                    Operations note: {submission.review_note}
+                  </p>
+                )}
+
+                {submission.photos.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {submission.photos.map((photo) =>
+                      photo.signed_url ? (
+                        <Image
+                          key={photo.id}
+                          src={photo.signed_url}
+                          alt={`${submission.title} evidence`}
+                          width={56}
+                          height={56}
+                          unoptimized
+                          className="h-14 w-14 rounded-lg object-cover"
+                        />
+                      ) : null,
+                    )}
+                  </div>
+                )}
+
+                {canSubmit && (
+                  <div className="flex flex-wrap gap-2">
+                    {submission.requires_photo && (
+                      <label
+                        className={`inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#3a9c65] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2e8054] ${
+                          busySubmissionId === null ? '' : 'opacity-50'
+                        }`}
+                      >
+                        {busySubmissionId === submission.id
+                          ? 'Uploading…'
+                          : `📷 Add Photo${submission.min_photo_count > 1 ? ` (${submission.min_photo_count}+)` : ''}`}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          disabled={busySubmissionId !== null}
+                          onChange={(event) => {
+                            const files = Array.from(event.target.files ?? []);
+                            event.target.value = '';
+                            void submitSop(submission, files);
+                          }}
+                        />
+                      </label>
+                    )}
+                    {!submission.requires_photo && (
+                      <button
+                        type="button"
+                        disabled={busySubmissionId !== null}
+                        onClick={() => void submitSop(submission, null)}
+                        className="rounded-xl bg-[#3a9c65] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#2e8054] disabled:opacity-50"
+                      >
+                        {busySubmissionId === submission.id ? 'Saving…' : '✓ Mark Done'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {detail && submissions.length === 0 && (
+            <p className="rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs text-neutral-500">
+              No SOPs assigned to this booking.
+            </p>
+          )}
+        </div>
+
         <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
           placeholder="e.g. Full bath, nail trim done. Pet was calm and cooperative."
-          className="h-28 w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-coral/30"
+          className="h-24 w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-coral/30"
           maxLength={2000}
         />
-        <p className="mb-4 text-right text-[10px] text-neutral-400">{text.length}/2000</p>
+        <p className="mb-3 text-right text-[10px] text-neutral-400">{feedback.length}/2000</p>
+
+        {!allMandatoryDone && detail && (
+          <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+            Complete the required SOPs above to finish this order.
+          </p>
+        )}
+
         <div className="flex gap-3">
           <button
             type="button"
@@ -111,8 +340,8 @@ function CompletionFeedbackModal({
           </button>
           <button
             type="button"
-            onClick={() => onConfirm(text.trim())}
-            disabled={isLoading || text.trim().length < 5}
+            onClick={() => onConfirm(feedback.trim())}
+            disabled={isLoading || !detail || !allMandatoryDone || feedback.trim().length < 5}
             className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-40"
           >
             {isLoading ? 'Saving…' : 'Mark Complete'}
@@ -307,6 +536,12 @@ function BookingCard({
             >
               {statusCfg.label}
             </span>
+            {booking.sop_submissions && booking.sop_submissions.length > 0 && isActionable && (
+              <span className="shrink-0 rounded-full border border-[#e7c4a7] bg-[#fff8f0] px-2 py-0.5 text-[10px] font-semibold text-[#b25f27]">
+                SOPs {booking.sop_submissions.filter((sop) => SOP_FULFILLED_STATUSES.has(sop.status)).length}/
+                {booking.sop_submissions.length}
+              </span>
+            )}
           </div>
 
           <div className="mb-3 flex flex-wrap gap-2">
@@ -449,7 +684,8 @@ function BookingCard({
       </div>
 
       {showCompleteModal && (
-        <CompletionFeedbackModal
+        <CompleteOrderModal
+          bookingId={booking.id}
           onConfirm={handleComplete}
           onCancel={() => setShowCompleteModal(false)}
           isLoading={actionLoading === 'complete'}

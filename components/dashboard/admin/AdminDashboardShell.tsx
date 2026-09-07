@@ -30,6 +30,7 @@ export type AdminDashboardView =
   | 'users'
   | 'providers'
   | 'services'
+  | 'sops'
   | 'gaze'
   | 'blog'
   | 'access'
@@ -159,6 +160,11 @@ const ServicesTab = dynamic(
   { loading: () => <TabSkeleton />, ssr: false },
 );
 
+const SopManager = dynamic(
+  () => import('@/components/dashboard/admin/tabs/SopsTab'),
+  { loading: () => <TabSkeleton />, ssr: false },
+);
+
 const GazeTab = dynamic(
   () => import('@/components/dashboard/admin/tabs/GazeTab'),
   { loading: () => <TabSkeleton />, ssr: false },
@@ -240,6 +246,10 @@ const viewCopy: Record<AdminDashboardView, { title: string; description: string 
   services: {
     title: 'Service Catalog',
     description: 'Maintain service types, catalog templates, add-ons, discounts, and provider-facing rollout controls.',
+  },
+  sops: {
+    title: 'Provider SOP Checklists',
+    description: 'Define the standard operating procedures providers must complete — with photo evidence — to finish orders.',
   },
   gaze: {
     title: 'Gaze — Geographic Operations',
@@ -406,6 +416,10 @@ export default function AdminDashboardShell({
             moderationProviders={moderationProviders}
             openConfirm={openConfirm}
           />
+        )}
+
+        {view === 'sops' && (
+          <SopManager openConfirm={openConfirm} />
         )}
 
         {view === 'gaze' && (
