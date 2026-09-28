@@ -21,6 +21,15 @@ interface ModalProps {
   autoFocusInteractive?: boolean;
 }
 
+/**
+ * Ref-counted body scroll lock. Multiple modals can be open at once (for
+ * example the CRM lead-detail modal with a nested lost/convert form on top);
+ * each open modal holds one lock and the body only unlocks when the last one
+ * closes. Without this, closing the nested modal restored `overflow` while the
+ * parent modal was still open, letting the page behind scroll on mobile.
+ */
+let activeModalLockCount = 0;
+
 export default function Modal({
   isOpen,
   onClose,
@@ -67,14 +76,29 @@ export default function Modal({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'hidden';
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      document.body.style.overflow = 'unset';
     };
   }, [isOpen, onClose]);
+
+  // Lock body scroll only while at least one modal is open (ref-counted).
+  useEffect(() => {
+    if (!isOpen) return;
+
+    activeModalLockCount += 1;
+    if (activeModalLockCount === 1) {
+      document.body.style.overflow = 'hidden';
+    }
+
+    return () => {
+      activeModalLockCount = Math.max(0, activeModalLockCount - 1);
+      if (activeModalLockCount === 0) {
+        document.body.style.overflow = '';
+      }
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -95,10 +119,10 @@ export default function Modal({
       />
 
       {/* Modal */}
-      <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 pointer-events-none sm:items-center">
+      <div className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto overscroll-contain p-4 pointer-events-none sm:items-center">
         <div
           className={cn(
-            'card card-padding relative w-full max-h-[calc(100dvh-2rem)] overflow-y-auto animate-scale-in pointer-events-auto border border-neutral-200/70 shadow-2xl shadow-black/20',
+            'card card-padding relative w-full max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain animate-scale-in pointer-events-auto border border-neutral-200/70 shadow-2xl shadow-black/20',
             sizes[size]
           )}
           role="dialog"

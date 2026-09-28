@@ -1399,7 +1399,7 @@ export default function CrmTab() {
         ) : null}
         {campaignRows.length > 0 ? (
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full min-w-[600px] text-left text-xs">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wide text-neutral-400">
                   <th className="pb-2 pr-3 font-semibold">Campaign</th>
@@ -1574,8 +1574,8 @@ export default function CrmTab() {
       </div>
 
       {/* Leads table */}
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-        <table className="w-full text-left text-sm">
+      <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="border-b border-neutral-100 bg-neutral-50/60">
             <tr className="text-[11px] uppercase tracking-wide text-neutral-500">
               <th className="w-10 px-4 py-3">
@@ -1832,6 +1832,7 @@ export default function CrmTab() {
         title="Lead detail"
         description="Lead information, activity history, and next actions."
         size="lg"
+        autoFocusInteractive={false}
       >
         {isLeadDetailLoading || !leadDetail ? (
           <div className="py-10 text-center text-sm text-neutral-500">Loading lead…</div>
@@ -2294,6 +2295,7 @@ export default function CrmTab() {
         title="Customer 360"
         description="Pets, leads, bookings, payments, and grooming cadence in one view."
         size="lg"
+        autoFocusInteractive={false}
       >
         {isCustomer360Loading || !customer360Data ? (
           <div className="py-10 text-center text-sm text-neutral-500">Loading customer…</div>

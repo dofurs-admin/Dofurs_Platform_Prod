@@ -492,7 +492,6 @@ export default function AdminProvidersView({
   };
   const [providerMetrics, setProviderMetrics] = useState<Map<number, ProviderMetrics>>(new Map());
   const serviceRolloutEditorRefs = useRef<Record<number, HTMLDivElement | null>>({});
-  const [recentlyEditedServiceByProvider, setRecentlyEditedServiceByProvider] = useState<Record<number, string>>({});
   const [expandedProviderAdminSections, setExpandedProviderAdminSections] = useState<Record<ProviderAdminSectionId, boolean>>(
     () => defaultExpandedProviderAdminSections,
   );
@@ -538,10 +537,6 @@ export default function AdminProvidersView({
 
   const handleEditServiceRollout = (providerId: number, service: AdminProviderService) => {
     copyServiceIntoDraft(providerId, service.id);
-    setRecentlyEditedServiceByProvider((previous) => ({
-      ...previous,
-      [providerId]: service.service_type,
-    }));
 
     window.requestAnimationFrame(() => {
       const rolloutEditor = serviceRolloutEditorRefs.current[providerId];
@@ -1288,6 +1283,9 @@ export default function AdminProvidersView({
               const serviceDraftRow = serviceDraft[provider.id] ?? getDefaultServiceRolloutDraft();
               const providerAvailabilityRows = availabilityByProvider[provider.id] ?? [];
               const providerServicesRows = servicesByProvider[provider.id] ?? [];
+              const editingServiceRow = serviceDraftRow.id
+                ? providerServicesRows.find((s) => s.id === serviceDraftRow.id) ?? null
+                : null;
               const isProviderExpanded = expandedProviderIds.includes(provider.id);
               const isProviderDetailsLoading = providerDetailsLoadingById[provider.id] ?? false;
               const isProviderDetailsLoaded = providerDetailsLoadedById[provider.id] ?? false;
@@ -2105,9 +2103,10 @@ export default function AdminProvidersView({
                       className="mt-4 rounded-lg bg-neutral-100/70 p-3"
                     >
                       <p className="text-xs font-semibold text-neutral-900">Add / Update Service Rollout</p>
-                      {recentlyEditedServiceByProvider[provider.id] ? (
+                      {editingServiceRow ? (
                         <p className="mt-1 text-[11px] font-medium text-green-700" role="status" aria-live="polite">
-                          Editing {recentlyEditedServiceByProvider[provider.id]} rollout below.
+                          Editing {editingServiceRow.service_type} rollout below. Only this service will be updated; other
+                          linked services stay unchanged.
                         </p>
                       ) : null}
                       <div className="mt-3 space-y-2">
@@ -2231,7 +2230,11 @@ export default function AdminProvidersView({
                         }
                       />
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs text-neutral-600">Applies selected rollout fields and unlinks unchecked existing services.</p>
+                        <p className="text-xs text-neutral-600">
+                          {editingServiceRow
+                            ? 'Applies the fields above to this service only; all other linked services stay unchanged.'
+                            : 'Applies selected rollout fields and unlinks unchecked existing services.'}
+                        </p>
                         <Button
                           type="button"
                           onClick={() => submitServiceRollout(provider.id, providerServiceTypeOptions, providerServicesRows)}
@@ -2239,7 +2242,7 @@ export default function AdminProvidersView({
                           variant="secondary"
                           size="sm"
                         >
-                          Apply Selected Services
+                          {editingServiceRow ? 'Save Service Changes' : 'Apply Selected Services'}
                         </Button>
                       </div>
                     </div>

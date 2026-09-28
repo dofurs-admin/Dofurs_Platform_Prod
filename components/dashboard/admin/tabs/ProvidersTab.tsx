@@ -828,8 +828,17 @@ export default function ProvidersTab({
     setServiceDraftField(providerId, 'service_pincodes', BENGALURU_CITY_COVERAGE_PINCODE_CSV);
   }
 
+  function clearServiceRolloutEditMarker(providerId: number) {
+    setServiceDraft((c) => {
+      const current = c[providerId];
+      if (!current?.id) return c;
+      return { ...c, [providerId]: { ...current, id: undefined } };
+    });
+  }
+
   function copyServiceIntoDraft(providerId: number, serviceId: string) {
-    const service = (servicesByProvider[providerId] ?? []).find((s) => s.id === serviceId);
+    const providerServicesRows = servicesByProvider[providerId] ?? [];
+    const service = providerServicesRows.find((s) => s.id === serviceId);
     if (!service) return;
     setServiceDraft((c) => ({
       ...c,
@@ -843,10 +852,15 @@ export default function ProvidersTab({
       },
     }));
 
-    setSelectedServiceTypesByProvider((c) => ({
-      ...c,
-      [providerId]: [service.service_type],
-    }));
+    // Editing one service must never drop the provider's other linked services:
+    // keep the current selection (defaults to every linked service) and only
+    // make sure the edited service itself is selected.
+    setSelectedServiceTypesByProvider((c) => {
+      const currentSelection = c[providerId] ?? providerServicesRows.map((s) => s.service_type);
+      const merged = new Set(currentSelection.map((v) => v.trim()).filter((v) => v.length > 0));
+      merged.add(service.service_type.trim());
+      return { ...c, [providerId]: Array.from(merged) };
+    });
   }
 
   function toggleProviderServiceSelection(
@@ -856,12 +870,17 @@ export default function ProvidersTab({
     providerServiceTypeOptions: string[],
     providerServicesRows: AdminProviderService[],
   ) {
+    const fallback = providerServicesRows.map((s) => s.service_type);
+    const current = selectedServiceTypesByProvider[providerId] ?? fallback;
+    const svcType = serviceType.trim();
+    if (!svcType) return;
+    if (isChecked === current.some((value) => value.trim() === svcType)) return;
+    // Manual checkbox changes leave single-service edit mode and return to the
+    // bulk sync behavior (which unlinks unchecked existing services).
+    clearServiceRolloutEditMarker(providerId);
     setSelectedServiceTypesByProvider((c) => {
-      const fallback = providerServicesRows.map((s) => s.service_type);
-      const current = c[providerId] ?? fallback;
-      const normalized = new Set(current.map((v) => v.trim()).filter((v) => v.length > 0));
-      const svcType = serviceType.trim();
-      if (!svcType) return c;
+      const currentSelection = c[providerId] ?? fallback;
+      const normalized = new Set(currentSelection.map((v) => v.trim()).filter((v) => v.length > 0));
       if (isChecked) normalized.add(svcType);
       else normalized.delete(svcType);
       const next = providerServiceTypeOptions.filter((v) => normalized.has(v.trim()));
@@ -870,7 +889,13 @@ export default function ProvidersTab({
   }
 
   function setAllProviderServiceSelections(providerId: number, options: string[], isSelected: boolean) {
-    setSelectedServiceTypesByProvider((c) => ({ ...c, [providerId]: isSelected ? [...options] : [] }));
+    const next = isSelected ? [...options] : [];
+    const current = selectedServiceTypesByProvider[providerId];
+    if (current !== undefined && next.length !== current.length) {
+      // Bulk selection changes (Select All / Clear) leave single-service edit mode.
+      clearServiceRolloutEditMarker(providerId);
+    }
+    setSelectedServiceTypesByProvider((c) => ({ ...c, [providerId]: next }));
   }
 
   function submitServiceRollout(
@@ -924,6 +949,63 @@ export default function ProvidersTab({
       ...(commission.value !== undefined ? { commission_percentage: commission.value } : {}),
       ...(serviceDuration.value !== undefined ? { service_duration_minutes: serviceDuration.value } : {}),
     };
+
+    // Single-service edit mode (Edit button on a service row): only the edited
+    // service is updated. Every other linked service stays untouched and no
+    // services are unlinked.
+    const editingServiceId = draft.id ?? null;
+    const editingService = editingServiceId
+      ? providerServicesRows.find((s) => s.id === editingServiceId) ?? null
+      : null;
+
+    if (editingServiceId && !editingService) {
+      showToast(
+        'The service being edited is no longer linked to this provider. Refresh the provider services and try again.',
+        'error',
+      );
+      return;
+    }
+
+    if (editingService) {
+      const existingPincodes = pincodesByService[editingService.id] ?? [];
+      const rolloutPayload = [
+        {
+          id: editingService.id,
+          service_type: editingService.service_type,
+          is_active: editingService.is_active,
+          ...pricingOverrides,
+          service_pincodes: servicePincodes.length > 0 ? servicePincodes : existingPincodes,
+        },
+      ];
+
+      startTransition(async () => {
+        try {
+          const response = await adminRequest<{ services: Array<AdminProviderService & { service_pincodes?: string[] }> }>(
+            `/api/admin/providers/${providerId}/services`,
+            { method: 'PUT', body: JSON.stringify(rolloutPayload) },
+          );
+
+          setServicesByProvider((c) => ({ ...c, [providerId]: response.services }));
+          setPincodesByService((c) => {
+            const next = { ...c };
+            for (const svc of response.services) next[svc.id] = svc.service_pincodes ?? [];
+            return next;
+          });
+          // Clear the edit draft so the next Apply returns to bulk mode and the
+          // edited values are not accidentally reused for other services.
+          setServiceDraft((c) => {
+            if (!c[providerId]?.id) return c;
+            const next = { ...c };
+            delete next[providerId];
+            return next;
+          });
+          showToast(`${editingService.service_type} rollout updated. Other services were left unchanged.`, 'success');
+        } catch (error) {
+          showToast(error instanceof Error ? error.message : 'Unable to update service rollout.', 'error');
+        }
+      });
+      return;
+    }
 
     startTransition(async () => {
       try {
